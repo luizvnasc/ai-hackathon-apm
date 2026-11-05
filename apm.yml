@@ -11,7 +11,7 @@
 # (scripts/setup-mcp.sh or /setup-mcp) declares the server in the consumer's own
 # apm.yml with the right URL and auth.
 name: hackathon-metrics
-version: 0.2.0
+version: 0.3.0
 description: GitLab repository KPIs and milestone forecasts as portable agent skills (Claude Code, GitHub Copilot, OpenCode) over the GitLab MCP server
 license: MIT
 includes: auto
