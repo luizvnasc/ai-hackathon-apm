@@ -52,6 +52,10 @@ Pick one way to run it:
    ```
    `--if-missing` makes it a no-op once the server is declared, and a guard prevents it from re-triggering itself.
 
+### Existing hand-written `.mcp.json` entry
+
+APM never overwrites an MCP connection it did not create. If your `.mcp.json` already has a `gitlab` server written by hand, the wizard shows it and asks whether to replace it (non-interactive: `--replace-existing`). It keeps a timestamped backup (`.mcp.json.bak-<timestamp>`) and restores it if `apm install` fails.
+
 ### Authentication
 
 | Mode | When | How |

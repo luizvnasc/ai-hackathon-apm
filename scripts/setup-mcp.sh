@@ -17,7 +17,9 @@
 #   --name NAME          MCP server name (default: gitlab)
 #   --global             install at user scope (~/.apm) instead of this project
 #   --target LIST        force APM targets, e.g. claude or claude,vscode
-#   --if-missing         do nothing if the server is already declared in apm.yml
+#   --if-missing         do nothing if APM already manages the server
+#   --replace-existing   replace a hand-written entry with the same name in .mcp.json
+#                        (APM refuses to touch it); a timestamped backup is kept
 #   --skip-check         do not probe the GitLab MCP endpoint
 #   --dry-run            print the apm command instead of running it
 #   -y, --yes            accept defaults for every unanswered question
@@ -29,7 +31,7 @@ set -euo pipefail
 if [[ "${HACKATHON_SETUP_RUNNING:-}" == "1" ]]; then exit 0; fi
 
 GITLAB_URL_IN="" AUTH="" TOKEN_VAR="GITLAB_TOKEN" NAME="gitlab"
-GLOBAL=0 TARGET="" IF_MISSING=0 SKIP_CHECK=0 DRY_RUN=0 YES=0
+GLOBAL=0 TARGET="" IF_MISSING=0 SKIP_CHECK=0 DRY_RUN=0 YES=0 REPLACE=0
 
 usage() { sed -n '2,/^set -euo/p' "$0" | sed '$d; s/^# \{0,1\}//'; }
 
@@ -43,6 +45,7 @@ while [[ $# -gt 0 ]]; do
     --target)     TARGET="$2"; shift 2 ;;
     --if-missing) IF_MISSING=1; shift ;;
     --skip-check) SKIP_CHECK=1; shift ;;
+    --replace-existing) REPLACE=1; shift ;;
     --dry-run)    DRY_RUN=1; shift ;;
     -y|--yes)     YES=1; shift ;;
     -h|--help)    usage; exit 0 ;;
@@ -86,15 +89,52 @@ choose() { # choose VAR "Question" default opt1 opt2 ...
 # ---------- preflight ----------
 printf '\n%s\n\n' "${B}hackathon-metrics · MCP setup wizard${N}"
 
-MANIFEST="apm.yml"
-[[ $GLOBAL -eq 1 ]] && MANIFEST="${APM_HOME:-$HOME/.apm}/apm.yml"
+MANIFEST="apm.yml" LOCK="apm.lock.yaml" CLAUDE_CFG=".mcp.json"
+if [[ $GLOBAL -eq 1 ]]; then
+  MANIFEST="${APM_HOME:-$HOME/.apm}/apm.yml" LOCK="${APM_HOME:-$HOME/.apm}/apm.lock.yaml" CLAUDE_CFG=""
+fi
 
-if [[ -f "$MANIFEST" ]] && grep -Eq "^[[:space:]]*-[[:space:]]*(name:[[:space:]]*)?[\"']?${NAME}[\"']?[[:space:]]*$" "$MANIFEST"; then
+declared() { [[ -f "$MANIFEST" ]] && grep -Eq "^[[:space:]]*-[[:space:]]*(name:[[:space:]]*)?[\"']?${NAME}[\"']?[[:space:]]*$" "$MANIFEST"; }
+# APM records every MCP server it deployed as a `target: mcp` / `value: <name>` deployment.
+managed()  { [[ -f "$LOCK" ]] && grep -A1 -E '^[[:space:]]*target: mcp[[:space:]]*$' "$LOCK" | grep -Eq "^[[:space:]]*value: [\"']?${NAME}[\"']?[[:space:]]*$"; }
+
+# Hand-written entry in Claude Code's project config that APM does not own.
+mcpjson() { # mcpjson has|show|remove
+  python3 - "$1" "$CLAUDE_CFG" "$NAME" <<'PY'
+import json, sys
+op, path, name = sys.argv[1:]
+with open(path, encoding="utf-8") as f:
+    cfg = json.load(f)
+servers = cfg.get("mcpServers") or {}
+if op == "has":
+    sys.exit(0 if name in servers else 1)
+if op == "show":
+    print(json.dumps(servers.get(name), indent=2))
+if op == "remove":
+    servers.pop(name, None)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, indent=2)
+        f.write("\n")
+PY
+}
+unmanaged_conflict() {
+  [[ -n "$CLAUDE_CFG" && -f "$CLAUDE_CFG" ]] && ! managed || return 1
+  if command -v python3 >/dev/null; then mcpjson has
+  else grep -q "\"${NAME}\"[[:space:]]*:" "$CLAUDE_CFG"; fi
+}
+
+if [[ $GLOBAL -eq 0 && ! -f "$MANIFEST" ]]; then
+  die "No apm.yml here. Run this from your project root, after: apm install luizvnasc/ai-hackaton-apm"
+fi
+
+if declared && managed; then
   if [[ $IF_MISSING -eq 1 ]]; then
-    ok "MCP server '${NAME}' already declared in ${MANIFEST} — nothing to do."
+    ok "MCP server '${NAME}' is already managed by APM — nothing to do."
     exit 0
   fi
-  warn "MCP server '${NAME}' is already declared in ${MANIFEST}; it will be updated."
+  warn "MCP server '${NAME}' is already managed by APM; it will be updated."
+elif declared; then
+  warn "MCP server '${NAME}' is declared in ${MANIFEST} but not deployed yet; finishing the setup."
 fi
 
 APM_BIN="$(command -v apm || true)"
@@ -144,6 +184,29 @@ if [[ "$MCP_URL" == http://* && ! "$MCP_URL" =~ ^http://(localhost|127\.|\[::1\]
   warn "Plain http on a non-loopback host: some harnesses (e.g. Codex) only accept https."
 fi
 
+# ---------- hand-written entry in .mcp.json ----------
+if unmanaged_conflict; then
+  warn "${CLAUDE_CFG} already has a hand-written '${NAME}' server. APM will not overwrite"
+  warn "connections it did not create, so it has to be removed first:"
+  command -v python3 >/dev/null && mcpjson show | sed 's/^/    /' >&2
+  if [[ $REPLACE -eq 0 && $DRY_RUN -eq 0 ]]; then
+    if [[ -n "$TTY" ]]; then
+      choose ans "Replace it with the APM-managed entry? (a backup is kept)" "yes" yes no
+      [[ "$ans" == "yes" ]] && REPLACE=1
+    fi
+    [[ $REPLACE -eq 1 ]] || die "Kept ${CLAUDE_CFG} untouched. Re-run with --replace-existing, or rename/remove '${NAME}' there yourself."
+  fi
+  if [[ $DRY_RUN -eq 1 ]]; then
+    info "Would back up ${CLAUDE_CFG} and remove its '${NAME}' entry."
+  else
+    command -v python3 >/dev/null || die "python3 is needed to edit ${CLAUDE_CFG}; remove its '${NAME}' entry by hand and re-run."
+    BACKUP="${CLAUDE_CFG}.bak-$(date +%Y%m%d%H%M%S)"
+    cp "$CLAUDE_CFG" "$BACKUP"
+    mcpjson remove
+    ok "Removed the hand-written '${NAME}' entry (backup: ${BACKUP})."
+  fi
+fi
+
 # ---------- install ----------
 cmd=(apm install --mcp "$NAME" --transport http --url "$MCP_URL")
 # The $ is escaped on purpose: APM must store the ${VAR} reference, not the token.
@@ -157,7 +220,10 @@ if [[ $DRY_RUN -eq 1 ]]; then
   ok "Dry run — nothing written."
   exit 0
 fi
-HACKATHON_SETUP_RUNNING=1 "${cmd[@]}" </dev/null || die "apm install failed (see output above)."
+if ! HACKATHON_SETUP_RUNNING=1 "${cmd[@]}" </dev/null; then
+  [[ -n "${BACKUP:-}" ]] && cp "$BACKUP" "$CLAUDE_CFG" && warn "Restored ${CLAUDE_CFG} from ${BACKUP}."
+  die "apm install failed (see output above)."
+fi
 
 # ---------- next steps ----------
 printf '\n'
