@@ -1,0 +1,22 @@
+# APM package: the hackathon deliverable.
+# Agents, skills and prompts that turn Jira / GitLab / Plane data into engineering metrics.
+#
+# MCP servers are NOT declared under dependencies.mcp on purpose: every team runs its
+# own GitLab instance (different URL), and APM does not install self-defined MCP
+# servers shipped by a dependency package unless the consumer passes
+# --trust-transitive-mcp. Instead, the setup wizard (scripts/setup-mcp.sh or the
+# /setup-mcp command) re-declares the server in the consumer's own apm.yml with the
+# right URL, which is the path APM recommends.
+name: hackathon-metrics
+version: 0.1.0
+description: Engineering metrics from GitLab (Jira and Plane coming) via Claude agents, skills and MCP
+license: MIT
+includes: auto
+
+scripts:
+  # Lets the package author run the wizard from this directory: apm run setup
+  setup: "bash scripts/setup-mcp.sh"
+
+dependencies:
+  apm: []
+  mcp: []
