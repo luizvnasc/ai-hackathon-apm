@@ -5,7 +5,7 @@ The hackathon deliverable: Claude agents, skills and prompts that turn **GitLab*
 ## Layout
 
 ```
-apm/
+.
   apm.yml                        # package manifest
   .apm/
     prompts/setup-mcp.prompt.md  # /setup-mcp — setup wizard inside the agent
@@ -18,7 +18,7 @@ Agents, skills and further prompts go under `.apm/agents/*.agent.md`, `.apm/skil
 
 ```bash
 # from the root of your project
-apm install gitlab.com/<group>/ai-hackathon/apm   # path to this directory in the repo
+apm install luizvnasc/ai-hackaton-apm
 ```
 
 or in your `apm.yml`:
@@ -26,9 +26,7 @@ or in your `apm.yml`:
 ```yaml
 dependencies:
   apm:
-    - git: https://gitlab.com/<group>/ai-hackathon.git
-      path: apm
-      ref: main
+    - luizvnasc/ai-hackaton-apm#main
 ```
 
 ## Configure the MCP servers (wizard)
@@ -40,7 +38,7 @@ Pick one way to run it:
 1. **Inside Claude Code** (after `apm install`): run `/setup-mcp`.
 2. **In the terminal:**
    ```bash
-   bash "$(find apm_modules -path '*/apm/scripts/setup-mcp.sh' | head -1)"
+   bash "$(find apm_modules -path '*ai-hackaton-apm*/scripts/setup-mcp.sh' | head -1)"
    ```
    Non-interactive: `setup-mcp.sh -y --gitlab-url https://gitlab.acme.io --auth oauth`. See `--help` for every option (`--auth token`, `--global`, `--target`, `--dry-run`, ...).
 3. **Automatically on every `apm install`**: add a lifecycle hook to your own `apm.yml` and trust it once (APM skips project scripts until you run `apm lifecycle trust`):
@@ -49,7 +47,7 @@ Pick one way to run it:
      post-install:
        - type: command
          description: "hackathon-metrics MCP setup wizard"
-         bash: 'f=$(find apm_modules -path "*/apm/scripts/setup-mcp.sh" | head -1); [ -n "$f" ] && bash "$f" --if-missing'
+         bash: 'f=$(find apm_modules -path "*ai-hackaton-apm*/scripts/setup-mcp.sh" | head -1); [ -n "$f" ] && bash "$f" --if-missing'
          timeoutSec: 600
    ```
    `--if-missing` makes it a no-op once the server is declared, and a guard prevents it from re-triggering itself.

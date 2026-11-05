@@ -20,8 +20,8 @@ GitLab URL given by the user (may be empty): ${input:gitlab_url}
    - Scope: this project (default) or global (user scope, `--global`).
 
 3. **Run the wizard script** non-interactively. Find it with
-   `find apm_modules -path '*hackathon-metrics*' -name setup-mcp.sh -o -path '*/apm/scripts/setup-mcp.sh' 2>/dev/null | head -1`
-   (fall back to `apm/scripts/setup-mcp.sh` inside the package repo), then run:
+   `find apm_modules -path '*ai-hackaton-apm*/scripts/setup-mcp.sh' 2>/dev/null | head -1`
+   (fall back to `scripts/setup-mcp.sh` when working inside the package repo itself), then run:
    `bash <script> -y --gitlab-url <url> --auth <oauth|token> [--global]`
    If the script cannot be found, run the equivalent command directly:
    `apm install --mcp gitlab --transport http --url <url>/api/v4/mcp` (add `--header 'Authorization=Bearer ${GITLAB_TOKEN}'` for token auth, `--global` for user scope).
