@@ -1,15 +1,18 @@
 # APM package: the hackathon deliverable.
-# Agents, skills and prompts that turn Jira / GitLab / Plane data into engineering metrics.
+# Portable agent skills that turn GitLab data (Jira / Plane coming) into engineering KPIs.
+# Skills follow the open Agent Skills format, so APM deploys them for Claude Code
+# (.claude/skills/), GitHub Copilot and OpenCode (.agents/skills/).
 #
-# MCP servers are NOT declared under dependencies.mcp on purpose: every team runs its
-# own GitLab instance (different URL), and APM does not install self-defined MCP
-# servers shipped by a dependency package unless the consumer passes
-# --trust-transitive-mcp. Instead, the setup wizard (scripts/setup-mcp.sh or the
-# /setup-mcp command) re-declares the server in the consumer's own apm.yml with the
-# right URL, which is the path APM recommends.
+# MCP servers are NOT declared under dependencies.mcp on purpose: the skills need
+# the GitLab MCP server, but every team runs its own GitLab (different URL), and
+# APM only accepts a literal `url` for self-defined servers (no ${VAR} or
+# ${input:...} there; placeholders work only in headers/env). An installable
+# package must not hardcode one team's URL, so the setup wizard
+# (scripts/setup-mcp.sh or /setup-mcp) declares the server in the consumer's own
+# apm.yml with the right URL and auth.
 name: hackathon-metrics
-version: 0.1.0
-description: Engineering metrics from GitLab (Jira and Plane coming) via Claude agents, skills and MCP
+version: 0.2.0
+description: GitLab repository KPIs and milestone forecasts as portable agent skills (Claude Code, GitHub Copilot, OpenCode) over the GitLab MCP server
 license: MIT
 includes: auto
 
