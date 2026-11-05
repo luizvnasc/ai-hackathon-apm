@@ -20,7 +20,7 @@ GitLab URL given by the user (may be empty): ${input:gitlab_url}
    - Scope: this project (default) or global (user scope, `--global`).
 
 3. **Run the wizard script** non-interactively. Find it with
-   `find apm_modules -path '*ai-hackaton-apm*/scripts/setup-mcp.sh' 2>/dev/null | head -1`
+   `find apm_modules -path '*ai-hacka*on-apm*/scripts/setup-mcp.sh' 2>/dev/null | head -1`
    (fall back to `scripts/setup-mcp.sh` when working inside the package repo itself), then run:
    `bash <script> -y --gitlab-url <url> --auth <oauth|token> [--global]`
    If the script stops because `.mcp.json` already has a hand-written `gitlab` entry (APM never overwrites connections it did not create), show the user that entry and ask with AskUserQuestion whether to replace it. On yes, re-run the same command with `--replace-existing` (the script keeps a timestamped backup and restores it if `apm install` fails); on no, stop and leave the file untouched.

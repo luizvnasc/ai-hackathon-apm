@@ -124,7 +124,7 @@ unmanaged_conflict() {
 }
 
 if [[ $GLOBAL -eq 0 && ! -f "$MANIFEST" ]]; then
-  die "No apm.yml here. Run this from your project root, after: apm install luizvnasc/ai-hackaton-apm"
+  die "No apm.yml here. Run this from your project root, after: apm install luizvnasc/ai-hackathon-apm"
 fi
 
 if declared && managed; then
