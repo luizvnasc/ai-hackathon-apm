@@ -33,7 +33,7 @@ How the skills stay portable:
 
 ```bash
 # from the root of your project; pick the agents your team uses
-apm install luizvnasc/ai-hackaton-apm --target claude,copilot,vscode,opencode
+apm install luizvnasc/ai-hackathon-apm --target claude,copilot,vscode,opencode
 ```
 
 Without `--target`, APM deploys to the agents it detects in the project (`.claude/`, `.github/`, `.opencode/`, ...). The target is stored in your `apm.yml`, so later `apm install` runs and the MCP wizard reuse it.
@@ -52,7 +52,7 @@ or in your `apm.yml`:
 ```yaml
 dependencies:
   apm:
-    - luizvnasc/ai-hackaton-apm#main
+    - luizvnasc/ai-hackathon-apm#main
 ```
 
 ## Configure the MCP servers (wizard)
@@ -64,7 +64,7 @@ Pick one way to run it:
 1. **Inside the agent** (after `apm install`): run `/setup-mcp` (Claude Code, OpenCode, Copilot prompt file).
 2. **In the terminal:**
    ```bash
-   bash "$(find apm_modules -path '*ai-hackaton-apm*/scripts/setup-mcp.sh' | head -1)"
+   bash "$(find apm_modules -path '*ai-hacka*on-apm*/scripts/setup-mcp.sh' | head -1)"
    ```
    Non-interactive: `setup-mcp.sh -y --gitlab-url https://gitlab.acme.io --auth oauth`. See `--help` for every option (`--auth token`, `--global`, `--target`, `--dry-run`, ...).
 3. **Automatically on every `apm install`**: add a lifecycle hook to your own `apm.yml` and trust it once (APM skips project scripts until you run `apm lifecycle trust`):
@@ -73,7 +73,7 @@ Pick one way to run it:
      post-install:
        - type: command
          description: "hackathon-metrics MCP setup wizard"
-         bash: 'f=$(find apm_modules -path "*ai-hackaton-apm*/scripts/setup-mcp.sh" | head -1); [ -n "$f" ] && bash "$f" --if-missing'
+         bash: 'f=$(find apm_modules -path "*ai-hacka*on-apm*/scripts/setup-mcp.sh" | head -1); [ -n "$f" ] && bash "$f" --if-missing'
          timeoutSec: 600
    ```
    `--if-missing` makes it a no-op once the server is declared, and a guard prevents it from re-triggering itself.
