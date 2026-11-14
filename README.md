@@ -1,24 +1,22 @@
 # hackathon-metrics (APM package)
 
-The hackathon deliverable: portable **agent skills** that turn **GitLab** data (Jira and Plane coming) into engineering KPIs. They are packaged with [APM](https://github.com/microsoft/apm) so any team can install them in **Claude Code**, **GitHub Copilot** or **OpenCode**.
+The hackathon deliverable: portable **agent skills** that help teams run their **GitLab** and **Plane** projects: set them up, migrate between them, find blocked work and assign issues by expertise. They are packaged with [APM](https://github.com/microsoft/apm) so any team can install them in **Claude Code**, **GitHub Copilot** or **OpenCode**.
 
 ## Skills
 
 | Skill | What it answers | Script |
 |---|---|---|
-| `gitlab-repo-kpis` | KPIs of a project or group: issue lead time, throughput, net flow, backlog aging, open bugs, split by assignee and label. With MRs/pipelines in GitLab it also gives MR lead time, time to first review, MR size, pipeline success rate, duration and time to restore. | `scripts/kpis.py` |
-| `gitlab-milestone-forecast` | "Will milestone X ship on time?" It reports scope, scope change, weekly throughput, burndown, cycle time and aging WIP. The forecast is deterministic plus Monte Carlo (P50/P85/P95), with a verdict and the scope cut needed. | `scripts/forecast.py` |
 | `gitlab-to-plane` | "Migrate project X from GitLab to Plane." It brings over issues with states, priorities, label groups, milestones as cycles, assignees, comments and the original creation dates. It always does a dry run first. Re-running it updates instead of duplicating. Needs `PLANE_API_KEY` (Plane → Workspace settings → API tokens). | `scripts/migrate.py` |
 | `populate-project` | "Populate project X in GitLab" / "popule o projeto Y no Plane". It creates the standard labels (workflow, priority, type, area) and a Kanban board whose columns are the workflow labels. In Plane, workflow labels become states and priority uses the built-in field. It shows the default labels and asks for changes before writing. Needs `GITLAB_TOKEN` (scope `api`) or `PLANE_API_KEY`. | `scripts/populate.py` |
 | `blocked-issues` | "Which issues are blocked in v0.3?" / "issues bloqueadas no ciclo X do Plane". For GitLab or Plane, it reports each blocked issue's parent, children, linked issues and comments, with how long it has been blocked, the cause and the next step. Stale issues are left out. When no project is given, it lists the projects you are a member of; when no milestone or cycle is given, it lists the open ones so you can pick one or the whole project. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `scripts/blocked.py` |
 | `assign-issues` | "Who should take #62?" / "qual a melhor task para a Carla na sprint atual?". For GitLab or Plane, it scores every developer per area (0–100) from the issues they were assignee, author or commenter on, then recommends the best developer for an issue or the best issues of the current milestone/cycle for a developer. Assigns only after you confirm. Needs `GITLAB_TOKEN` (scope `read_api`, `api` to assign) or `PLANE_API_KEY`. | `scripts/assign.py` |
 
-Ask your agent in plain language, for example "get the KPIs of acme/inventory-manager", "will v0.3 ship on time?" or "migrate acme/inventory-manager to Plane". The agent loads the matching skill.
+Ask your agent in plain language, for example "which issues are blocked in v1.0?", "who should take #62?" or "migrate acme/inventory-manager to Plane". The agent loads the matching skill.
 
 How the skills stay portable:
 - **Standard format.** Each skill is a plain `SKILL.md` (`name` + `description` frontmatter, no agent-specific fields).
 - **Neutral tool names.** Skills name the MCP tools by their bare names, with a table of the prefix each agent uses (`mcp__gitlab__*` in Claude Code, `gitlab_*` in OpenCode, the `gitlab` server's tools in Copilot).
-- **Shared calculation.** All numbers come from a bundled stdlib-only Python script (3.8+). The agent only collects data through the MCP server and writes the report, so every agent produces the same KPIs.
+- **Shared calculation.** All data access and numbers come from a bundled stdlib-only Python script (3.8+). The agent only runs it and writes the report, so every agent produces the same results.
 
 ## Layout
 
@@ -28,8 +26,6 @@ How the skills stay portable:
   .apm/
     prompts/setup-mcp.prompt.md  # /setup-mcp — setup wizard inside the agent
     skills/
-      gitlab-repo-kpis/          # SKILL.md + scripts/kpis.py
-      gitlab-milestone-forecast/ # SKILL.md + scripts/forecast.py
       gitlab-to-plane/           # SKILL.md + scripts/migrate.py
       populate-project/          # SKILL.md + labels.default.json + scripts/populate.py
       blocked-issues/            # SKILL.md + scripts/blocked.py
@@ -53,7 +49,7 @@ Without `--target`, APM deploys to the agents it detects in the project (`.claud
 | GitHub Copilot Chat in VS Code | `vscode` | `.agents/skills/` | `.vscode/mcp.json` |
 | OpenCode | `opencode` | `.agents/skills/` | `opencode.json` |
 
-The skills run `python3` (or `python`) to compute the KPIs, so the agent needs a terminal tool and Python 3.8+. In VS Code, use Copilot Chat in **Agent** mode (skills and MCP tools are only available there).
+The skills run `python3` (or `python`) for their bundled scripts, so the agent needs a terminal tool and Python 3.8+. In VS Code, use Copilot Chat in **Agent** mode (skills and MCP tools are only available there).
 
 or in your `apm.yml`:
 
