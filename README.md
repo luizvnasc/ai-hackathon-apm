@@ -19,6 +19,30 @@ How the skills stay portable:
 - **Neutral tool names.** Skills name the MCP tools by their bare names, with a table of the prefix each agent uses (`mcp__gitlab__*` in Claude Code, `gitlab_*` in OpenCode, the `gitlab` server's tools in Copilot).
 - **Shared calculation.** All data access and numbers come from a bundled stdlib-only Python script (3.8+). The agent only runs it and writes the report, so every agent produces the same results.
 
+## Token cost
+
+Average tokens one request adds to the agent's context, per skill. The **fixed** part is paid once per request: the `SKILL.md`, which loads when the skill triggers, plus the commands and their fixed-size output. The **per-issue** part grows with the size of the project. The **answer** is what the agent writes back.
+
+| Skill | Fixed input | Per issue | Answer (output) | Seed example (67 issues) |
+|---|---|---|---|---|
+| `blocked-issues` | ~2,800 | ~240 per **blocked** issue; ~0 per other issue. That is **~55 per open issue** at the seed's rate of 22% blocked | ~300 + ~250 per blocked issue | whole project, 8 blocked: ~4,800 in / ~2,300 out |
+| `assign-issues` | ~2,700 + ~250–450 of results | **~0**; grows with the number of developers (~25 each) and `--limit` (~40 per row) | ~500–800 | `suggest-member`: ~3,000 in / ~600 out |
+| `team-velocity` | ~1,700 + ~250 of results | **~0**; grows with periods (~60 each) and people (~15 per person per period) | ~600–900 | 2 milestones, 4 people: ~2,200 in / ~800 out |
+| `populate-project` | ~3,000, two runs included (dry run + write) | **0**, it reads no issues; ~15 per label | ~600–800 | 23 labels: ~3,400 in / ~700 out |
+| `gitlab-to-plane` | ~2,000 | **~1,000 in + ~900 out**: `list_work_items` (~100) + `get_work_item` with notes (~700–1,250, about +250 per comment), then the agent writes the raw item into the export file | ~500 | 67 issues: ~69,000 in / ~61,000 out |
+
+Why most skills are flat:
+- `blocked-issues`, `assign-issues`, `team-velocity` and `populate-project` read the issues inside their script. Only the finished table reaches the agent.
+- A 500-issue project costs those four skills about the same as the 67-issue seed. It only takes longer: Plane allows 60 requests per minute, so `assign-issues` takes about 1 s per issue there (`--no-comments` skips that).
+- `gitlab-to-plane` is the exception. It exports through the GitLab MCP server, so every issue passes through the agent twice: read, then written to the export file. Each tool call also re-reads the whole conversation, so the cumulative input grows faster than linearly. With prompt caching most of it is billed as cache reads, but a project with hundreds of issues should be migrated in batches.
+
+How the numbers were measured:
+- Sizes of the real `SKILL.md` files, script outputs and MCP responses on the demo project `acme/inventory-manager` in GitLab: 67 issues, 36 open, 8 blocked, 4 developers, 2 finished milestones.
+- Tokens are estimated at 3.5 characters per token.
+- Plane outputs are about 1.5× longer, because their links carry UUIDs.
+- Not included: the agent's own system prompt and tool definitions. Every turn re-reads them whatever the skill, and they are usually cached.
+- Run `/cost` in Claude Code before and after a request to see the real figure for your project.
+
 ## Layout
 
 ```
