@@ -1,6 +1,6 @@
 # hackathon-metrics (APM package)
 
-The hackathon deliverable: portable **agent skills** that help teams run their **GitLab** and **Plane** projects: set them up, migrate between them, find blocked work and assign issues by expertise. They are packaged with [APM](https://github.com/microsoft/apm) so any team can install them in **Claude Code**, **GitHub Copilot** or **OpenCode**.
+The hackathon deliverable: portable **agent skills** that help teams run their **GitLab** and **Plane** projects: set them up, migrate between them, find blocked work, assign issues by expertise and measure the team's velocity. They are packaged with [APM](https://github.com/microsoft/apm) so any team can install them in **Claude Code**, **GitHub Copilot** or **OpenCode**.
 
 ## Skills
 
@@ -10,6 +10,7 @@ The hackathon deliverable: portable **agent skills** that help teams run their *
 | `populate-project` | "Populate project X in GitLab" / "popule o projeto Y no Plane". It creates the standard labels (workflow, priority, type, area) and a Kanban board whose columns are the workflow labels. In Plane, workflow labels become states and priority uses the built-in field. It shows the default labels and asks for changes before writing. Needs `GITLAB_TOKEN` (scope `api`) or `PLANE_API_KEY`. | `scripts/populate.py` |
 | `blocked-issues` | "Which issues are blocked in v0.3?" / "issues bloqueadas no ciclo X do Plane". For GitLab or Plane, it reports each blocked issue's parent, children, linked issues and comments, with how long it has been blocked, the cause and the next step. Stale issues are left out. When no project is given, it lists the projects you are a member of; when no milestone or cycle is given, it lists the open ones so you can pick one or the whole project. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `scripts/blocked.py` |
 | `assign-issues` | "Who should take #62?" / "qual a melhor task para a Carla na sprint atual?". For GitLab or Plane, it scores every developer per area (0–100) from the issues they were assignee, author or commenter on, then recommends the best developer for an issue or the best issues of the current milestone/cycle for a developer. Assigns only after you confirm. Needs `GITLAB_TOKEN` (scope `read_api`, `api` to assign) or `PLANE_API_KEY`. | `scripts/assign.py` |
+| `team-velocity` | "What is the team's velocity?" / "quantos pontos planejar no próximo ciclo?". For GitLab or Plane, it reports the points (or issues) delivered on time per finished milestone/cycle, velocity per week, completion, stability and trend, and velocity per person. It recommends how much to plan next and says how the current milestone/cycle is going at that pace. Weekly throughput when there are no milestones/cycles. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `scripts/velocity.py` |
 
 Ask your agent in plain language, for example "which issues are blocked in v1.0?", "who should take #62?" or "migrate acme/inventory-manager to Plane". The agent loads the matching skill.
 
@@ -30,6 +31,7 @@ How the skills stay portable:
       populate-project/          # SKILL.md + labels.default.json + scripts/populate.py
       blocked-issues/            # SKILL.md + scripts/blocked.py
       assign-issues/             # SKILL.md + scripts/assign.py
+      team-velocity/             # SKILL.md + scripts/velocity.py
   scripts/setup-mcp.sh           # setup wizard for the terminal
 ```
 
