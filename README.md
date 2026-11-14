@@ -11,6 +11,7 @@ The hackathon deliverable: portable **agent skills** that turn **GitLab** data (
 | `gitlab-to-plane` | "Migrate project X from GitLab to Plane." It brings over issues with states, priorities, label groups, milestones as cycles, assignees, comments and the original creation dates. It always does a dry run first. Re-running it updates instead of duplicating. Needs `PLANE_API_KEY` (Plane → Workspace settings → API tokens). | `scripts/migrate.py` |
 | `populate-project` | "Populate project X in GitLab" / "popule o projeto Y no Plane". It creates the standard labels (workflow, priority, type, area) and a Kanban board whose columns are the workflow labels. In Plane, workflow labels become states and priority uses the built-in field. It shows the default labels and asks for changes before writing. Needs `GITLAB_TOKEN` (scope `api`) or `PLANE_API_KEY`. | `scripts/populate.py` |
 | `blocked-issues` | "Which issues are blocked in v0.3?" / "issues bloqueadas no ciclo X do Plane". For GitLab or Plane, it reports each blocked issue's parent, children, linked issues and comments, with how long it has been blocked, the cause and the next step. Stale issues are left out. When no project is given, it lists the projects you are a member of; when no milestone or cycle is given, it lists the open ones so you can pick one or the whole project. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `scripts/blocked.py` |
+| `assign-issues` | "Who should take #62?" / "qual a melhor task para a Carla na sprint atual?". For GitLab or Plane, it scores every developer per area (0–100) from the issues they were assignee, author or commenter on, then recommends the best developer for an issue or the best issues of the current milestone/cycle for a developer. Assigns only after you confirm. Needs `GITLAB_TOKEN` (scope `read_api`, `api` to assign) or `PLANE_API_KEY`. | `scripts/assign.py` |
 
 Ask your agent in plain language, for example "get the KPIs of acme/inventory-manager", "will v0.3 ship on time?" or "migrate acme/inventory-manager to Plane". The agent loads the matching skill.
 
@@ -32,6 +33,7 @@ How the skills stay portable:
       gitlab-to-plane/           # SKILL.md + scripts/migrate.py
       populate-project/          # SKILL.md + labels.default.json + scripts/populate.py
       blocked-issues/            # SKILL.md + scripts/blocked.py
+      assign-issues/             # SKILL.md + scripts/assign.py
   scripts/setup-mcp.sh           # setup wizard for the terminal
 ```
 
