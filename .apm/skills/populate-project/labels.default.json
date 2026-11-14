@@ -1,0 +1,27 @@
+{
+  "labels": [
+    {"name": "workflow::backlog",     "color": "#dbd9d9", "description": "Not planned yet"},
+    {"name": "workflow::ready",       "color": "#6699cc", "description": "Refined and ready to start"},
+    {"name": "workflow::in-progress", "color": "#ed9121", "description": "Being worked on"},
+    {"name": "workflow::review",      "color": "#c39953", "description": "In code review or QA"},
+    {"name": "workflow::blocked",     "color": "#8b0000", "description": "Waiting on something outside the team"},
+    {"name": "workflow::done",        "color": "#009966", "description": "Finished and accepted"},
+
+    {"name": "priority::critical",    "color": "#b60205", "description": "Drop everything"},
+    {"name": "priority::high",        "color": "#ff0000", "description": "Next in line"},
+    {"name": "priority::medium",      "color": "#ffa500", "description": "Normal priority"},
+    {"name": "priority::low",         "color": "#5cb85c", "description": "When there is time"},
+
+    {"name": "type::feature",         "color": "#1f75cb", "description": "New functionality"},
+    {"name": "type::bug",             "color": "#dc143c", "description": "Something does not work as expected"},
+    {"name": "type::chore",           "color": "#808080", "description": "Maintenance with no user-visible change"},
+    {"name": "type::tech-debt",       "color": "#9400d3", "description": "Refactoring or debt payback"},
+    {"name": "type::docs",            "color": "#17a2b8", "description": "Documentation"},
+
+    {"name": "area::frontend",        "color": "#00b140", "description": "User interface"},
+    {"name": "area::backend",         "color": "#0e8a16", "description": "Server-side code"},
+    {"name": "area::api",             "color": "#4b0082", "description": "Public or internal API"},
+    {"name": "area::database",        "color": "#2f4f4f", "description": "Schema, migrations, queries"},
+    {"name": "area::infra",           "color": "#8b4513", "description": "Infrastructure, CI/CD, deployment"}
+  ]
+}

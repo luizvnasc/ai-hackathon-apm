@@ -8,8 +8,10 @@ The hackathon deliverable: portable **agent skills** that turn **GitLab** data (
 |---|---|---|
 | `gitlab-repo-kpis` | KPIs of a project or group: issue lead time, throughput, net flow, backlog aging, open bugs, split by assignee and label. With MRs/pipelines in GitLab it also gives MR lead time, time to first review, MR size, pipeline success rate, duration and time to restore. | `scripts/kpis.py` |
 | `gitlab-milestone-forecast` | "Will milestone X ship on time?" It reports scope, scope change, weekly throughput, burndown, cycle time and aging WIP. The forecast is deterministic plus Monte Carlo (P50/P85/P95), with a verdict and the scope cut needed. | `scripts/forecast.py` |
+| `gitlab-to-plane` | "Migrate project X from GitLab to Plane." It brings over issues with states, priorities, label groups, milestones as cycles, assignees, comments and the original creation dates. It always does a dry run first. Re-running it updates instead of duplicating. Needs `PLANE_API_KEY` (Plane → Workspace settings → API tokens). | `scripts/migrate.py` |
+| `populate-project` | "Populate project X in GitLab" / "popule o projeto Y no Plane". It creates the standard labels (workflow, priority, type, area) and a Kanban board whose columns are the workflow labels. In Plane, workflow labels become states and priority uses the built-in field. It shows the default labels and asks for changes before writing. Needs `GITLAB_TOKEN` (scope `api`) or `PLANE_API_KEY`. | `scripts/populate.py` |
 
-Ask your agent in plain language, for example "get the KPIs of acme/inventory-manager" or "will v0.3 ship on time?". The agent loads the matching skill.
+Ask your agent in plain language, for example "get the KPIs of acme/inventory-manager", "will v0.3 ship on time?" or "migrate acme/inventory-manager to Plane". The agent loads the matching skill.
 
 How the skills stay portable:
 - **Standard format.** Each skill is a plain `SKILL.md` (`name` + `description` frontmatter, no agent-specific fields).
@@ -26,6 +28,8 @@ How the skills stay portable:
     skills/
       gitlab-repo-kpis/          # SKILL.md + scripts/kpis.py
       gitlab-milestone-forecast/ # SKILL.md + scripts/forecast.py
+      gitlab-to-plane/           # SKILL.md + scripts/migrate.py
+      populate-project/          # SKILL.md + labels.default.json + scripts/populate.py
   scripts/setup-mcp.sh           # setup wizard for the terminal
 ```
 
@@ -33,7 +37,7 @@ How the skills stay portable:
 
 ```bash
 # from the root of your project; pick the agents your team uses
-apm install luizvnasc/ai-hackaton-apm --target claude,copilot,vscode,opencode
+apm install luizvnasc/ai-hackathon-apm --target claude,copilot,vscode,opencode
 ```
 
 Without `--target`, APM deploys to the agents it detects in the project (`.claude/`, `.github/`, `.opencode/`, ...). The target is stored in your `apm.yml`, so later `apm install` runs and the MCP wizard reuse it.
@@ -52,7 +56,7 @@ or in your `apm.yml`:
 ```yaml
 dependencies:
   apm:
-    - luizvnasc/ai-hackaton-apm#main
+    - luizvnasc/ai-hackathon-apm#main
 ```
 
 ## Configure the MCP servers (wizard)
@@ -64,7 +68,7 @@ Pick one way to run it:
 1. **Inside the agent** (after `apm install`): run `/setup-mcp` (Claude Code, OpenCode, Copilot prompt file).
 2. **In the terminal:**
    ```bash
-   bash "$(find apm_modules -path '*ai-hackaton-apm*/scripts/setup-mcp.sh' | head -1)"
+   bash "$(find apm_modules -path '*ai-hacka*on-apm*/scripts/setup-mcp.sh' | head -1)"
    ```
    Non-interactive: `setup-mcp.sh -y --gitlab-url https://gitlab.acme.io --auth oauth`. See `--help` for every option (`--auth token`, `--global`, `--target`, `--dry-run`, ...).
 3. **Automatically on every `apm install`**: add a lifecycle hook to your own `apm.yml` and trust it once (APM skips project scripts until you run `apm lifecycle trust`):
@@ -73,7 +77,7 @@ Pick one way to run it:
      post-install:
        - type: command
          description: "hackathon-metrics MCP setup wizard"
-         bash: 'f=$(find apm_modules -path "*ai-hackaton-apm*/scripts/setup-mcp.sh" | head -1); [ -n "$f" ] && bash "$f" --if-missing'
+         bash: 'f=$(find apm_modules -path "*ai-hacka*on-apm*/scripts/setup-mcp.sh" | head -1); [ -n "$f" ] && bash "$f" --if-missing'
          timeoutSec: 600
    ```
    `--if-missing` makes it a no-op once the server is declared, and a guard prevents it from re-triggering itself.
