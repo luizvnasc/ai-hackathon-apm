@@ -6,7 +6,7 @@ The hackathon deliverable: portable **agent skills** that help teams run their *
 
 | Skill | What it answers | Script |
 |---|---|---|
-| `gitlab-to-plane` | "Migrate project X from GitLab to Plane." It brings over issues with states, priorities, label groups, milestones as cycles, assignees, comments and the original creation dates. It always does a dry run first. Re-running it updates instead of duplicating. Needs `PLANE_API_KEY` (Plane → Workspace settings → API tokens). | `scripts/migrate.py` |
+| `gitlab-to-plane` | "Migrate project X from GitLab to Plane." It brings over issues with states, priorities, label groups, milestones as cycles, assignees, comments and the original creation dates. It always does a dry run first. Re-running it updates instead of duplicating. Needs `GITLAB_TOKEN` (scope `read_api`) and `PLANE_API_KEY`. | `scripts/migrate.py` |
 | `populate-project` | "Populate project X in GitLab" / "popule o projeto Y no Plane". It creates the standard labels (workflow, priority, type, area) and a Kanban board whose columns are the workflow labels. In Plane, workflow labels become states and priority uses the built-in field. It shows the default labels and asks for changes before writing. Needs `GITLAB_TOKEN` (scope `api`) or `PLANE_API_KEY`. | `scripts/populate.py` |
 | `blocked-issues` | "Which issues are blocked in v0.3?" / "issues bloqueadas no ciclo X do Plane". For GitLab or Plane, it reports each blocked issue's parent, children, linked issues and comments, with how long it has been blocked, the cause and the next step. Stale issues are left out. When no project is given, it lists the projects you are a member of; when no milestone or cycle is given, it lists the open ones so you can pick one or the whole project. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `scripts/blocked.py` |
 | `assign-issues` | "Who should take #62?" / "qual a melhor task para a Carla na sprint atual?". For GitLab or Plane, it scores every developer per area (0–100) from the issues they were assignee, author or commenter on, then recommends the best developer for an issue or the best issues of the current milestone/cycle for a developer. Assigns only after you confirm. Needs `GITLAB_TOKEN` (scope `read_api`, `api` to assign) or `PLANE_API_KEY`. | `scripts/assign.py` |
@@ -16,7 +16,7 @@ Ask your agent in plain language, for example "which issues are blocked in v1.0?
 
 How the skills stay portable:
 - **Standard format.** Each skill is a plain `SKILL.md` (`name` + `description` frontmatter, no agent-specific fields).
-- **Neutral tool names.** Skills name the MCP tools by their bare names, with a table of the prefix each agent uses (`mcp__gitlab__*` in Claude Code, `gitlab_*` in OpenCode, the `gitlab` server's tools in Copilot).
+- **No MCP server.** The scripts call the GitLab and Plane APIs directly, so the skills do not depend on which MCP tools an agent exposes or how it names them.
 - **Shared calculation.** All data access and numbers come from a bundled stdlib-only Python script (3.8+). The agent only runs it and writes the report, so every agent produces the same results.
 
 ## Token cost
@@ -29,15 +29,15 @@ Average tokens one request adds to the agent's context, per skill. The **fixed**
 | `assign-issues` | ~2,700 + ~250–450 of results | **~0**; grows with the number of developers (~25 each) and `--limit` (~40 per row) | ~500–800 | `suggest-member`: ~3,000 in / ~600 out |
 | `team-velocity` | ~1,700 + ~250 of results | **~0**; grows with periods (~60 each) and people (~15 per person per period) | ~600–900 | 2 milestones, 4 people: ~2,200 in / ~800 out |
 | `populate-project` | ~3,000, two runs included (dry run + write) | **0**, it reads no issues; ~15 per label | ~600–800 | 23 labels: ~3,400 in / ~700 out |
-| `gitlab-to-plane` | ~2,000 | **~1,000 in + ~900 out**: `list_work_items` (~100) + `get_work_item` with notes (~700–1,250, about +250 per comment), then the agent writes the raw item into the export file | ~500 | 67 issues: ~69,000 in / ~61,000 out |
+| `gitlab-to-plane` | ~2,600, two runs included (dry run + migration) | **~1**: the script reads GitLab itself and prints progress every 20 issues | ~500 | 67 issues: ~2,700 in / ~500 out |
 
 Why most skills are flat:
-- `blocked-issues`, `assign-issues`, `team-velocity` and `populate-project` read the issues inside their script. Only the finished table reaches the agent.
-- A 500-issue project costs those four skills about the same as the 67-issue seed. It only takes longer: Plane allows 60 requests per minute, so `assign-issues` takes about 1 s per issue there (`--no-comments` skips that).
-- `gitlab-to-plane` is the exception. It exports through the GitLab MCP server, so every issue passes through the agent twice: read, then written to the export file. Each tool call also re-reads the whole conversation, so the cumulative input grows faster than linearly. With prompt caching most of it is billed as cache reads, but a project with hundreds of issues should be migrated in batches.
+- Every skill reads the issues inside its script. Only the finished table reaches the agent.
+- A 500-issue project costs about the same as the 67-issue seed. It only takes longer: Plane allows 60 requests per minute, so `assign-issues` takes about 1 s per issue there (`--no-comments` skips that), and `gitlab-to-plane` about 2–3 s per issue to write.
+- Before 0.9.0, `gitlab-to-plane` exported through the GitLab MCP server. Every issue then passed through the agent twice, read and then written to an export file: ~1,900 tokens per issue, ~130,000 for the seed. Reading GitLab in the script removed that.
 
 How the numbers were measured:
-- Sizes of the real `SKILL.md` files, script outputs and MCP responses on the demo project `acme/inventory-manager` in GitLab: 67 issues, 36 open, 8 blocked, 4 developers, 2 finished milestones.
+- Sizes of the real `SKILL.md` files and script outputs on the demo project `acme/inventory-manager` in GitLab: 67 issues, 36 open, 8 blocked, 4 developers, 2 finished milestones.
 - Tokens are estimated at 3.5 characters per token.
 - Plane outputs are about 1.5× longer, because their links carry UUIDs.
 - Not included: the agent's own system prompt and tool definitions. Every turn re-reads them whatever the skill, and they are usually cached.
@@ -49,14 +49,12 @@ How the numbers were measured:
 .
   apm.yml                        # package manifest
   .apm/
-    prompts/setup-mcp.prompt.md  # /setup-mcp — setup wizard inside the agent
     skills/
       gitlab-to-plane/           # SKILL.md + scripts/migrate.py
       populate-project/          # SKILL.md + labels.default.json + scripts/populate.py
       blocked-issues/            # SKILL.md + scripts/blocked.py
       assign-issues/             # SKILL.md + scripts/assign.py
       team-velocity/             # SKILL.md + scripts/velocity.py
-  scripts/setup-mcp.sh           # setup wizard for the terminal
 ```
 
 ## Install in your project
@@ -66,16 +64,16 @@ How the numbers were measured:
 apm install luizvnasc/ai-hackathon-apm --target claude,copilot,vscode,opencode
 ```
 
-Without `--target`, APM deploys to the agents it detects in the project (`.claude/`, `.github/`, `.opencode/`, ...). The target is stored in your `apm.yml`, so later `apm install` runs and the MCP wizard reuse it.
+Without `--target`, APM deploys to the agents it detects in the project (`.claude/`, `.github/`, `.opencode/`, ...). The target is stored in your `apm.yml`, so later `apm install` runs reuse it.
 
-| Agent | Target | Skills deployed to | MCP config written to |
-|---|---|---|---|
-| Claude Code | `claude` | `.claude/skills/` | `.mcp.json` |
-| GitHub Copilot (CLI / coding agent) | `copilot` | `.agents/skills/` | `.github/mcp.json` |
-| GitHub Copilot Chat in VS Code | `vscode` | `.agents/skills/` | `.vscode/mcp.json` |
-| OpenCode | `opencode` | `.agents/skills/` | `opencode.json` |
+| Agent | Target | Skills deployed to |
+|---|---|---|
+| Claude Code | `claude` | `.claude/skills/` |
+| GitHub Copilot (CLI / coding agent) | `copilot` | `.agents/skills/` |
+| GitHub Copilot Chat in VS Code | `vscode` | `.agents/skills/` |
+| OpenCode | `opencode` | `.agents/skills/` |
 
-The skills run `python3` (or `python`) for their bundled scripts, so the agent needs a terminal tool and Python 3.8+. In VS Code, use Copilot Chat in **Agent** mode (skills and MCP tools are only available there).
+The skills run `python3` (or `python`) for their bundled scripts, so the agent needs a terminal tool and Python 3.8+. In VS Code, use Copilot Chat in **Agent** mode (skills are only available there).
 
 or in your `apm.yml`:
 
@@ -85,42 +83,42 @@ dependencies:
     - luizvnasc/ai-hackathon-apm#main
 ```
 
-## Configure the MCP servers (wizard)
+## Configure access
 
-The package needs the **GitLab MCP server** (built into GitLab 18.x+ at `/api/v4/mcp`). Each team points it at its own GitLab, so the wizard asks for the URL and auth method and registers the server in **your** `apm.yml` with `apm install --mcp gitlab ...`. APM then writes the config for every agent it detects (`.mcp.json` for Claude Code, `.vscode/mcp.json`, `.cursor/mcp.json`, ...).
+The skills call the GitLab and Plane APIs. Their scripts read these variables from the environment, or from a `.env` file in the project root when a variable is not set there (the environment always wins):
 
-Pick one way to run it:
-
-1. **Inside the agent** (after `apm install`): run `/setup-mcp` (Claude Code, OpenCode, Copilot prompt file).
-2. **In the terminal:**
-   ```bash
-   bash "$(find apm_modules -path '*ai-hacka*on-apm*/scripts/setup-mcp.sh' | head -1)"
-   ```
-   Non-interactive: `setup-mcp.sh -y --gitlab-url https://gitlab.acme.io --auth oauth`. See `--help` for every option (`--auth token`, `--global`, `--target`, `--dry-run`, ...).
-3. **Automatically on every `apm install`**: add a lifecycle hook to your own `apm.yml` and trust it once (APM skips project scripts until you run `apm lifecycle trust`):
-   ```yaml
-   lifecycle:
-     post-install:
-       - type: command
-         description: "hackathon-metrics MCP setup wizard"
-         bash: 'f=$(find apm_modules -path "*ai-hacka*on-apm*/scripts/setup-mcp.sh" | head -1); [ -n "$f" ] && bash "$f" --if-missing'
-         timeoutSec: 600
-   ```
-   `--if-missing` makes it a no-op once the server is declared, and a guard prevents it from re-triggering itself.
-
-### Existing hand-written `.mcp.json` entry
-
-APM never overwrites an MCP connection it did not create. If your `.mcp.json` already has a `gitlab` server written by hand, the wizard shows it and asks whether to replace it (non-interactive: `--replace-existing`). It keeps a timestamped backup (`.mcp.json.bak-<timestamp>`) and restores it if `apm install` fails.
-
-### Authentication
-
-| Mode | When | How |
+| Variable | For | Value |
 |---|---|---|
-| `oauth` (default) | GitLab CE (no `mcp` token scope) or anyone who prefers browser login | After the wizard: restart `claude` → `/mcp` → `gitlab` → **Authenticate** → **Authorize** in GitLab. The token is stored by the agent, not in the repo. |
-| `token` | GitLab Premium/Ultimate with a PAT that has the `mcp` scope | `export GITLAB_TOKEN=...`. The config only stores `Bearer ${GITLAB_TOKEN}`; the value is read at runtime. |
+| `GITLAB_URL` | GitLab skills | base URL, e.g. `https://gitlab.acme.io` |
+| `GITLAB_TOKEN` | GitLab skills | personal access token (**User settings → Access tokens**). Scope `read_api`; `api` for `populate-project` and for assigning in `assign-issues` |
+| `PLANE_URL` | Plane skills | base URL, e.g. `https://plane.acme.io` |
+| `PLANE_WORKSPACE` | Plane skills | workspace slug, as in the Plane URL `/<slug>/projects` |
+| `PLANE_API_KEY` | Plane skills | API key (**Workspace settings → API tokens**) |
 
-### Why the MCP server is not in this package's `dependencies.mcp`
+Set only what your team uses (GitLab, Plane or both). Pick one way:
 
-The URL of the GitLab MCP server differs per team, and APM only accepts a literal `url` for a self-defined MCP server. Placeholders such as `${GITLAB_URL}` or `${input:...}` are allowed only in `headers` and `env`. An installable package cannot ship a URL that is correct for every team, so it declares no MCP server.
+- **`.env` file** in the project root. It works the same on Linux, macOS and Windows. Add `.env` to your `.gitignore`.
+  ```
+  GITLAB_URL=https://gitlab.acme.io
+  GITLAB_TOKEN=glpat-...
+  ```
+- **Environment variables:**
 
-The wizard writes the `gitlab` server into **your** `apm.yml` with your URL and auth, which is the path APM supports. APM then generates the config for every target: `.mcp.json`, `.github/mcp.json`, `.vscode/mcp.json`, `opencode.json`.
+  | Shell | Command |
+  |---|---|
+  | Linux/macOS (bash/zsh) | `export GITLAB_TOKEN="glpat-..."` (add it to `~/.bashrc` / `~/.zshrc` to keep it) |
+  | Windows PowerShell | `$env:GITLAB_TOKEN = "glpat-..."` for the session; `setx GITLAB_TOKEN "glpat-..."` to keep it, then open a new terminal |
+  | Windows cmd | `set GITLAB_TOKEN=glpat-...` for the session; `setx` as above to keep it |
+
+  Start the agent from a terminal that has the variables, or restart it after `setx`. A `.env` file needs no restart, because the scripts read it on every run.
+
+When a skill runs and something is missing, it stops and lists the missing variables, with these commands.
+
+### Why no MCP server
+
+Up to 0.8.0 the package registered the GitLab MCP server. The skills outgrew it:
+- **It could not do the job.** The GitLab MCP server has no tool to list milestones, returns an empty `LINKED_ITEMS` widget, gives no member roles, and cannot create labels or boards.
+- **The token was needed anyway.** Every skill but one already called the API with `GITLAB_TOKEN`.
+- **Cost.** The one skill that used MCP, `gitlab-to-plane`, paid ~1,900 tokens per issue.
+
+You can still connect the GitLab MCP server to your agent for ad-hoc questions ("what is the status of #45?"). The skills just do not depend on it.

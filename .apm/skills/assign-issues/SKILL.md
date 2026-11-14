@@ -9,7 +9,7 @@ Recommend who should take an issue, or what a developer should take next, from t
 
 - **Read-only except for one command.** Only `assign` writes, and only after the user confirmed that exact change in this conversation. Never assign on your own initiative.
 - **Data and math come from the bundled script** `scripts/assign.py`, so every agent gets the same scores. Never invent scores or history.
-- The script uses the GitLab REST/GraphQL API or the Plane REST API, because the GitLab MCP server cannot list project members with their roles.
+- The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly; no MCP server is needed.
 
 ## 1. Target, project and question
 
@@ -37,17 +37,17 @@ Take them from the user's words. Never guess them.
 
 ## 2. Credentials
 
-Ask for anything missing in a single question. Never ask for a token's value and never print one.
+The script reads these variables from the environment or, when one is not set there, from a `.env` file in the project root (the environment wins). **If any is missing, the script stops with a `NOT CONFIGURED` message** that lists the missing variables and how to set them on Linux/macOS, Windows PowerShell and cmd, or in `.env`. Show that message to the user as it is, then stop and wait: do not try other values. A URL or workspace the user gives in the chat can be passed as an option instead. Never ask for a token's value in the chat and never print one.
 
 | Target | Input | Source |
 |---|---|---|
-| GitLab | URL | `GITLAB_URL` env var, else derived from the `gitlab` MCP entry (`.mcp.json`, `.vscode/mcp.json` or `opencode.json`), else ask |
-| GitLab | Token | `GITLAB_TOKEN` env var: scope `read_api`, or `api` to assign. Only when it is not set in the environment and the repository's `.env` defines a non-empty value, load that file in the same shell command with `set -a; . ./.env; set +a`. Never source a `.env` when the variable is already set. |
-| Plane | URL | `PLANE_URL` env var, else ask (local stack: `http://localhost:8090`) |
-| Plane | Workspace slug | `PLANE_WORKSPACE` env var, else ask (it is in the Plane URL: `/<slug>/projects`) |
-| Plane | API key | `PLANE_API_KEY` env var, created in Plane under **Workspace settings → API tokens** |
+| GitLab | URL | `GITLAB_URL` (or `--gitlab-url`) |
+| GitLab | Token | `GITLAB_TOKEN`, a personal access token with scope `read_api`, or `api` to assign |
+| Plane | URL | `PLANE_URL` (or `--plane-url`; local stack: `http://localhost:8090`) |
+| Plane | Workspace slug | `PLANE_WORKSPACE` (or `--workspace`; it is in the Plane URL: `/<slug>/projects`) |
+| Plane | API key | `PLANE_API_KEY`, created in Plane under **Workspace settings → API tokens** |
 
-Pass a missing URL or workspace with `--gitlab-url`, `--plane-url` or `--workspace`. Use `python3` (or `python`). `<skill-dir>` is the directory of this `SKILL.md`.
+Use `python3` (or `python`). `<skill-dir>` is the directory of this `SKILL.md`.
 
 ## 3. Milestone or cycle
 

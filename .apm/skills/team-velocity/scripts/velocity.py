@@ -423,7 +423,59 @@ def gitlab_url_from_mcp():
 
 
 # ------------------------------------------------------------------ main
+
+
+
+def require_config(gitlab=False, plane=False, gitlab_url=None, plane_url=None, workspace=None, scope="read_api"):
+    """Stop with setup instructions (Linux/macOS and Windows) when a required variable is missing."""
+    missing = []
+    if gitlab:
+        if not gitlab_url:
+            missing.append(("GITLAB_URL", "https://gitlab.example.com"))
+        if not os.environ.get("GITLAB_TOKEN"):
+            missing.append(("GITLAB_TOKEN", f"<personal access token, scope {scope}: GitLab > User settings > Access tokens>"))
+    if plane:
+        if not plane_url:
+            missing.append(("PLANE_URL", "https://plane.example.com"))
+        if not workspace:
+            missing.append(("PLANE_WORKSPACE", "<workspace slug, as in the Plane URL /<slug>/projects>"))
+        if not os.environ.get("PLANE_API_KEY"):
+            missing.append(("PLANE_API_KEY", "<API key: Plane > Workspace settings > API tokens>"))
+    if not missing:
+        return
+    key, example = missing[0]
+    lines = [f"NOT CONFIGURED: missing {', '.join(k for k, _ in missing)}.", "",
+             "Set them as environment variables, or add them to a .env file in the project root",
+             "(one KEY=value per line; keep .env out of git):", ""]
+    lines += [f"  {k}={v}" for k, v in missing]
+    lines += ["", "How to set an environment variable:",
+              f'  Linux/macOS (bash/zsh):  export {key}="{example}"',
+              f'  Windows PowerShell:      $env:{key} = "{example}"',
+              f'                           persistent: setx {key} "{example}"  (then open a new terminal)',
+              f"  Windows cmd:             set {key}={example}",
+              "", "Restart the agent after changing environment variables (.env is read on every run), then try again."]
+    print("\n".join(lines), file=sys.stderr)
+    sys.exit(2)
+
+def load_dotenv(path=".env"):
+    """Fill unset GITLAB_*/PLANE_* variables from the project's .env; the environment always wins."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        return
+    for line in lines:
+        m = re.match(r"\s*(?:export\s+)?((?:GITLAB|PLANE)_[A-Z0-9_]+)\s*=\s*(.*)$", line)
+        if not m:
+            continue
+        key, value = m.group(1), m.group(2).strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+            value = value[1:-1]
+        if value and not os.environ.get(key):
+            os.environ[key] = value
+
 def main(argv=None):
+    load_dotenv()
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("command", choices=["projects", "periods", "report"])
     ap.add_argument("--target", required=True, choices=["gitlab", "plane"])
@@ -439,6 +491,8 @@ def main(argv=None):
     ap.add_argument("--workspace", default=os.environ.get("PLANE_WORKSPACE"))
     ap.add_argument("--rate", type=int, default=60)
     a = ap.parse_args(argv)
+    require_config(gitlab=a.target == "gitlab", plane=a.target == "plane", gitlab_url=a.gitlab_url,
+                   plane_url=a.plane_url, workspace=a.workspace, scope="read_api")
 
     today = dt.date.fromisoformat(a.today) if a.today else dt.date.today()
     if a.command != "projects" and not a.project:
