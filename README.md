@@ -1,6 +1,6 @@
 # hackathon-metrics (APM package)
 
-The hackathon deliverable: portable **agent skills** that help teams run their **GitLab** and **Plane** projects: set them up, migrate between them, find blocked work, assign issues by expertise, measure the team's velocity and compare commitment with delivery. They are packaged with [APM](https://github.com/microsoft/apm) so any team can install them in **Claude Code**, **GitHub Copilot** or **OpenCode**.
+The hackathon deliverable: portable **agent skills** that help teams run their **GitLab** and **Plane** projects: set them up, migrate between them, find blocked work, assign issues by expertise, find stale work, measure the team's velocity and compare commitment with delivery. They are packaged with [APM](https://github.com/microsoft/apm) so any team can install them in **Claude Code**, **GitHub Copilot** or **OpenCode**.
 
 ## Skills
 
@@ -12,6 +12,7 @@ The hackathon deliverable: portable **agent skills** that help teams run their *
 | `assign-issues` | "Who should take #62?" / "qual a melhor task para a Carla na sprint atual?". For GitLab or Plane, it scores every developer per area (0–100) from the issues they were assignee, author or commenter on, then recommends the best developer for an issue or the best issues of the current milestone/cycle for a developer. Assigns only after you confirm. Needs `GITLAB_TOKEN` (scope `read_api`, `api` to assign) or `PLANE_API_KEY`. | `scripts/assign.py` |
 | `team-velocity` | "What is the team's velocity?" / "quantos pontos planejar no próximo ciclo?". For GitLab or Plane, it reports the points (or issues) delivered on time per finished milestone/cycle, velocity per week, completion, stability and trend, and velocity per person. It recommends how much to plan next and says how the current milestone/cycle is going at that pace. Weekly throughput when there are no milestones/cycles. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `scripts/velocity.py` |
 | `commitment-delivered` | "Did we deliver what we committed to?" / "comprometido x entregue no ciclo X". For GitLab or Plane, it rebuilds the commitment at the start of each milestone/cycle from its history and reports how much of it was delivered by the end (say/do ratio), what was removed, cancelled or carried over, the unplanned work added mid-period, total delivered against the commitment and the scope change. It adds the trend, a reliability rating, the split per person, the current period so far and whether the next one holds more than the team usually delivers. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `scripts/commitment.py` |
+| `stale-issues` | "Which tickets are stale in v1.0?" / "issues paradas no ciclo X". For a GitLab milestone, a Plane cycle or the whole project, it lists the open issues with a stale label/state or no activity for more than N days (default 14; for work not started the clock starts with the milestone/cycle). Each one gets a kind (stalled in progress, blocked, not started, marked stale), idle days, owner and a next step, plus the stale share of the open work, the split per person and the issues getting stale. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `scripts/stale.py` |
 
 Ask your agent in plain language, for example "which issues are blocked in v1.0?", "who should take #62?" or "migrate acme/inventory-manager to Plane". The agent loads the matching skill.
 
@@ -30,6 +31,7 @@ Average tokens one request adds to the agent's context, per skill. The **fixed**
 | `assign-issues` | ~2,700 + ~250–450 of results | **~0**; grows with the number of developers (~25 each) and `--limit` (~40 per row) | ~500–800 | `suggest-member`: ~3,000 in / ~600 out |
 | `team-velocity` | ~1,700 + ~250 of results | **~0**; grows with periods (~60 each) and people (~15 per person per period) | ~600–900 | 2 milestones, 4 people: ~2,200 in / ~800 out |
 | `commitment-delivered` | ~2,100 + ~300–700 of results | **~0**; grows with periods (~70 each) and with the issues not delivered from the commitment (~25 each, they are listed) | ~700–1,000 | 2 milestones + the current one, 4 people: ~2,800 in / ~900 out (estimated from offline seed data) |
+| `stale-issues` | ~1,800 + ~200 of results | ~75 per **stale** issue (one table row); ~0 per other issue | ~400 + ~60 per stale issue | v0.3 on the seed date, 9 of 18 stale: ~2,700 in / ~950 out |
 | `populate-project` | ~3,000, two runs included (dry run + write) | **0**, it reads no issues; ~15 per label | ~600–800 | 23 labels: ~3,400 in / ~700 out |
 | `gitlab-to-plane` | ~2,600, two runs included (dry run + migration) | **~1**: the script reads GitLab itself and prints progress every 20 issues | ~500 | 67 issues: ~2,700 in / ~500 out |
 
@@ -58,6 +60,7 @@ How the numbers were measured:
       assign-issues/             # SKILL.md + scripts/assign.py
       team-velocity/             # SKILL.md + scripts/velocity.py
       commitment-delivered/      # SKILL.md + scripts/commitment.py
+      stale-issues/              # SKILL.md + scripts/stale.py
 ```
 
 ## Install in your project
