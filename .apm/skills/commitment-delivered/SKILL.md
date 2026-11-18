@@ -52,7 +52,8 @@ python3 <skill-dir>/scripts/commitment.py report --target <t> --project "<p>" \
 - **Which periods:** by default the last `--last` finished ones (default 6) plus the current one. `--period` (repeatable) analyzes only the named ones. Use the user's choice if they give one.
 - **Commitment cutoff:** the end of the start day. If the team plans during the first days, pass `--grace-days N` (the user's number; ask only if they mention planning late).
 - **Unit:**
-  - `auto` uses `points::N` labels (Plane: the `points` label group) when every issue involved has one. Otherwise it counts issues, and the report says how many have no points.
+  - `auto` uses points when every issue involved has them. Otherwise it counts issues, and the report says how many have no points.
+  - Points come from the `points::N` label in GitLab. In Plane they come from the issue's **estimate** (Project settings → Estimates, a numeric scale), and from the `points` label group when an issue has no numeric estimate.
   - `--unit points` counts only pointed work.
 - **Time:** the history is read for every issue updated since the first analyzed period began (one request each). In Plane that is about 1 s per issue (60 requests per minute). Tell the user when the project is large.
 - On an API error the script stops with the response. Report it and stop.
