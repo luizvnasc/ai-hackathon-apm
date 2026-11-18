@@ -66,7 +66,7 @@ python3 <skill-dir>/scripts/commitment.py report --target <t> --project "<p>" \
 | Say/do | Delivered ÷ committed. The main number: how much of the promise was kept. |
 | Removed / Cancelled | Committed issues taken out of the period before its end, or closed as cancelled, won't fix or duplicate. They count against say/do. |
 | Carried over | Committed issues still open at the end (or closed after it). For the current period: still open. |
-| Added | Issues that joined after the cutoff (unplanned work), and how many of them were delivered. |
+| Added | Issues that joined after the cutoff (unplanned work) and were still in the period at the end, or delivered in it; and how many of them were delivered. An issue added and taken out again inside the period counts nowhere. |
 | Total delivered / vs commitment | Delivered + added delivered, and that ÷ committed. It can pass 100% when the team took on extra work. |
 | Scope change | (Added − removed) ÷ committed. |
 | Reliability | Rated on the lower of the median say/do and the average of the last 3 finished periods: ≥ 90% reliable, ≥ 70% fairly reliable, otherwise overcommits. |

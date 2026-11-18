@@ -23,7 +23,8 @@ Definitions:
   * Delivered (committed): committed issues closed, not cancelled, by the end
     of the period while still in it. Say/do = delivered committed / commitment.
   * Added: issues that joined after the commitment cutoff and before the end
-    (unplanned work). Removed: committed issues taken out of the period before
+    (unplanned work), and were still in the period at the end or delivered in
+    it; issues that joined and left again count nowhere. Removed: committed issues taken out of the period before
     its end. Cancelled: committed issues closed as cancelled/won't fix/duplicate.
   * Carried over: committed issues neither delivered nor removed nor cancelled.
   * Total delivered: delivered committed + delivered added.
@@ -347,7 +348,10 @@ def classify(p, issues, grace, today):
     name = p["name"]
     committed = [i for i in issues if period_at(i, cutoff) == name]
     cids = {id(i) for i in committed}
-    added = [i for i in issues if id(i) not in cids and ever_in(i, name, cutoff, stop)]
+    # Added work must still be in the period at the end, or have been delivered in it: an issue that came
+    # and went again inside the period changed nothing and would inflate the scope change.
+    added = [i for i in issues if id(i) not in cids and ever_in(i, name, cutoff, stop)
+             and (period_at(i, stop) == name or delivered(i, name, stop))]
     rows = {"committed": committed, "added": added, "delivered": [], "removed": [], "cancelled": [],
             "carried": [], "added_done": [i for i in added if delivered(i, name, stop)]}
     for i in committed:
