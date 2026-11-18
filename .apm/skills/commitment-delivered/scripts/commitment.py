@@ -403,16 +403,26 @@ def summarize(rows):
     sc = [r["scope_change"] for r in rows if r["scope_change"] is not None]
     total_c = sum(r["committed"] for r in rows)
     med = statistics.median(sd)
+    last3 = statistics.mean(sd[-3:])
     tr = slope(sd)
+    # The median alone hides a recent collapse, so rate on the lower of the median and the last-3 average,
+    # and drop one more level when the latest period is below 70% and far (> 20 pp) under the median.
+    basis = min(med, last3)
+    level = 0 if basis >= 0.9 else 1 if basis >= 0.7 else 2
+    latest = sd[-1]
+    drop = len(sd) > 1 and latest < 0.7 and latest < med - 0.2
+    if drop:
+        level = min(2, level + 1)
     return {"n": len(sd), "mean": statistics.mean(sd), "median": med, "min": min(sd), "max": max(sd),
-            "last3": statistics.mean(sd[-3:]), "trend": tr,
+            "last3": last3, "latest": latest, "latest_name": rows[-1]["name"], "trend": tr,
             "trend_word": "not enough periods" if tr is None else "rising" if tr > 0.05 else
                           "falling" if tr < -0.05 else "flat",
             "pooled": sum(r["delivered"] for r in rows) / total_c if total_c else None,
             "vs_commitment": statistics.median(vs) if vs else None,
             "scope_change": statistics.median(sc) if sc else None,
             "median_delivered": statistics.median([r["delivered"] for r in rows]),
-            "reliability": "reliable" if med >= 0.9 else "fairly reliable" if med >= 0.7 else "overcommits"}
+            "rating_basis": basis, "recent_drop": drop,
+            "reliability": ("reliable", "fairly reliable", "overcommits")[level]}
 
 
 # ------------------------------------------------------------------ output
@@ -447,14 +457,19 @@ def render(res):
     s = res["summary"]
     if s:
         out += ["", "## Summary (finished periods)", "",
-                md_table(["Periods", "Mean say/do", "Median", "Min", "Max", "Last 3 avg", "Pooled", "Trend / period",
-                          "Median vs commitment", "Median scope change"],
+                md_table(["Periods", "Mean say/do", "Median", "Min", "Max", "Last 3 avg", "Latest", "Pooled",
+                          "Trend / period", "Median vs commitment", "Median scope change"],
                          [[s["n"], f1(s["mean"], True), f1(s["median"], True), f1(s["min"], True), f1(s["max"], True),
-                           f1(s["last3"], True), f1(s["pooled"], True),
+                           f1(s["last3"], True), f1(s["latest"], True), f1(s["pooled"], True),
                            "—" if s["trend"] is None else f"{100 * s['trend']:+.0f} pp",
                            f1(s["vs_commitment"], True),
                            "—" if s["scope_change"] is None else f"{100 * s['scope_change']:+.0f}%"]]), "",
-                f"Reliability: **{s['reliability']}** · trend: **{s['trend_word']}**"]
+                f"Reliability: **{s['reliability']}** (rated on {f1(s['rating_basis'], True)}, the lower of the median "
+                f"and the last-3 average) · trend: **{s['trend_word']}**"]
+        if s["recent_drop"]:
+            out += ["", f"**Recent drop:** {s['latest_name']} kept only {f1(s['latest'], True)} of its commitment, "
+                        f"{100 * (s['median'] - s['latest']):.0f} pp under the median of {f1(s['median'], True)}. "
+                        "The rating was lowered one level."]
     if res["members"]:
         fin = [r for r in rows if r["status"] == "finished"]
         out += ["", "## Per person (finished periods; shared evenly between assignees)", "",
