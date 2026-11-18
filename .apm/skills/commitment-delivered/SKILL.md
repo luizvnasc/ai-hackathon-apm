@@ -69,7 +69,8 @@ python3 <skill-dir>/scripts/commitment.py report --target <t> --project "<p>" \
 | Added | Issues that joined after the cutoff (unplanned work), and how many of them were delivered. |
 | Total delivered / vs commitment | Delivered + added delivered, and that ÷ committed. It can pass 100% when the team took on extra work. |
 | Scope change | (Added − removed) ÷ committed. |
-| Reliability | Median say/do over finished periods: ≥ 90% reliable, ≥ 70% fairly reliable, otherwise overcommits. |
+| Reliability | Rated on the lower of the median say/do and the average of the last 3 finished periods: ≥ 90% reliable, ≥ 70% fairly reliable, otherwise overcommits. |
+| Recent drop | The latest finished period kept < 70% of its commitment and sits > 20 pp under the median. The rating drops one more level and the report flags it: always mention it. |
 | Trend | Least-squares slope of say/do per period, in percentage points: rising or falling beyond ±5 pp. |
 | Pooled | Every delivered point ÷ every committed point, so big periods weigh more. |
 | Per person | Committed and delivered work split evenly between the current assignees. It shows how commitment was spread, not individual performance. |
@@ -81,7 +82,7 @@ Write in the user's language. Translate the script's text, and keep names, keys 
 
 1. **Header:** tool, project, unit (points or issues), the commitment cutoff, the periods used and today's date.
 2. **The table** per milestone/cycle: committed, delivered, say/do, removed, cancelled, carried over, added, total delivered, vs commitment, scope change.
-3. **Summary:** median and mean say/do, reliability and trend, and how much scope usually changes, in one or two sentences.
+3. **Summary:** median and mean say/do, the latest period, reliability and trend, and how much scope usually changes, in one or two sentences. Lead with the recent drop when the report flags one.
 4. **What broke the commitment:** the carried-over, removed and cancelled issues per period, with links. Point out a pattern if there is one (same area, same size, mostly added work).
 5. **Current period:** say/do so far, what is still open and how much was added. Say it is still running.
 6. **Next period:** whether its scope fits what the team usually delivers from a commitment; suggest committing about the median delivered when it holds much more.
