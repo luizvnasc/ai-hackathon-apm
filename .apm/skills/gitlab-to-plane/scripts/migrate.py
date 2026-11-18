@@ -2,16 +2,17 @@
 """Migrate a GitLab project's work items into a Plane project.
 
 Stdlib only (Python 3.8+), so it runs the same under Claude Code, GitHub Copilot
-and OpenCode. The agent exports the GitLab project with the GitLab MCP server
-into one JSON file, then runs:
+and OpenCode. The script reads GitLab itself (GraphQL API, GITLAB_URL +
+GITLAB_TOKEN with read_api) and writes Plane (REST API, PLANE_API_KEY):
 
-    PLANE_API_KEY=... python3 migrate.py --data export.json \
+    python3 migrate.py --gitlab-project acme/inventory-manager \
         --plane-url http://localhost:8090 --workspace my-team \
         [--project-name "Inventory Manager"] [--identifier INVM] \
         [--user-map bruno=bruno@acme.io,ana=ana@acme.io] \
-        [--no-comments] [--dry-run] [--report report.json]
+        [--no-comments] [--dry-run] [--report report.json] [--save-export export.json]
 
-export.json is either a list of work items or
+--data export.json replaces --gitlab-project to migrate from a saved export,
+which is either a list of work items or
     {"project": {"path", "name", "description", "url"}, "work_items": [...]}
 Each work item may be the raw object returned by get_work_item (createdAt,
 closedAt, widgets incl. NOTES) or the compact shape
@@ -215,6 +216,91 @@ def norm_item(raw, project_path):
         "due_date": (due_date or "")[:10] or None,
         "notes": [n for n in nts if not n["system"] and n["body"].strip()],
     }
+
+
+# ------------------------------------------------------------------ GitLab export
+GL_ITEM = """
+  id iid title description state createdAt closedAt webUrl reference(full: true)
+  widgets {
+    type
+    ... on WorkItemWidgetLabels { labels { nodes { title color description } } }
+    ... on WorkItemWidgetAssignees { assignees { nodes { username name } } }
+    ... on WorkItemWidgetMilestone { milestone { title startDate dueDate } }
+    ... on WorkItemWidgetStartAndDueDate { startDate dueDate }
+    %s
+  }
+"""
+GL_NOTES = """... on WorkItemWidgetNotes { notes(first: 100) { pageInfo { hasNextPage endCursor }
+      nodes { id body system createdAt author { username name } } } }"""
+
+
+def gitlab_url_default():
+    url = os.environ.get("GITLAB_URL")
+    if url:
+        return url
+    for path in (".mcp.json", ".vscode/mcp.json", "opencode.json"):  # optional fallback
+        try:
+            with open(path, encoding="utf-8") as fh:
+                cfg = json.load(fh)
+        except (OSError, ValueError):
+            continue
+        for section in ("mcpServers", "servers", "mcp"):
+            u = ((cfg.get(section) or {}).get("gitlab") or {}).get("url")
+            if u:
+                return re.sub(r"/api/v4/mcp/?$", "", u)
+    return None
+
+
+def gitlab_export(url, token, project, comments=True):
+    """Read the project and all its work items (any state) with the GitLab GraphQL API."""
+    endpoint = url.rstrip("/") + "/api/graphql"
+    headers = {"PRIVATE-TOKEN": token, "Content-Type": "application/json", "Accept": "application/json",
+               "User-Agent": "gitlab-to-plane-skill/1.0"}
+
+    def gql(query, variables):
+        req = urllib.request.Request(endpoint, data=json.dumps({"query": query, "variables": variables}).encode(),
+                                     method="POST", headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=120) as resp:
+                data = json.loads(resp.read().decode())
+        except urllib.error.HTTPError as e:
+            sys.exit(f"GitLab API error: HTTP {e.code}: {e.read().decode(errors='replace')[:400]}")
+        except urllib.error.URLError as e:
+            sys.exit(f"cannot reach {endpoint}: {e.reason}")
+        if data.get("errors"):
+            sys.exit(f"GitLab API error: {json.dumps(data['errors'])[:400]}")
+        return data["data"]
+
+    item_fields = GL_ITEM % (GL_NOTES if comments else "")
+    q = f"""query($p: ID!, $after: String) {{ project(fullPath: $p) {{ fullPath name description webUrl
+              workItems(types: [ISSUE, TASK, INCIDENT], first: 20, after: $after) {{
+                pageInfo {{ hasNextPage endCursor }} nodes {{ {item_fields} }} }} }} }}"""
+    items, after, info = [], None, None
+    while True:
+        proj = gql(q, {"p": project, "after": after})["project"]
+        if not proj:
+            sys.exit(f"GitLab project {project!r} not found (or the token cannot read it)")
+        info = {"path": proj["fullPath"], "name": proj["name"], "description": proj.get("description") or "",
+                "url": proj["webUrl"]}
+        page = proj["workItems"]
+        items += page["nodes"]
+        print(f"  read {len(items)} work items from GitLab", flush=True)
+        if not page["pageInfo"]["hasNextPage"]:
+            break
+        after = page["pageInfo"]["endCursor"]
+    if comments:
+        more = """query($id: WorkItemID!, $after: String) { workItem(id: $id) { widgets {
+                    ... on WorkItemWidgetNotes { notes(first: 100, after: $after) { pageInfo { hasNextPage endCursor }
+                      nodes { id body system createdAt author { username name } } } } } } }"""
+        for it in items:
+            w = next((x for x in it["widgets"] if x.get("type") == "NOTES"), None)
+            while w and w["notes"]["pageInfo"]["hasNextPage"]:
+                data = gql(more, {"id": it["id"], "after": w["notes"]["pageInfo"]["endCursor"]})["workItem"]
+                nxt = next(x for x in data["widgets"] if "notes" in x)["notes"]
+                w["notes"]["nodes"] += nxt["nodes"]
+                w["notes"]["pageInfo"] = nxt["pageInfo"]
+    items.sort(key=lambda r: int(r["iid"]))
+    return info, items
 
 
 # ------------------------------------------------------------------ Plane client
@@ -550,7 +636,8 @@ class Migration:
             self.link(pid, issue["id"], it)
             if it["notes"] and not self.args.no_comments:
                 self.comments(pid, issue["id"], it)
-            print(f"  [{n}/{total}] {it['ref']} -> {issue.get('sequence_id') or issue['id']}", flush=True)
+            if n % 20 == 0 or n == total:  # sparse progress keeps the output (and the agent's context) small
+                print(f"  [{n}/{total}] work items done (last: {it['ref']})", flush=True)
         for cid, issue_ids in cycle_items.items():
             if not self.p.dry_run and not str(cid).startswith("<new"):
                 self.p.write("POST", f"/projects/{pid}/cycles/{cid}/cycle-issues/", {"issues": issue_ids})
@@ -591,9 +678,65 @@ def default_identifier(info):
     return ident.upper()[:12]
 
 
+
+def require_config(gitlab=False, plane=False, gitlab_url=None, plane_url=None, workspace=None, scope="read_api"):
+    """Stop with setup instructions (Linux/macOS and Windows) when a required variable is missing."""
+    missing = []
+    if gitlab:
+        if not gitlab_url:
+            missing.append(("GITLAB_URL", "https://gitlab.example.com"))
+        if not os.environ.get("GITLAB_TOKEN"):
+            missing.append(("GITLAB_TOKEN", f"<personal access token, scope {scope}: GitLab > User settings > Access tokens>"))
+    if plane:
+        if not plane_url:
+            missing.append(("PLANE_URL", "https://plane.example.com"))
+        if not workspace:
+            missing.append(("PLANE_WORKSPACE", "<workspace slug, as in the Plane URL /<slug>/projects>"))
+        if not os.environ.get("PLANE_API_KEY"):
+            missing.append(("PLANE_API_KEY", "<API key: Plane > Workspace settings > API tokens>"))
+    if not missing:
+        return
+    key, example = missing[0]
+    lines = [f"NOT CONFIGURED: missing {', '.join(k for k, _ in missing)}.", "",
+             "Set them as environment variables, or add them to a .env file in the project root",
+             "(one KEY=value per line; keep .env out of git):", ""]
+    lines += [f"  {k}={v}" for k, v in missing]
+    lines += ["", "How to set an environment variable:",
+              f'  Linux/macOS (bash/zsh):  export {key}="{example}"',
+              f'  Windows PowerShell:      $env:{key} = "{example}"',
+              f'                           persistent: setx {key} "{example}"  (then open a new terminal)',
+              f"  Windows cmd:             set {key}={example}",
+              "", "Restart the agent after changing environment variables (.env is read on every run), then try again."]
+    print("\n".join(lines), file=sys.stderr)
+    sys.exit(2)
+
+def load_dotenv(path=".env"):
+    """Fill unset GITLAB_*/PLANE_* variables from the project's .env; the environment always wins."""
+    try:
+        with open(path, encoding="utf-8") as fh:
+            lines = fh.read().splitlines()
+    except OSError:
+        return
+    for line in lines:
+        m = re.match(r"\s*(?:export\s+)?((?:GITLAB|PLANE)_[A-Z0-9_]+)\s*=\s*(.*)$", line)
+        if not m:
+            continue
+        key, value = m.group(1), m.group(2).strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+            value = value[1:-1]
+        if value and not os.environ.get(key):
+            os.environ[key] = value
+
 def main(argv=None):
+    load_dotenv()
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--data", required=True, help="export JSON written by the agent")
+    src = ap.add_mutually_exclusive_group(required=True)
+    src.add_argument("--list-gitlab-projects", action="store_true",
+                     help="list the GitLab projects the token's user is a member of, then exit")
+    src.add_argument("--gitlab-project", help="GitLab project path (group/project) to read with the GitLab API")
+    src.add_argument("--data", help="migrate from a saved export JSON instead of reading GitLab")
+    ap.add_argument("--gitlab-url", default=gitlab_url_default(), help="GitLab base URL (or GITLAB_URL)")
+    ap.add_argument("--save-export", help="also write what was read from GitLab to this JSON file")
     ap.add_argument("--plane-url", default=os.environ.get("PLANE_URL"), help="Plane base URL (or PLANE_URL)")
     ap.add_argument("--workspace", default=os.environ.get("PLANE_WORKSPACE"), help="workspace slug (or PLANE_WORKSPACE)")
     ap.add_argument("--project-name", help="Plane project name (default: GitLab project name)")
@@ -604,6 +747,32 @@ def main(argv=None):
     ap.add_argument("--rate", type=int, default=60, help="API calls per minute allowed for the key (default 60)")
     ap.add_argument("--report", help="write the GitLab -> Plane id mapping and summary to this JSON file")
     a = ap.parse_args(argv)
+    require_config(gitlab=bool(a.gitlab_project or a.list_gitlab_projects), plane=not a.list_gitlab_projects,
+                   gitlab_url=a.gitlab_url, plane_url=a.plane_url, workspace=a.workspace)
+
+    if a.list_gitlab_projects:
+        token = os.environ.get("GITLAB_TOKEN")
+        if not (a.gitlab_url and token):
+            sys.exit("set GITLAB_URL (or --gitlab-url) and GITLAB_TOKEN")
+        page, rows = 1, []
+        while True:
+            q = urllib.parse.urlencode({"membership": "true", "archived": "false", "order_by": "last_activity_at",
+                                        "sort": "desc", "per_page": 100, "page": page})
+            req = urllib.request.Request(f"{a.gitlab_url.rstrip('/')}/api/v4/projects?{q}",
+                                         headers={"PRIVATE-TOKEN": token, "User-Agent": "gitlab-to-plane-skill/1.0"})
+            try:
+                with urllib.request.urlopen(req, timeout=60) as resp:
+                    data, nxt = json.loads(resp.read().decode()), resp.headers.get("X-Next-Page")
+            except urllib.error.HTTPError as e:
+                sys.exit(f"GitLab API error: HTTP {e.code}: {e.read().decode(errors='replace')[:300]}")
+            rows += [p for p in data if not p.get("marked_for_deletion_on")]
+            if not nxt:
+                break
+            page = int(nxt)
+        print("| # | Project | Name | Open issues |\n|---|---|---|---|")
+        for n, p in enumerate(rows, 1):
+            print(f"| {n} | [{p['path_with_namespace']}]({p['web_url']}) | {p['name']} | {p.get('open_issues_count', '—')} |")
+        return
 
     key = os.environ.get("PLANE_API_KEY")
     if not a.plane_url or not a.workspace:
@@ -611,8 +780,21 @@ def main(argv=None):
     if not key:
         sys.exit("PLANE_API_KEY is not set (Plane: Workspace settings -> API tokens)")
 
-    with open(a.data, encoding="utf-8") as fh:
-        data = json.load(fh)
+    if a.gitlab_project:
+        token = os.environ.get("GITLAB_TOKEN")
+        if not a.gitlab_url:
+            sys.exit("GitLab URL missing: set GITLAB_URL or pass --gitlab-url")
+        if not token:
+            sys.exit("GITLAB_TOKEN is not set (a personal access token with the read_api scope)")
+        print(f"Reading {a.gitlab_project} from {a.gitlab_url}", flush=True)
+        info, raw = gitlab_export(a.gitlab_url, token, a.gitlab_project.strip("/"), comments=not a.no_comments)
+        data = {"project": info, "work_items": raw}
+        if a.save_export:
+            with open(a.save_export, "w", encoding="utf-8") as fh:
+                json.dump(data, fh, indent=1)
+    else:
+        with open(a.data, encoding="utf-8") as fh:
+            data = json.load(fh)
     info = data.get("project", {}) if isinstance(data, dict) else {}
     raw_items = data.get("work_items", []) if isinstance(data, dict) else data
     path = info.get("path") or (raw_items[0].get("reference", "").split("#")[0] if raw_items else "")

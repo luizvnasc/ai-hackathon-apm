@@ -9,7 +9,7 @@ Find the blocked issues of a project and explain, for each one, why it is blocke
 
 - **Read-only.** Never change anything in GitLab or Plane: no comments, no labels, no links, no state changes. Suggest changes in the report instead.
 - **Data and diagnosis come from the bundled script** `scripts/blocked.py`, so every agent gets the same result. Never invent issues, causes or dates.
-- The script uses the GitLab REST/GraphQL API or the Plane REST API. The GitLab MCP server cannot do this job: it has no tool to list milestones, and its `LINKED_ITEMS` widget comes back empty.
+- The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly; no MCP server is needed.
 
 ## 1. Target and project
 
@@ -33,17 +33,15 @@ Take both from the user's words. Never guess them.
 
 ## 2. Credentials
 
-Ask for anything missing in a single question. Never ask for a token's value and never print one.
+The script reads these variables from the environment or, when one is not set there, from a `.env` file in the project root (the environment wins). **If any is missing, the script stops with a `NOT CONFIGURED` message** that lists the missing variables and how to set them on Linux/macOS, Windows PowerShell and cmd, or in `.env`. Show that message to the user as it is, then stop and wait: do not try other values. A URL or workspace the user gives in the chat can be passed as an option instead. Never ask for a token's value in the chat and never print one.
 
 | Target | Input | Source |
 |---|---|---|
-| GitLab | URL | `GITLAB_URL` env var, else derived from the `gitlab` MCP entry (`.mcp.json`, `.vscode/mcp.json` or `opencode.json`), else ask |
-| GitLab | Token | `GITLAB_TOKEN` env var, a personal access token with the `read_api` scope. Only when it is not set in the environment and the repository's `.env` defines a non-empty value, load that file in the same shell command with `set -a; . ./.env; set +a`. Never source a `.env` when the variable is already set: an empty entry there would erase it. |
-| Plane | URL | `PLANE_URL` env var, else ask (local stack: `http://localhost:8090`) |
-| Plane | Workspace slug | `PLANE_WORKSPACE` env var, else ask (it is in the Plane URL: `/<slug>/projects`) |
-| Plane | API key | `PLANE_API_KEY` env var. The user creates it in Plane under **Workspace settings → API tokens** and exports it before starting the agent. |
-
-Pass a missing URL or workspace with `--gitlab-url`, `--plane-url` or `--workspace`.
+| GitLab | URL | `GITLAB_URL` (or `--gitlab-url`) |
+| GitLab | Token | `GITLAB_TOKEN`, a personal access token with scope `read_api` |
+| Plane | URL | `PLANE_URL` (or `--plane-url`; local stack: `http://localhost:8090`) |
+| Plane | Workspace slug | `PLANE_WORKSPACE` (or `--workspace`; it is in the Plane URL: `/<slug>/projects`) |
+| Plane | API key | `PLANE_API_KEY`, created in Plane under **Workspace settings → API tokens** |
 
 Use `python3` (or `python` if `python3` is missing). `<skill-dir>` below is the directory of this `SKILL.md`.
 

@@ -3,22 +3,15 @@
 # Skills follow the open Agent Skills format, so APM deploys them for Claude Code
 # (.claude/skills/), GitHub Copilot and OpenCode (.agents/skills/).
 #
-# MCP servers are NOT declared under dependencies.mcp on purpose: the skills need
-# the GitLab MCP server, but every team runs its own GitLab (different URL), and
-# APM only accepts a literal `url` for self-defined servers (no ${VAR} or
-# ${input:...} there; placeholders work only in headers/env). An installable
-# package must not hardcode one team's URL, so the setup wizard
-# (scripts/setup-mcp.sh or /setup-mcp) declares the server in the consumer's own
-# apm.yml with the right URL and auth.
+# The skills need no MCP server: their bundled scripts call the GitLab and Plane
+# APIs directly, with GITLAB_URL / GITLAB_TOKEN and PLANE_URL / PLANE_WORKSPACE /
+# PLANE_API_KEY from the environment or the consumer's .env. When one is missing,
+# the skill says which and how to set it (Linux/macOS and Windows).
 name: hackathon-metrics
-version: 0.8.0
+version: 0.9.0
 description: GitLab and Plane project skills (populate, migrate, blocked issues, assignment by area expertise, team velocity) for Claude Code, GitHub Copilot and OpenCode
 license: MIT
 includes: auto
-
-scripts:
-  # Lets the package author run the wizard from this directory: apm run setup
-  setup: "bash scripts/setup-mcp.sh"
 
 dependencies:
   apm: []
