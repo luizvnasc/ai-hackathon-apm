@@ -54,11 +54,17 @@ def http(method, url, headers, body=None):
     req = urllib.request.Request(url, data=data, method=method, headers=h)
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
-            return json.loads(resp.read().decode() or "null"), resp.headers
+            raw, status, resp_headers = resp.read().decode(errors="replace"), resp.status, resp.headers
     except urllib.error.HTTPError as e:
         raise ApiError(e.code, e.read().decode(errors="replace"), method, url) from None
     except urllib.error.URLError as e:
         sys.exit(f"cannot reach {url}: {e.reason}")
+    except OSError as e:  # e.g. a timeout while reading the body
+        sys.exit(f"cannot reach {url}: {e}")
+    try:
+        return json.loads(raw or "null"), resp_headers
+    except ValueError:
+        raise ApiError(status, "response is not JSON (check the URL): " + raw[:200], method, url) from None
 
 
 def parse_dt(value):
@@ -172,7 +178,7 @@ class Plane:
 
     def __init__(self, url, workspace, api_key, project, rate_per_min=60):
         self.url, self.ws = url.rstrip("/"), workspace
-        self.base = f"{self.url}/api/v1/workspaces/{workspace}"
+        self.base = f"{self.url}/api/v1/workspaces/{urllib.parse.quote(workspace, safe='')}"
         self.headers = {"X-API-Key": api_key}
         self.min_interval, self.last = 60.0 / max(1, rate_per_min - 2), 0.0
         self.all_projects = self.list("/projects/")
@@ -231,6 +237,27 @@ class Plane:
         return [{"name": c["name"], "id": c["id"], "start": (c.get("start_date") or "")[:10] or None,
                  "end": (c.get("end_date") or "")[:10] or None} for c in self._cycles]
 
+    def estimate_values(self):
+        """{estimate point id: value} of the project's estimate. Story points live in the
+        work item's Estimate field (estimate_point), not in labels."""
+        if not hasattr(self, "_estimates"):
+            self._estimates = {}
+            try:
+                est = self.req(f"/projects/{self.pid}/estimates/")
+            except ApiError as e:
+                if e.status != 404:  # 404: the project has no estimate
+                    raise
+                est = None
+            if isinstance(est, dict) and est.get("id"):
+                self._estimates = {p["id"]: str(p.get("value") or "").strip() for p in
+                                   self.list(f"/projects/{self.pid}/estimates/{est['id']}/estimate-points/")}
+        return self._estimates
+
+    def points_of(self, r):
+        """The story points of a work item: the numeric value of its estimate point, or None."""
+        value = self.estimate_values().get(r.get("estimate_point"))
+        return float(value) if value and re.fullmatch(r"\d+(\.\d+)?", value) else None
+
     def issues(self, period):
         label_names = {l["id"]: l["name"] for l in self.list(f"/projects/{self.pid}/labels/")}
         params = {"expand": "state,labels,assignees"}
@@ -262,7 +289,7 @@ class Plane:
                 blocked=sname.lower() in BLOCKED_VALUES or any(label_value(l) in BLOCKED_VALUES for l in labels),
                 stale_mark=sname.lower() in STALE_VALUES or any(label_value(l) in STALE_VALUES for l in labels),
                 priority=None if r.get("priority") in (None, "none") else r.get("priority"),
-                points=num(scoped(labels, "points")), period=period,
+                points=self.points_of(r), period=period,
                 assignees=[a.get("display_name") or a.get("email") for a in r.get("assignees") or []
                            if isinstance(a, dict)]))
         return out

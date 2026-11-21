@@ -1,6 +1,6 @@
 ---
 name: gitlab-to-plane
-description: Migrate a GitLab project's issues into a Plane project. The bundled script reads GitLab through its API and writes Plane through its REST API. Covers states (from workflow labels), priorities, scoped labels as label groups, milestones as cycles, assignees, comments and original creation dates. Safe to re-run, because objects are matched by external id. Use when the user asks to migrate, move, copy, import or sync a GitLab project, its issues or its backlog to Plane.
+description: Migrate a GitLab project's issues into a Plane project. The bundled script reads GitLab through its API and writes Plane through its REST API. Covers states (from workflow labels), priorities, story points (`points::N`) as the Plane Estimate field, scoped labels as label groups, milestones as cycles, assignees, comments and original creation dates. Safe to re-run, because objects are matched by external id. Use when the user asks to migrate, move, copy, import or sync a GitLab project, its issues or its backlog to Plane.
 ---
 
 # Migrate a GitLab project to Plane
@@ -37,6 +37,7 @@ Use `python3` (or `python` if `python3` is missing). `<skill-dir>` is the direct
    ```
    - **GitLab project not found or token refused:** report the error and stop. Do not try similar names.
    - Show the user the plan and **get confirmation** before writing.
+   - Always start with the dry run, even when the user asks to skip it or says the migration is already confirmed: a confirmation counts only after the user has seen the plan.
 2. **Migrate.** Run the same command without `--dry-run`, adding `--report <tmp>/report.json` in a temporary directory, never inside the user's repository.
    - The Plane API key allows 60 requests per minute, so the script paces itself. Expect about 1 second per request, roughly 2–3 requests per work item.
    - On an error it stops with the API response. Fix the cause and re-run: finished objects are reused.
@@ -54,6 +55,7 @@ Use `python3` (or `python` if `python3` is missing). `<skill-dir>` is the direct
 | Project | Project, matched by identifier, otherwise created. Cycles are enabled when there are milestones. |
 | `workflow::` / `status::` label + open/closed state | State. backlog → Backlog; ready/todo → Todo; in-progress/doing → In Progress; review/qa → In Review; blocked → Blocked; closed → Done; closed + canceled/wontfix/duplicate → Cancelled; no label → Backlog. Missing states are created in the right group. |
 | `priority::` label | Priority field: critical/urgent → urgent, high, medium, low. |
+| Story points `points::N` (also `sp::`, `estimate::`) | The work item's **Estimate** (never a label). The project gets a `points` estimate with every value used, and it is enabled on the project. |
 | Other scoped label `scope::value` | Label `value` under the parent label `scope` (for example `type` → `bug`). Values that repeat across scopes keep the full `scope::value` name. |
 | Plain label | Label, keeping the GitLab color. |
 | Milestone | Cycle with the same start and due dates. The milestone's items are added to it. |

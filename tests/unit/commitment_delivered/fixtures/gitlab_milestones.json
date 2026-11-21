@@ -1,0 +1,5 @@
+{"data": {"project": {"name": "Demo Project", "milestones": {"nodes": [
+  {"title": "v0.1", "state": "closed", "startDate": "2026-01-05", "dueDate": "2026-01-18"},
+  {"title": "v0.2", "state": "active", "startDate": "2026-01-19", "dueDate": "2026-02-01"},
+  {"title": "Backlog", "state": "active", "startDate": null, "dueDate": null}
+]}}}}

@@ -7,7 +7,7 @@ description: Help assign work in a GitLab or Plane project. It builds an area sc
 
 Recommend who should take an issue, or what a developer should take next, from the team's history in each area.
 
-- **Read-only except for one command.** Only `assign` writes, and only after the user confirmed that exact change in this conversation. Never assign on your own initiative.
+- **Read-only except for one command.** Only `assign --yes` writes, and only after the user confirmed that exact change in this conversation. Never assign on your own initiative.
 - **Data and math come from the bundled script** `scripts/assign.py`, so every agent gets the same scores. Never invent scores or history.
 - The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly; no MCP server is needed.
 
@@ -89,7 +89,7 @@ python3 <skill-dir>/scripts/assign.py <scores|suggest-member|suggest-issue> --ta
 | Area / type | The points go to the issue's `area::` labels (Plane: the `area` label group), split evenly, and to its `type::` labels. |
 | Area score 0–100 | Developer's points in the area ÷ the top developer's points there. 100 = the team's reference for the area. |
 | Fit | 80% mean area score + 20% type score. Areas nobody has history in are ignored and the type decides. |
-| Availability 0–100 | 100 − the developer's load as a share of the busiest developer's load. Load = open issues assigned in the milestone/cycle, counted in `points::` when every issue has them. |
+| Availability 0–100 | 100 − the developer's load as a share of the busiest developer's load. Load = open issues assigned in the milestone/cycle, counted in points when every issue has them (GitLab: `points::` labels; Plane: the Estimate field). |
 | suggest-member | **75% fit + 25% availability.** |
 | suggest-issue | Candidates: open, unassigned, not blocked issues of the period. Rank = fit + priority bonus (urgent 20, high 10, medium 5). "Best other fit" shows who would fit better. |
 
@@ -102,7 +102,7 @@ After a recommendation, ask whether to make the assignment. Write only when the 
    python3 <skill-dir>/scripts/assign.py assign --target <t> --project "<p>" --issue K --member X --dry-run
    ```
    By default the developer is **added** to the current assignees. Use `--replace` only when the user asks to replace them.
-2. Run the same command without `--dry-run`, then report the line it prints (`assignees before -> after`).
+2. Only after the user said yes to that preview, run the same command with `--yes` instead of `--dry-run`, then report the line it prints (`assigned: ... assignees before -> after`). Without `--yes` the script writes nothing and only prints the plan.
 
 GitLab needs a token with the `api` scope for this step. If GitLab answers 403, say so; do not retry with other settings.
 

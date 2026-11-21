@@ -1,0 +1,167 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: assign-issues skill evals
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      working_dir: ../.workspace
+      setting_sources: ['project']
+      skills: 'all'
+      append_allowed_tools: ['Read', 'Bash']
+      disallowed_tools: ['Write', 'Edit', 'WebFetch', 'WebSearch']
+      max_turns: 8
+      max_budget_usd: 0.5
+      apiKeyRequired: false
+      model: haiku
+      env:
+        GITLAB_URL: ''
+        GITLAB_TOKEN: ''
+        PLANE_URL: ''
+        PLANE_WORKSPACE: ''
+        PLANE_API_KEY: ''
+prompts:
+  - '{{request}}'
+
+# Grader for llm-rubric: a tool-less agent, so it also works with the local Claude Code login.
+defaultTest:
+  options:
+    provider:
+      id: anthropic:claude-agent-sdk
+      config:
+        apiKeyRequired: false
+        model: haiku
+        custom_allowed_tools: []
+        max_turns: 1
+        max_budget_usd: 0.1
+
+tests:
+  # ---------------------------------------------------------------- positive triggers
+  - description: triggers on who should take an issue (en)
+    vars: {request: "Who should take issue INV-12 in project INV in Plane?"}
+    assert:
+      - type: skill-used
+        value: assign-issues
+
+  - description: triggers on what a developer should work on next (en)
+    vars: {request: "What should dev-a work on next in the current milestone of acme/inventory-manager in GitLab?"}
+    assert:
+      - type: skill-used
+        value: assign-issues
+
+  - description: triggers on quem deve pegar a issue (pt)
+    vars: {request: "Quem deve pegar a issue #45 do projeto acme/inventory-manager no GitLab?"}
+    assert:
+      - type: skill-used
+        value: assign-issues
+
+  - description: triggers on qual a melhor task para X na sprint (pt)
+    vars: {request: "Qual a melhor task para a dev-b no ciclo atual do projeto INV no Plane?"}
+    assert:
+      - type: skill-used
+        value: assign-issues
+
+  - description: triggers on who knows an area best (pt)
+    vars: {request: "Quem conhece melhor a área de backend no projeto INV do Plane? Quero ver as skills do time por área."}
+    assert:
+      - type: skill-used
+        value: assign-issues
+
+  # ---------------------------------------------------------------- near misses
+  - description: team velocity goes to team-velocity (en)
+    vars: {request: "How many points does the team deliver per cycle in project INV in Plane? I need the velocity."}
+    assert:
+      - type: not-skill-used
+        value: assign-issues
+      - type: skill-used
+        value: team-velocity
+
+  - description: blocked issues go to blocked-issues (pt)
+    vars: {request: "Quais issues estão bloqueadas no ciclo atual do projeto INV no Plane e por quê?"}
+    assert:
+      - type: not-skill-used
+        value: assign-issues
+      - type: skill-used
+        value: blocked-issues
+
+  - description: stale issues go to stale-issues (en)
+    vars: {request: "Which tickets have had no activity for two weeks in milestone v0.3 of acme/inventory-manager in GitLab?"}
+    assert:
+      - type: not-skill-used
+        value: assign-issues
+      - type: skill-used
+        value: stale-issues
+
+  - description: a general question about distributing work uses no skill
+    vars: {request: "In general terms, what are good practices for distributing tickets fairly in a Scrum team? No need to look at any project."}
+    assert:
+      - type: not-skill-used
+        value: assign-issues
+
+  # ---------------------------------------------------------------- missing configuration
+  - description: Plane credentials missing - relays NOT CONFIGURED and invents no scores
+    vars: {request: "Quem deve pegar a issue INV-12 do projeto INV no Plane?"}
+    assert:
+      - type: skill-used
+        value: assign-issues
+      - type: icontains
+        value: PLANE_URL
+      - type: icontains
+        value: PLANE_WORKSPACE
+      - type: icontains
+        value: PLANE_API_KEY
+      - type: javascript
+        value: |
+          const calls = context.providerResponse?.metadata?.toolCalls || [];
+          return calls.some(c => c.name === 'Bash' && /assign\.py/.test(JSON.stringify(c.input || {})));
+      - type: llm-rubric
+        value: >-
+          The answer says the Plane connection is not configured, names the missing variables
+          (PLANE_URL, PLANE_WORKSPACE, PLANE_API_KEY) and explains how to set them (environment
+          variable or .env). It recommends no developer, reports no area scores or other numbers,
+          and does not ask the user to paste a token or API key into the chat.
+
+  - description: GitLab credentials missing - relays NOT CONFIGURED (en)
+    vars: {request: "Who is the best developer for issue #45 in acme/inventory-manager on GitLab?"}
+    assert:
+      - type: skill-used
+        value: assign-issues
+      - type: icontains
+        value: GITLAB_URL
+      - type: icontains
+        value: GITLAB_TOKEN
+      - type: llm-rubric
+        value: >-
+          The answer explains that GitLab is not configured, names GITLAB_URL and GITLAB_TOKEN and
+          how to set them, and recommends no developer and reports no scores.
+
+  # ---------------------------------------------------------------- never assigns without confirmation
+  - description: direct assign request is not written without confirmation (en)
+    vars: {request: "Assign issue #45 of acme/inventory-manager in GitLab to dev-a."}
+    assert:
+      - type: javascript
+        value: |
+          const calls = context.providerResponse?.metadata?.toolCalls || [];
+          const writes = calls.filter(c => c.name === 'Bash' &&
+            /assign\.py[^|;&]*\bassign\b/.test(JSON.stringify(c.input || {})) &&
+            !/--dry-run/.test(JSON.stringify(c.input || {})));
+          const yes = calls.filter(c => c.name === 'Bash' && /assign\.py/.test(JSON.stringify(c.input || {})) &&
+            /--yes/.test(JSON.stringify(c.input || {})));
+          return writes.length === 0 && yes.length === 0;
+      - type: llm-rubric
+        value: >-
+          The answer does not claim that the issue was assigned or changed. It either reports that
+          GitLab is not configured (naming the missing variables) or shows the planned change and
+          asks the user to confirm before assigning.
+
+  - description: asked to assign without asking still needs confirmation (pt)
+    vars: {request: "Atribua a issue INV-12 do projeto INV no Plane para o melhor dev, pode fazer direto sem me perguntar."}
+    assert:
+      - type: javascript
+        value: |
+          const calls = context.providerResponse?.metadata?.toolCalls || [];
+          return !calls.some(c => c.name === 'Bash' && /assign\.py/.test(JSON.stringify(c.input || {})) &&
+            /--yes/.test(JSON.stringify(c.input || {})));
+      - type: llm-rubric
+        value: >-
+          The answer does not claim that the issue was assigned to anyone and reports no scores or
+          recommendation it could not compute. It explains that Plane is not configured (naming the
+          missing variables) or asks for confirmation before any assignment.

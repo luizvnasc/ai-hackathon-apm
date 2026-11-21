@@ -16,7 +16,7 @@ PLANE_API_KEY.
 Definitions:
   * Period: a GitLab milestone or a Plane cycle with start and end dates. A
     period is finished when GitLab closed it or its end date has passed.
-  * Size: the `points::N` label (Plane: the `points` label group). With
+  * Size: the `points::N` label (Plane: the work item's Estimate field). With
     --unit auto, points are used when every issue of the analyzed periods has
     them, otherwise every issue counts as 1.
   * Velocity of a period: the size of its issues closed (not cancelled) by the
@@ -242,6 +242,27 @@ class Plane:
                 out.append(self.to_issue(r, label_names, c["name"]))
         return out
 
+    def estimate_values(self):
+        """{estimate point id: value} of the project's estimate. Story points live in the
+        work item's Estimate field (estimate_point), not in labels."""
+        if not hasattr(self, "_estimates"):
+            self._estimates = {}
+            try:
+                est = self.req(f"/projects/{self.pid}/estimates/")
+            except ApiError as e:
+                if e.status != 404:  # 404: the project has no estimate
+                    raise
+                est = None
+            if isinstance(est, dict) and est.get("id"):
+                self._estimates = {p["id"]: str(p.get("value") or "").strip() for p in
+                                   self.list(f"/projects/{self.pid}/estimates/{est['id']}/estimate-points/")}
+        return self._estimates
+
+    def points_of(self, r):
+        """The story points of a work item: the numeric value of its estimate point, or None."""
+        value = self.estimate_values().get(r.get("estimate_point"))
+        return float(value) if value and re.fullmatch(r"\d+(\.\d+)?", value) else None
+
     def to_issue(self, r, label_names, period):
         state = r.get("state") if isinstance(r.get("state"), dict) else {}
         group = state.get("group")
@@ -254,7 +275,7 @@ class Plane:
             key=f"{self.ident}-{r['sequence_id']}", title=r["name"],
             url=f"{self.url}/{self.ws}/projects/{self.pid}/issues/{r['id']}",
             closed=(r.get("completed_at") or r.get("updated_at")) if group in ("completed", "cancelled") else None,
-            cancelled=group == "cancelled", points=num(scoped(labels, "points")),
+            cancelled=group == "cancelled", points=self.points_of(r),
             assignees=[a.get("display_name") or a.get("email") for a in r.get("assignees") or [] if isinstance(a, dict)],
             period=period)
 
@@ -528,19 +549,23 @@ def main(argv=None):
     basis = a.by
     in_scope = [i for i in issues if i["period"] in {p["name"] for p in finished}] if basis == "period" else issues
     unit = choose_unit(in_scope, a.unit)
-    if a.unit == "auto" and unit == "count" and in_scope:
-        missing = sum(1 for i in in_scope if i["points"] is None and not i["cancelled"])
-        notes.append(f"{missing} issue(s) have no points label, so every issue counts as 1. "
-                     "Use --unit points to count only pointed work.")
-
-    if basis == "week":
-        rows = weekly(issues, unit, today, a.weeks)
-    else:
+    rows = []
+    if basis == "period":
         rows = [period_stats(p, issues, unit, today) for p in finished]
         rows = [r for r in rows if r["issues"]]
         if not rows:
             notes.append(f"No finished {src.kind} has issues: showing weekly throughput instead.")
-            basis, rows = "week", weekly(issues, unit, today, a.weeks)
+            # The unit was chosen from the finished periods' issues; pick it again from
+            # every issue, as --by week does.
+            basis, in_scope = "week", issues
+            unit = choose_unit(in_scope, a.unit)
+    if basis == "week":
+        rows = weekly(issues, unit, today, a.weeks)
+    if a.unit == "auto" and unit == "count" and in_scope:
+        missing = sum(1 for i in in_scope if i["points"] is None and not i["cancelled"])
+        where = "a `points::N` label" if a.target == "gitlab" else "an Estimate"
+        notes.append(f"{missing} issue(s) have no points ({where}), so every issue counts as 1. "
+                     "Use --unit points to count only pointed work.")
 
     summary = summarize(rows)
     res = {"project": src.name, "kind": src.kind, "unit": unit, "basis": basis, "today": today.isoformat(),

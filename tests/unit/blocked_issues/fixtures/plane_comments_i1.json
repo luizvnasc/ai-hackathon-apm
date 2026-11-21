@@ -1,0 +1,21 @@
+{
+  "results": [
+    {
+      "id": "cm-2",
+      "created_at": "2026-02-24T09:00:00Z",
+      "actor": "u-1",
+      "actor_detail": {
+        "display_name": "dev-a"
+      },
+      "comment_html": "<p>Still waiting for DEMO-2 and OPS-9.</p>"
+    },
+    {
+      "id": "cm-1",
+      "created_at": "2026-02-20T09:00:00Z",
+      "actor": "u-2",
+      "actor_detail": null,
+      "comment_html": "<p>Looks fine to me.</p>"
+    }
+  ],
+  "next_page_results": false
+}

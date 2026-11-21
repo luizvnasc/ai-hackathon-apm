@@ -51,7 +51,7 @@ python3 <skill-dir>/scripts/velocity.py report --target <t> --project "<p>" \
 - `periods` lists the milestones/cycles with their status: finished, current or upcoming. Use it when the user asks about specific ones.
 - **History:** the last `--last` finished periods (default 6). Use the user's number if they give one.
 - **Unit:**
-  - `auto` uses `points::N` labels (Plane: the `points` label group) when every issue in those periods has one. Otherwise it counts issues, and the report says how many issues have no points.
+  - `auto` uses `points::N` labels (Plane: the work item's Estimate field, never labels) when every issue in those periods has one. Otherwise it counts issues, and the report says how many issues have no points.
   - `--unit points` counts only pointed work.
 - **No finished milestones or cycles, or the user asks per week:** `--by week` gives weekly throughput over the last `--weeks` full weeks. The script also falls back to it on its own.
 - On an API error the script stops with the response. Report it and stop.

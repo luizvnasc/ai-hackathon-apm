@@ -28,7 +28,7 @@ Definitions:
   * Carried over: committed issues neither delivered nor removed nor cancelled.
   * Total delivered: delivered committed + delivered added.
     Delivered vs commitment = total delivered / commitment (can pass 100%).
-  * Size: the `points::N` label (Plane: the `points` label group) as it is
+  * Size: the `points::N` label (Plane: the work item's Estimate field) as it is
     today. With --unit auto, points are used when every issue has them,
     otherwise every issue counts as 1.
 """
@@ -277,6 +277,27 @@ class Plane:
                          None if (a.get("verb") or "") == "deleted" else name(a.get("new_identifier"), a.get("new_value")))
                         for a in ev]
 
+    def estimate_values(self):
+        """{estimate point id: value} of the project's estimate. Story points live in the
+        work item's Estimate field (estimate_point), not in labels."""
+        if not hasattr(self, "_estimates"):
+            self._estimates = {}
+            try:
+                est = self.req(f"/projects/{self.pid}/estimates/")
+            except ApiError as e:
+                if e.status != 404:  # 404: the project has no estimate
+                    raise
+                est = None
+            if isinstance(est, dict) and est.get("id"):
+                self._estimates = {p["id"]: str(p.get("value") or "").strip() for p in
+                                   self.list(f"/projects/{self.pid}/estimates/{est['id']}/estimate-points/")}
+        return self._estimates
+
+    def points_of(self, r):
+        """The story points of a work item: the numeric value of its estimate point, or None."""
+        value = self.estimate_values().get(r.get("estimate_point"))
+        return float(value) if value and re.fullmatch(r"\d+(\.\d+)?", value) else None
+
     def to_issue(self, r, label_names, period):
         state = r.get("state") if isinstance(r.get("state"), dict) else {}
         group = state.get("group")
@@ -290,7 +311,7 @@ class Plane:
             url=f"{self.url}/{self.ws}/projects/{self.pid}/issues/{r['id']}",
             created=r.get("created_at"), updated=r.get("updated_at"),
             closed=(r.get("completed_at") or r.get("updated_at")) if group in ("completed", "cancelled") else None,
-            cancelled=group == "cancelled", points=num(scoped(labels, "points")),
+            cancelled=group == "cancelled", points=self.points_of(r),
             assignees=[a.get("display_name") or a.get("email") for a in r.get("assignees") or [] if isinstance(a, dict)],
             period=period, initial=period)
 
@@ -396,7 +417,9 @@ def slope(ys):
 
 
 def summarize(rows):
-    sd = [r["say_do"] for r in rows if r["say_do"] is not None]
+    # Periods without a commitment (only added work) have no say/do and stay out of the statistics.
+    rows = [r for r in rows if r["say_do"] is not None]
+    sd = [r["say_do"] for r in rows]
     if not sd:
         return None
     vs = [r["vs_commitment"] for r in rows if r["vs_commitment"] is not None]
@@ -584,7 +607,8 @@ def analyze(src_name, kind, periods, issues, a, today):
     involved = [i for _, g in groups for i in g["committed"] + g["added"] if not i["cancelled"]]
     unit = choose_unit(involved, a.unit)
     if a.unit == "auto" and unit == "count" and involved:
-        notes.append(f"{sum(1 for i in involved if i['points'] is None)} issue(s) have no points label, "
+        where = "an Estimate" if kind == "cycle" else "a `points::N` label"
+        notes.append(f"{sum(1 for i in involved if i['points'] is None)} issue(s) have no points ({where}), "
                      "so every issue counts as 1. Use --unit points to count only pointed work.")
     rows = [period_row(p, g, unit) for p, g in groups if g["committed"] or g["added"]]
     empty = [p["name"] for p, g in groups if not g["committed"]]

@@ -1,0 +1,14 @@
+[
+  {
+    "id": 7,
+    "iid": 7,
+    "project_id": 200,
+    "title": "Library upgrade",
+    "state": "opened",
+    "issue_link_id": 55,
+    "link_type": "blocks",
+    "references": {
+      "full": "other-group/lib#7"
+    }
+  }
+]
