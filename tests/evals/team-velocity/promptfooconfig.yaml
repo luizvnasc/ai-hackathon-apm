@@ -1,0 +1,142 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: team-velocity skill evals
+providers:
+  - id: anthropic:claude-agent-sdk
+    config:
+      working_dir: ../.workspace
+      setting_sources: ['project']
+      skills: 'all'
+      append_allowed_tools: ['Read', 'Bash']
+      disallowed_tools: ['Write', 'Edit', 'WebFetch', 'WebSearch']
+      max_turns: 8
+      max_budget_usd: 0.5
+      apiKeyRequired: false
+      model: haiku
+      env:
+        GITLAB_URL: ''
+        GITLAB_TOKEN: ''
+        PLANE_URL: ''
+        PLANE_WORKSPACE: ''
+        PLANE_API_KEY: ''
+prompts:
+  - '{{request}}'
+
+# Grader for llm-rubric: a tool-less agent, so it also works with the local Claude Code login.
+defaultTest:
+  options:
+    provider:
+      id: anthropic:claude-agent-sdk
+      config:
+        apiKeyRequired: false
+        model: haiku
+        custom_allowed_tools: []
+        max_turns: 1
+        max_budget_usd: 0.1
+
+tests:
+  # ---------------------------------------------------------------- positive triggers
+  - description: triggers on a direct request (en)
+    vars: {request: "What is the team velocity of project INV in Plane?"}
+    assert:
+      - type: skill-used
+        value: team-velocity
+
+  - description: triggers on planning capacity (en)
+    vars: {request: "How many story points should we plan for the next milestone of acme/inventory-manager in GitLab?"}
+    assert:
+      - type: skill-used
+        value: team-velocity
+
+  - description: triggers on velocidade do time (pt)
+    vars: {request: "Qual a velocidade do time no projeto INV do Plane?"}
+    assert:
+      - type: skill-used
+        value: team-velocity
+
+  - description: triggers on quantos pontos planejar (pt)
+    vars: {request: "Quantos pontos planejar no próximo ciclo do projeto INV no Plane?"}
+    assert:
+      - type: skill-used
+        value: team-velocity
+
+  - description: triggers on weekly throughput (pt)
+    vars: {request: "Quanto o time entrega por semana no projeto acme/inventory-manager do GitLab? Queremos o throughput semanal."}
+    assert:
+      - type: skill-used
+        value: team-velocity
+
+  # ---------------------------------------------------------------- near misses
+  - description: commitment vs delivery goes to commitment-delivered (en)
+    vars: {request: "Did the team deliver what it committed to in the last milestones of acme/inventory-manager in GitLab? I want the say/do ratio."}
+    assert:
+      - type: not-skill-used
+        value: team-velocity
+      - type: skill-used
+        value: commitment-delivered
+
+  - description: comprometido x entregue goes to commitment-delivered (pt)
+    vars: {request: "Comprometido x entregue no ciclo atual do projeto INV no Plane: o time entrega o que promete?"}
+    assert:
+      - type: not-skill-used
+        value: team-velocity
+      - type: skill-used
+        value: commitment-delivered
+
+  - description: stale tickets go to stale-issues (pt)
+    vars: {request: "Quais tickets estão parados há mais de duas semanas no milestone v0.3 do acme/inventory-manager no GitLab?"}
+    assert:
+      - type: not-skill-used
+        value: team-velocity
+      - type: skill-used
+        value: stale-issues
+
+  - description: blocked issues go to blocked-issues (en)
+    vars: {request: "Which issues are blocked in project INV in Plane?"}
+    assert:
+      - type: not-skill-used
+        value: team-velocity
+      - type: skill-used
+        value: blocked-issues
+
+  - description: a general agile question uses no skill
+    vars: {request: "In general terms, what is the difference between velocity and throughput in Scrum? No need to look at any project."}
+    assert:
+      - type: not-skill-used
+        value: team-velocity
+
+  # ---------------------------------------------------------------- missing configuration
+  - description: Plane credentials missing - relays NOT CONFIGURED and invents no numbers
+    vars: {request: "What is the team velocity of project INV in Plane?"}
+    assert:
+      - type: skill-used
+        value: team-velocity
+      - type: icontains
+        value: PLANE_URL
+      - type: icontains
+        value: PLANE_WORKSPACE
+      - type: icontains
+        value: PLANE_API_KEY
+      - type: javascript
+        value: |
+          const calls = context.providerResponse?.metadata?.toolCalls || [];
+          return calls.some(c => c.name === 'Bash' && /velocity\.py/.test(JSON.stringify(c.input || {})));
+      - type: llm-rubric
+        value: >-
+          The answer says the Plane connection is not configured, names the missing variables
+          (PLANE_URL, PLANE_WORKSPACE, PLANE_API_KEY) and explains how to set them (environment
+          variable or .env). It reports no velocity, points, periods or other metrics, and it
+          does not ask the user to paste a token or API key into the chat.
+
+  - description: GitLab credentials missing - relays NOT CONFIGURED in Portuguese
+    vars: {request: "Qual a velocidade do time no projeto acme/inventory-manager do GitLab?"}
+    assert:
+      - type: skill-used
+        value: team-velocity
+      - type: icontains
+        value: GITLAB_URL
+      - type: icontains
+        value: GITLAB_TOKEN
+      - type: llm-rubric
+        value: >-
+          The answer explains that GitLab is not configured, names GITLAB_URL and GITLAB_TOKEN
+          and how to set them, and reports no velocity numbers, milestones or dates.

@@ -1,0 +1,5 @@
+{"results": [
+  {"id": "l-type", "name": "type", "parent": null},
+  {"id": "l-bug", "name": "bug", "parent": "l-type"},
+  {"id": "l-points", "name": "points::8", "parent": null}
+], "next_page_results": false, "next_cursor": null}

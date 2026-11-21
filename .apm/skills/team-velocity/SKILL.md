@@ -52,7 +52,7 @@ python3 <skill-dir>/scripts/velocity.py report --target <t> --project "<p>" \
 - **History:** the last `--last` finished periods (default 6). Use the user's number if they give one.
 - **Unit:**
   - `auto` uses points when every issue in those periods has them. Otherwise it counts issues, and the report says how many issues have no points.
-  - Points come from the `points::N` label in GitLab. In Plane they come from the issue's **estimate** (Project settings → Estimates, a numeric scale), and from the `points` label group when an issue has no numeric estimate.
+  - Points come from the `points::N` label in GitLab. In Plane they come from the issue's **estimate** (Project settings → Estimates, a numeric scale), never from labels: an issue without a numeric estimate has no points.
   - `--unit points` counts only pointed work.
 - **No finished milestones or cycles, or the user asks per week:** `--by week` gives weekly throughput over the last `--weeks` full weeks. The script also falls back to it on its own.
 - On an API error the script stops with the response. Report it and stop.

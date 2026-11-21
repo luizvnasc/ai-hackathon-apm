@@ -1,0 +1,9 @@
+{"results": [
+  {"id": "c-1", "name": "Sprint 4", "start_date": "2026-02-15T00:00:00Z", "end_date": "2026-02-28T00:00:00Z", "status": "completed", "archived_at": null},
+  {"id": "c-2", "name": "Sprint 5", "start_date": "2026-03-01T00:00:00Z", "end_date": "2026-03-14T00:00:00Z", "status": "current", "archived_at": null},
+  {"id": "c-3", "name": "Sprint 6", "start_date": "2026-03-15T00:00:00Z", "end_date": "2026-03-28T00:00:00Z", "status": "upcoming", "archived_at": null},
+  {"id": "c-4", "name": "Archived", "start_date": "2026-03-01T00:00:00Z", "end_date": "2026-03-20T00:00:00Z", "status": "current", "archived_at": "2026-03-02T00:00:00Z"},
+  {"id": "c-5", "name": "Ends today", "start_date": "2026-03-01", "end_date": "2026-03-10", "status": null, "archived_at": null},
+  {"id": "c-6", "name": "Ended yesterday", "start_date": "2026-02-20", "end_date": "2026-03-09", "status": null, "archived_at": null},
+  {"id": "c-7", "name": "Draft", "start_date": null, "end_date": null, "status": "draft", "archived_at": null}
+], "next_page_results": false, "next_cursor": null}

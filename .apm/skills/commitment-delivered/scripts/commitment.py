@@ -30,7 +30,7 @@ Definitions:
   * Total delivered: delivered committed + delivered added.
     Delivered vs commitment = total delivered / commitment (can pass 100%).
   * Size: GitLab: the `points::N` label. Plane: the issue's estimate (the
-    Estimates field, when it is numeric), else the `points` label group. Both as
+    Estimates field, when it is numeric), never a label. Both as
     they are today. With --unit auto, points are used when every issue has them,
     otherwise every issue counts as 1.
 """
@@ -103,7 +103,7 @@ def num(values):
 
 def estimate(r):
     """Plane's native estimate: `estimate_point` expanded to {value: "5", ...}; None when unset or not numeric
-    (category or time estimates), so the `points` label is used instead."""
+    (category or time estimates). Labels are never read for points in Plane."""
     ep = r.get("estimate_point")
     value = ep.get("value") if isinstance(ep, dict) else None
     return num([str(value).strip()]) if value not in (None, "") else None
@@ -300,7 +300,7 @@ class Plane:
             url=f"{self.url}/{self.ws}/projects/{self.pid}/issues/{r['id']}",
             created=r.get("created_at"), updated=r.get("updated_at"),
             closed=(r.get("completed_at") or r.get("updated_at")) if group in ("completed", "cancelled") else None,
-            cancelled=group == "cancelled", points=estimate(r) if estimate(r) is not None else num(scoped(labels, "points")),
+            cancelled=group == "cancelled", points=estimate(r),
             assignees=[a.get("display_name") or a.get("email") for a in r.get("assignees") or [] if isinstance(a, dict)],
             period=period, initial=period)
 
@@ -409,7 +409,9 @@ def slope(ys):
 
 
 def summarize(rows):
-    sd = [r["say_do"] for r in rows if r["say_do"] is not None]
+    # Periods without a commitment (only added work) have no say/do and stay out of the statistics.
+    rows = [r for r in rows if r["say_do"] is not None]
+    sd = [r["say_do"] for r in rows]
     if not sd:
         return None
     vs = [r["vs_commitment"] for r in rows if r["vs_commitment"] is not None]
@@ -597,7 +599,8 @@ def analyze(src_name, kind, periods, issues, a, today):
     involved = [i for _, g in groups for i in g["committed"] + g["added"] if not i["cancelled"]]
     unit = choose_unit(involved, a.unit)
     if a.unit == "auto" and unit == "count" and involved:
-        notes.append(f"{sum(1 for i in involved if i['points'] is None)} issue(s) have no points label, "
+        where = "an Estimate" if kind == "cycle" else "a `points::N` label"
+        notes.append(f"{sum(1 for i in involved if i['points'] is None)} issue(s) have no points ({where}), "
                      "so every issue counts as 1. Use --unit points to count only pointed work.")
     rows = [period_row(p, g, unit) for p, g in groups if g["committed"] or g["added"]]
     empty = [p["name"] for p, g in groups if not g["committed"]]

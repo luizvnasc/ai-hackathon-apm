@@ -1,0 +1,29 @@
+[
+ {
+  "iid": 7,
+  "title": "Add barcode scanning",
+  "description": "## Goal\nScan items",
+  "state": "opened",
+  "created": "2026-02-02T08:00:00Z",
+  "closed": null,
+  "url": "https://gitlab.example.com/demo/inventory-manager/-/issues/7",
+  "labels": ["workflow::review", "priority::low", "estimate::2", "mobile"],
+  "assignees": ["alice"],
+  "milestone": {"title": "v0.3", "start_date": "2026-02-02", "due_date": "2026-02-15"},
+  "start_date": "2026-02-03",
+  "due_date": "2026-02-10T00:00:00Z",
+  "notes": [
+   {"id": 501, "body": "Needs a camera permission", "author": "bob", "created": "2026-02-03T09:00:00Z", "system": false},
+   {"id": 502, "body": "added ~mobile label", "author": "bob", "created": "2026-02-03T09:01:00Z", "system": true}
+  ]
+ },
+ {
+  "iid": 8,
+  "title": "Old ticket",
+  "state": "closed",
+  "created": "2026-01-01T08:00:00Z",
+  "closed": "2026-01-02T08:00:00Z",
+  "labels": [{"name": "legacy", "color": "#123456"}],
+  "milestone": "v0.0"
+ }
+]

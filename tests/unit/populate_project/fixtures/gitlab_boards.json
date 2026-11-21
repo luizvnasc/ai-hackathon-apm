@@ -1,0 +1,8 @@
+[
+  {"id": 11, "name": "Development", "lists": [
+    {"id": 1, "position": 0, "label": {"id": 101, "name": "workflow::backlog"}}
+  ]},
+  {"id": 12, "name": "kanban", "lists": [
+    {"id": 2, "position": 0, "label": {"id": 101, "name": "workflow::backlog"}}
+  ]}
+]

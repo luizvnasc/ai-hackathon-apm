@@ -81,8 +81,13 @@ def split_scope(name):
 
 
 def load_labels(path):
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except OSError as e:
+        sys.exit(f"{path}: cannot read the label file ({e.strerror or e})")
+    except ValueError as e:
+        sys.exit(f"{path}: not valid JSON ({e})")
     raw = data.get("labels") if isinstance(data, dict) else data
     if not isinstance(raw, list) or not raw:
         sys.exit(f"{path}: expected a non-empty list of labels or {{\"labels\": [...]}}")
@@ -90,6 +95,12 @@ def load_labels(path):
     for i, l in enumerate(raw):
         if isinstance(l, str):
             l = {"name": l}
+        if not isinstance(l, dict):
+            sys.exit(f"{path}: label #{i + 1} must be a name or an object with name/color/description")
+        for field in ("name", "color", "description"):
+            if l.get(field) is not None and not isinstance(l[field], str):
+                sys.exit(f"{path}: label #{i + 1} has a non-text {field} ({l[field]!r})"
+                         + (" - invalid color, use #rrggbb" if field == "color" else ""))
         name = (l.get("name") or "").strip()
         if not name:
             sys.exit(f"{path}: label #{i + 1} has no name")
@@ -219,7 +230,7 @@ def populate_gitlab(args, labels, plan):
     if not workflow:
         plan.note("no workflow labels in the set, so no board columns were created")
         return {"target": "gitlab", "project": proj["path_with_namespace"], "url": proj.get("web_url")}
-    boards = gl.req("GET", f"/projects/{pid}/boards") or []
+    boards = gl.pages(f"/projects/{pid}/boards")
     board = next((b for b in boards if (b.get("name") or "").lower() == args.board_name.lower()), None)
     if board:
         plan.reuse("board", board["name"])
@@ -248,7 +259,7 @@ def populate_gitlab(args, labels, plan):
 # ------------------------------------------------------------------ Plane
 class Plane:
     def __init__(self, base_url, api_key, workspace, rate_per_min=60, dry_run=False):
-        self.base = base_url.rstrip("/") + f"/api/v1/workspaces/{workspace}"
+        self.base = base_url.rstrip("/") + "/api/v1/workspaces/" + urllib.parse.quote(workspace, safe="")
         self.headers = {"X-API-Key": api_key}
         self.dry_run = dry_run
         self.min_interval = 60.0 / max(1, rate_per_min - 2)

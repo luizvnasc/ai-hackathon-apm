@@ -1,0 +1,12 @@
+{"results": [
+  {"id": "i-3", "sequence_id": 3, "name": "Fix stock rounding", "is_draft": false, "priority": "urgent",
+   "estimate_point": "ep-half", "created_by": "u-x", "updated_at": "2026-02-20T10:00:00Z", "completed_at": null,
+   "state": {"id": "s-blk", "name": "In Progress", "group": "started"},
+   "labels": [{"id": "l-blk", "name": "Blocked", "parent": null}, {"id": "l-be", "name": "backend", "parent": "l-area"}],
+   "assignees": [{"id": "u-b", "display_name": "", "email": "b@example.com"}]},
+  {"id": "i-4", "sequence_id": 4, "name": "Draft idea", "is_draft": true, "priority": null, "estimate_point": null,
+   "state": {"id": "s-bl", "name": "Backlog", "group": "backlog"}, "labels": [], "assignees": []},
+  {"id": "i-5", "sequence_id": 5, "name": "No estimate", "is_draft": false, "priority": null, "estimate_point": null,
+   "created_by": null, "updated_at": "2026-02-21T10:00:00Z", "completed_at": null,
+   "state": "s-bl", "labels": ["l-be"], "assignees": ["u-a"]}
+], "next_page_results": false, "next_cursor": null}

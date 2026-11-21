@@ -1,0 +1,5 @@
+{"next_cursor": "100:1:0", "next_page_results": false, "count": 2,
+ "results": [
+  {"id": "l-1", "name": "type", "color": "#6B7280", "parent": null},
+  {"id": "l-2", "name": "bug", "color": "#dc143c", "parent": "l-1"}
+ ]}

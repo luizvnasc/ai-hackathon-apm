@@ -16,8 +16,8 @@ PLANE_API_KEY.
 Definitions:
   * Period: a GitLab milestone or a Plane cycle with start and end dates. A
     period is finished when GitLab closed it or its end date has passed.
-  * Size: the `points::N` label. Plane: the issue's numeric estimate, else the
-    `points` label group. With
+  * Size: the `points::N` label. Plane: the issue's numeric estimate, never a
+    label. With
     --unit auto, points are used when every issue of the analyzed periods has
     them, otherwise every issue counts as 1.
   * Velocity of a period: the size of its issues closed (not cancelled) by the
@@ -100,7 +100,7 @@ def num(values):
 
 def estimate(r):
     """Plane's native estimate: `estimate_point` expanded to {value: "5", ...}; None when unset or not numeric
-    (category or time estimates), so the `points` label is used instead."""
+    (category or time estimates). Labels are never read for points in Plane."""
     ep = r.get("estimate_point")
     value = ep.get("value") if isinstance(ep, dict) else None
     return num([str(value).strip()]) if value not in (None, "") else None
@@ -264,7 +264,7 @@ class Plane:
             url=f"{self.url}/{self.ws}/projects/{self.pid}/issues/{r['id']}",
             closed=(r.get("completed_at") or r.get("updated_at")) if group in ("completed", "cancelled") else None,
             cancelled=group == "cancelled",
-            points=estimate(r) if estimate(r) is not None else num(scoped(labels, "points")),
+            points=estimate(r),
             assignees=[a.get("display_name") or a.get("email") for a in r.get("assignees") or [] if isinstance(a, dict)],
             period=period)
 
@@ -538,19 +538,23 @@ def main(argv=None):
     basis = a.by
     in_scope = [i for i in issues if i["period"] in {p["name"] for p in finished}] if basis == "period" else issues
     unit = choose_unit(in_scope, a.unit)
-    if a.unit == "auto" and unit == "count" and in_scope:
-        missing = sum(1 for i in in_scope if i["points"] is None and not i["cancelled"])
-        notes.append(f"{missing} issue(s) have no points, so every issue counts as 1. "
-                     "Use --unit points to count only pointed work.")
-
-    if basis == "week":
-        rows = weekly(issues, unit, today, a.weeks)
-    else:
+    rows = []
+    if basis == "period":
         rows = [period_stats(p, issues, unit, today) for p in finished]
         rows = [r for r in rows if r["issues"]]
         if not rows:
             notes.append(f"No finished {src.kind} has issues: showing weekly throughput instead.")
-            basis, rows = "week", weekly(issues, unit, today, a.weeks)
+            # The unit was chosen from the finished periods' issues; pick it again from
+            # every issue, as --by week does.
+            basis, in_scope = "week", issues
+            unit = choose_unit(in_scope, a.unit)
+    if basis == "week":
+        rows = weekly(issues, unit, today, a.weeks)
+    if a.unit == "auto" and unit == "count" and in_scope:
+        missing = sum(1 for i in in_scope if i["points"] is None and not i["cancelled"])
+        where = "a `points::N` label" if a.target == "gitlab" else "an Estimate"
+        notes.append(f"{missing} issue(s) have no points ({where}), so every issue counts as 1. "
+                     "Use --unit points to count only pointed work.")
 
     summary = summarize(rows)
     res = {"project": src.name, "kind": src.kind, "unit": unit, "basis": basis, "today": today.isoformat(),

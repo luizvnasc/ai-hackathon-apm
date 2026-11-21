@@ -1,0 +1,13 @@
+{
+  "source_issue": {
+    "id": 7,
+    "iid": 7,
+    "project_id": 200
+  },
+  "target_issue": {
+    "id": 4,
+    "iid": 4,
+    "project_id": 100
+  },
+  "link_type": "blocks"
+}

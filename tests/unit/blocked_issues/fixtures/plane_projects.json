@@ -1,0 +1,28 @@
+{
+  "results": [
+    {
+      "id": "p-1",
+      "identifier": "DEMO",
+      "name": "Demo",
+      "is_member": true,
+      "archived_at": null,
+      "updated_at": "2026-02-27T10:00:00Z"
+    },
+    {
+      "id": "p-2",
+      "identifier": "OPS",
+      "name": "Ops",
+      "is_member": true,
+      "archived_at": null,
+      "updated_at": "2026-02-20T10:00:00Z"
+    },
+    {
+      "id": "p-3",
+      "identifier": "OLD",
+      "name": "Old",
+      "is_member": true,
+      "archived_at": "2025-01-01T00:00:00Z"
+    }
+  ],
+  "next_page_results": false
+}

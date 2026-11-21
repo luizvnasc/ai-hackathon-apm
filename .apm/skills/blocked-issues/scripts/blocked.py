@@ -261,7 +261,8 @@ class GitLab:
                 path, iid = self.split_key(key)
                 n = (self.gql(f"query($p: ID!, $iid: String!) {{ project(fullPath: $p) {{ workItems(iid: $iid) "
                               f"{{ nodes {{ {GL_ITEM_FIELDS} }} }} }} }}", {"p": path, "iid": str(iid)})
-                     ["project"] or {}).get("workItems", {}).get("nodes", [None])[0]
+                     ["project"] or {}).get("workItems", {}).get("nodes")
+                n = (n or [None])[0]
         except ApiError:
             n = None
         if not n:
@@ -353,7 +354,7 @@ class GitLab:
             item["blocked_since"], item["blocked_since_source"] = adds[-1], "label added"
 
     def ref_pattern(self):
-        return re.compile(r"(?:(?<![\w/.-])([\w.-]+(?:/[\w.-]+)+))?(?<![\w&])#(\d+)\b|"
+        return re.compile(r"(?:(?<![\w/.-])([\w.-]+(?:/[\w.-]+)+)|(?<![\w&]))#(\d+)\b|"
                           + re.escape(self.url) + r"/([\w./-]+?)/-/(?:issues|work_items)/(\d+)")
 
     def mentions(self, text):
@@ -780,7 +781,8 @@ def render_md(res):
             out.append(f"- **Comments:** {r['comment_count']}, none about the block")
         if r["last_comment"] and r["last_comment"] not in r["block_comments"]:
             c = r["last_comment"]
-            out.append(f"- **Last comment:** {c['created'][:10]} @{c.get('author')}: “{one_line(c['body'], 160)}”")
+            who = f" @{c['author']}" if c.get("author") else ""
+            out.append(f"- **Last comment:** {c['created'][:10]}{who}: “{one_line(c['body'], 160)}”")
         if r["mentioned_not_linked"]:
             out.append("- **Mentioned, not linked:**" + "".join(f"\n  - {ref_md(m)}" for m in r["mentioned_not_linked"]))
         if r["external_refs"]:

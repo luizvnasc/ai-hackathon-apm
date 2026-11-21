@@ -1,0 +1,101 @@
+{
+ "project": {
+  "path": "demo/inventory-manager",
+  "name": "Inventory Manager",
+  "description": "Demo inventory service",
+  "url": "https://gitlab.example.com/demo/inventory-manager"
+ },
+ "work_items": [
+  {
+   "id": "gid://gitlab/WorkItem/104",
+   "iid": "4",
+   "title": "Write the onboarding guide",
+   "description": "",
+   "state": "OPEN",
+   "createdAt": "2026-01-08T09:00:00Z",
+   "closedAt": null,
+   "webUrl": "https://gitlab.example.com/demo/inventory-manager/-/issues/4",
+   "reference": "demo/inventory-manager#4",
+   "widgets": [
+    {"type": "LABELS", "labels": {"nodes": []}},
+    {"type": "ASSIGNEES", "assignees": {"nodes": []}},
+    {"type": "MILESTONE", "milestone": null},
+    {"type": "START_AND_DUE_DATE", "startDate": null, "dueDate": null},
+    {"type": "NOTES", "notes": {"pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": []}}
+   ]
+  },
+  {
+   "id": "gid://gitlab/WorkItem/101",
+   "iid": "1",
+   "title": "Stock count is wrong after a transfer",
+   "description": "Steps:\n\n1. Transfer **10** units\n2. Open the `stock` page\n\n- [x] reproduced\n- [ ] fixed",
+   "state": "OPEN",
+   "createdAt": "2026-01-05T10:00:00Z",
+   "closedAt": null,
+   "webUrl": "https://gitlab.example.com/demo/inventory-manager/-/issues/1",
+   "reference": "demo/inventory-manager#1",
+   "widgets": [
+    {"type": "LABELS", "labels": {"nodes": [
+     {"title": "workflow::in-progress", "color": "#428BCA", "description": null},
+     {"title": "priority::high", "color": "#E24329", "description": null},
+     {"title": "points::3", "color": "#6699CC", "description": null},
+     {"title": "type::bug", "color": "#D9534F", "description": null},
+     {"title": "frontend", "color": "#00B140", "description": null}
+    ]}},
+    {"type": "ASSIGNEES", "assignees": {"nodes": [{"username": "alice", "name": "Alice Example"}]}},
+    {"type": "MILESTONE", "milestone": {"title": "v0.1", "startDate": "2026-01-05", "dueDate": "2026-01-18"}},
+    {"type": "START_AND_DUE_DATE", "startDate": "2026-01-06", "dueDate": "2026-01-16"},
+    {"type": "NOTES", "notes": {"pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
+     {"id": "gid://gitlab/Note/9001", "body": "changed the description", "system": true, "createdAt": "2026-01-05T10:05:00Z", "author": {"username": "alice", "name": "Alice Example"}},
+     {"id": "gid://gitlab/Note/9002", "body": "Reproduced on **staging**.", "system": false, "createdAt": "2026-01-06T11:30:00Z", "author": {"username": "bob", "name": "Bob Example"}},
+     {"id": "gid://gitlab/Note/9003", "body": "   ", "system": false, "createdAt": "2026-01-06T11:31:00Z", "author": {"username": "bob", "name": "Bob Example"}}
+    ]}}
+   ]
+  },
+  {
+   "id": "gid://gitlab/WorkItem/102",
+   "iid": "2",
+   "title": "Export stock as CSV",
+   "description": "Not needed any more.",
+   "state": "CLOSED",
+   "createdAt": "2026-01-06T10:00:00Z",
+   "closedAt": "2026-01-20T10:00:00Z",
+   "webUrl": "https://gitlab.example.com/demo/inventory-manager/-/issues/2",
+   "reference": "demo/inventory-manager#2",
+   "widgets": [
+    {"type": "LABELS", "labels": {"nodes": [
+     {"title": "workflow::canceled", "color": "#999999", "description": null},
+     {"title": "priority::critical", "color": "#E24329", "description": null},
+     {"title": "points::5", "color": "#6699CC", "description": null},
+     {"title": "area::frontend", "color": "#330066", "description": null},
+     {"title": "kind::bug", "color": "#AA0000", "description": null}
+    ]}},
+    {"type": "ASSIGNEES", "assignees": {"nodes": [{"username": "bob", "name": "Bob Example"}]}},
+    {"type": "MILESTONE", "milestone": {"title": "v0.2", "startDate": "2026-01-19", "dueDate": "2026-02-01"}},
+    {"type": "START_AND_DUE_DATE", "startDate": null, "dueDate": null},
+    {"type": "NOTES", "notes": {"pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": []}}
+   ]
+  },
+  {
+   "id": "gid://gitlab/WorkItem/103",
+   "iid": "3",
+   "title": "Document the API",
+   "description": "See [the wiki](https://wiki.example.com/api).",
+   "state": "CLOSED",
+   "createdAt": "2026-01-07T10:00:00Z",
+   "closedAt": "2026-01-15T10:00:00Z",
+   "webUrl": "https://gitlab.example.com/demo/inventory-manager/-/issues/3",
+   "reference": "demo/inventory-manager#3",
+   "widgets": [
+    {"type": "LABELS", "labels": {"nodes": [
+     {"title": "sp::1", "color": "#6699CC", "description": null},
+     {"title": "docs", "color": "#F0AD4E", "description": null}
+    ]}},
+    {"type": "ASSIGNEES", "assignees": {"nodes": [{"username": "carol", "name": "Carol Example"}]}},
+    {"type": "MILESTONE", "milestone": null},
+    {"type": "START_AND_DUE_DATE", "startDate": null, "dueDate": null},
+    {"type": "NOTES", "notes": {"pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": []}}
+   ]
+  }
+ ]
+}
