@@ -52,7 +52,8 @@ python3 <skill-dir>/scripts/commitment.py report --target <t> --project "<p>" \
 - **Which periods:** by default the last `--last` finished ones (default 6) plus the current one. `--period` (repeatable) analyzes only the named ones. Use the user's choice if they give one.
 - **Commitment cutoff:** the end of the start day. If the team plans during the first days, pass `--grace-days N` (the user's number; ask only if they mention planning late).
 - **Unit:**
-  - `auto` uses `points::N` labels (Plane: the `points` label group) when every issue involved has one. Otherwise it counts issues, and the report says how many have no points.
+  - `auto` uses points when every issue involved has them. Otherwise it counts issues, and the report says how many have no points.
+  - Points come from the `points::N` label in GitLab. In Plane they come from the issue's **estimate** (Project settings → Estimates, a numeric scale), and from the `points` label group when an issue has no numeric estimate.
   - `--unit points` counts only pointed work.
 - **Time:** the history is read for every issue updated since the first analyzed period began (one request each). In Plane that is about 1 s per issue (60 requests per minute). Tell the user when the project is large.
 - On an API error the script stops with the response. Report it and stop.
@@ -66,7 +67,7 @@ python3 <skill-dir>/scripts/commitment.py report --target <t> --project "<p>" \
 | Say/do | Delivered ÷ committed. The main number: how much of the promise was kept. |
 | Removed / Cancelled | Committed issues taken out of the period before its end, or closed as cancelled, won't fix or duplicate. They count against say/do. |
 | Carried over | Committed issues still open at the end (or closed after it). For the current period: still open. |
-| Added | Issues that joined after the cutoff (unplanned work), and how many of them were delivered. |
+| Added | Issues that joined after the cutoff (unplanned work) and were still in the period at the end, or delivered in it; and how many of them were delivered. An issue added and taken out again inside the period counts nowhere. |
 | Total delivered / vs commitment | Delivered + added delivered, and that ÷ committed. It can pass 100% when the team took on extra work. |
 | Scope change | (Added − removed) ÷ committed. |
 | Reliability | Rated on the lower of the median say/do and the average of the last 3 finished periods: ≥ 90% reliable, ≥ 70% fairly reliable, otherwise overcommits. |
