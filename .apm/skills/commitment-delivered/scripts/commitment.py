@@ -23,13 +23,15 @@ Definitions:
   * Delivered (committed): committed issues closed, not cancelled, by the end
     of the period while still in it. Say/do = delivered committed / commitment.
   * Added: issues that joined after the commitment cutoff and before the end
-    (unplanned work). Removed: committed issues taken out of the period before
+    (unplanned work), and were still in the period at the end or delivered in
+    it; issues that joined and left again count nowhere. Removed: committed issues taken out of the period before
     its end. Cancelled: committed issues closed as cancelled/won't fix/duplicate.
   * Carried over: committed issues neither delivered nor removed nor cancelled.
   * Total delivered: delivered committed + delivered added.
     Delivered vs commitment = total delivered / commitment (can pass 100%).
-  * Size: the `points::N` label (Plane: the `points` label group) as it is
-    today. With --unit auto, points are used when every issue has them,
+  * Size: GitLab: the `points::N` label. Plane: the issue's estimate (the
+    Estimates field, when it is numeric), else the `points` label group. Both as
+    they are today. With --unit auto, points are used when every issue has them,
     otherwise every issue counts as 1.
 """
 import argparse
@@ -97,6 +99,14 @@ def num(values):
         if re.fullmatch(r"\d+(\.\d+)?", v):
             return float(v)
     return None
+
+
+def estimate(r):
+    """Plane's native estimate: `estimate_point` expanded to {value: "5", ...}; None when unset or not numeric
+    (category or time estimates), so the `points` label is used instead."""
+    ep = r.get("estimate_point")
+    value = ep.get("value") if isinstance(ep, dict) else None
+    return num([str(value).strip()]) if value not in (None, "") else None
 
 
 def new_issue(**kw):
@@ -256,7 +266,7 @@ class Plane:
             for r in self.list(f"/projects/{self.pid}/cycles/{c['id']}/cycle-issues/"):
                 current[r.get("id") or r.get("issue")] = c["name"]
         out = []
-        for r in self.list(f"/projects/{self.pid}/issues/", {"expand": "state,labels,assignees"}):
+        for r in self.list(f"/projects/{self.pid}/issues/", {"expand": "state,labels,assignees,estimate_point"}):
             it = self.to_issue(r, label_names, current.get(r["id"]))
             if parse_dt(it["updated"]) >= since:
                 self.history(it, r["id"], cycle_names)
@@ -290,7 +300,7 @@ class Plane:
             url=f"{self.url}/{self.ws}/projects/{self.pid}/issues/{r['id']}",
             created=r.get("created_at"), updated=r.get("updated_at"),
             closed=(r.get("completed_at") or r.get("updated_at")) if group in ("completed", "cancelled") else None,
-            cancelled=group == "cancelled", points=num(scoped(labels, "points")),
+            cancelled=group == "cancelled", points=estimate(r) if estimate(r) is not None else num(scoped(labels, "points")),
             assignees=[a.get("display_name") or a.get("email") for a in r.get("assignees") or [] if isinstance(a, dict)],
             period=period, initial=period)
 
@@ -347,7 +357,10 @@ def classify(p, issues, grace, today):
     name = p["name"]
     committed = [i for i in issues if period_at(i, cutoff) == name]
     cids = {id(i) for i in committed}
-    added = [i for i in issues if id(i) not in cids and ever_in(i, name, cutoff, stop)]
+    # Added work must still be in the period at the end, or have been delivered in it: an issue that came
+    # and went again inside the period changed nothing and would inflate the scope change.
+    added = [i for i in issues if id(i) not in cids and ever_in(i, name, cutoff, stop)
+             and (period_at(i, stop) == name or delivered(i, name, stop))]
     rows = {"committed": committed, "added": added, "delivered": [], "removed": [], "cancelled": [],
             "carried": [], "added_done": [i for i in added if delivered(i, name, stop)]}
     for i in committed:
