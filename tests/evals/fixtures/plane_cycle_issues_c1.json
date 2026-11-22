@@ -1,0 +1,111 @@
+{
+ "results": [
+  {
+   "id": "iss-1",
+   "sequence_id": 1,
+   "name": "Inventory task 1",
+   "estimate_point": "ep-5",
+   "state": {
+    "id": "s-done",
+    "name": "Done",
+    "group": "completed"
+   },
+   "completed_at": "2026-09-18T12:00:00Z",
+   "updated_at": "2026-09-18T12:00:00Z",
+   "labels": [],
+   "assignees": [
+    {
+     "id": "u-alice",
+     "display_name": "alice",
+     "email": "alice@example.invalid"
+    }
+   ]
+  },
+  {
+   "id": "iss-2",
+   "sequence_id": 2,
+   "name": "Inventory task 2",
+   "estimate_point": "ep-3",
+   "state": {
+    "id": "s-done",
+    "name": "Done",
+    "group": "completed"
+   },
+   "completed_at": "2026-09-22T12:00:00Z",
+   "updated_at": "2026-09-22T12:00:00Z",
+   "labels": [],
+   "assignees": [
+    {
+     "id": "u-bob",
+     "display_name": "bob",
+     "email": "bob@example.invalid"
+    }
+   ]
+  },
+  {
+   "id": "iss-3",
+   "sequence_id": 3,
+   "name": "Inventory task 3",
+   "estimate_point": "ep-2",
+   "state": {
+    "id": "s-done",
+    "name": "Done",
+    "group": "completed"
+   },
+   "completed_at": "2026-09-25T12:00:00Z",
+   "updated_at": "2026-09-25T12:00:00Z",
+   "labels": [],
+   "assignees": [
+    {
+     "id": "u-alice",
+     "display_name": "alice",
+     "email": "alice@example.invalid"
+    }
+   ]
+  },
+  {
+   "id": "iss-4",
+   "sequence_id": 4,
+   "name": "Inventory task 4",
+   "estimate_point": "ep-3",
+   "state": {
+    "id": "s-cancelled",
+    "name": "Cancelled",
+    "group": "cancelled"
+   },
+   "completed_at": null,
+   "updated_at": "2026-09-14T12:00:00Z",
+   "labels": [],
+   "assignees": [
+    {
+     "id": "u-bob",
+     "display_name": "bob",
+     "email": "bob@example.invalid"
+    }
+   ]
+  },
+  {
+   "id": "iss-5",
+   "sequence_id": 5,
+   "name": "Inventory task 5",
+   "estimate_point": "ep-3",
+   "state": {
+    "id": "s-done",
+    "name": "Done",
+    "group": "completed"
+   },
+   "completed_at": "2026-10-01T12:00:00Z",
+   "updated_at": "2026-10-01T12:00:00Z",
+   "labels": [],
+   "assignees": [
+    {
+     "id": "u-carol",
+     "display_name": "carol",
+     "email": "carol@example.invalid"
+    }
+   ]
+  }
+ ],
+ "next_page_results": false,
+ "next_cursor": null
+}

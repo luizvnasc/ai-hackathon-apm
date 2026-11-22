@@ -207,7 +207,9 @@ class PeriodRowTest(unittest.TestCase):
         self.assertAlmostEqual(r["scope_change"], (3 - 4) / 11)
         self.assertEqual(r["per_member"], {"alice": [4.0, 4.0], "bob": [2.0, 2.0], "(unassigned)": [4.0, 0.0],
                                            "carol": [1.0, 0.0]})
-        self.assertEqual([i["key"] for i in r["removed_items"]], ["c", "d"])  # removed then cancelled
+        # removed and cancelled are listed apart, so the JSON never shows a cancelled issue as removed
+        self.assertEqual([i["key"] for i in r["removed_items"]], ["c"])
+        self.assertEqual([i["key"] for i in r["cancelled_items"]], ["d"])
         self.assertEqual(r["removed_items"][0], {"key": "c", "title": "Issue c", "url": "https://x/c", "size": 4.0})
 
     def test_count(self):

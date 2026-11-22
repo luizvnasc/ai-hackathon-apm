@@ -403,8 +403,11 @@ def period_row(p, groups, unit):
             "per_member": per_member,
             "carried_items": [{"key": i["key"], "title": i["title"], "url": i["url"], "size": size(i, unit)}
                               for i in groups["carried"]],
+            # separate lists, so a reader of the JSON cannot take a cancelled issue for a removed one
             "removed_items": [{"key": i["key"], "title": i["title"], "url": i["url"], "size": size(i, unit)}
-                              for i in groups["removed"] + groups["cancelled"]]}
+                              for i in groups["removed"]],
+            "cancelled_items": [{"key": i["key"], "title": i["title"], "url": i["url"], "size": size(i, unit)}
+                                for i in groups["cancelled"]]}
 
 
 def slope(ys):
@@ -500,12 +503,14 @@ def render(res):
                          [[("@" + m) if not m.startswith("(") else m, f1(c), f1(d), f1(d / c if c else None, True)]
                           for m, (c, d) in res["members"]])] if fin else []
     for r in rows:
-        if r["carried_items"] or r["removed_items"]:
+        if r["carried_items"] or r["removed_items"] or r["cancelled_items"]:
             out += ["", f"### {r['name']} — not delivered from the commitment", ""]
             open_word = "still open" if r["status"] == "current" else "carried over"
             out += [f"- {open_word}: [{i['key']}]({i['url']}) {i['title']} ({f1(i['size'])})" for i in r["carried_items"]]
-            out += [f"- removed/cancelled: [{i['key']}]({i['url']}) {i['title']} ({f1(i['size'])})"
+            out += [f"- removed: [{i['key']}]({i['url']}) {i['title']} ({f1(i['size'])})"
                     for i in r["removed_items"]]
+            out += [f"- cancelled: [{i['key']}]({i['url']}) {i['title']} ({f1(i['size'])})"
+                    for i in r["cancelled_items"]]
     nxt = res.get("next")
     if nxt:
         out += ["", "## Next period", "",

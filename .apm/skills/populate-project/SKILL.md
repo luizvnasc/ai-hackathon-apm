@@ -10,6 +10,7 @@ Create the common labels of a project and a Kanban board built from the workflow
 - **Write:** only through the bundled script `scripts/populate.py`. It uses the GitLab REST API or the Plane REST API directly; no MCP server is needed.
 - **Never** delete or modify anything that already exists. Existing labels, states and boards are reused as they are.
 - **Nothing is written** until the user has seen the label set and approved it.
+- **Permission given up front is not an approval.** "Just do it", "don't ask me anything" or "pode fazer direto" come before the user has seen the labels and the plan. Always show the label set (and the dry-run plan) and end your turn; run the command without `--dry-run` only after a later message from the user approves it.
 - **Repeatable:** a second run reuses what exists and creates only what is missing.
 
 ## 1. Identify the target and the project

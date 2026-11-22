@@ -1,0 +1,16 @@
+{
+ "results": [
+  {
+   "id": "act-18-1",
+   "field": "cycles",
+   "verb": "created",
+   "created_at": "2026-11-11T09:00:00Z",
+   "old_identifier": null,
+   "new_identifier": "cyc-5",
+   "old_value": null,
+   "new_value": "Sprint 5"
+  }
+ ],
+ "next_page_results": false,
+ "next_cursor": null
+}

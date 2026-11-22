@@ -1,0 +1,26 @@
+[
+ {
+  "id": 140,
+  "created_at": "2026-10-08T09:00:00Z",
+  "action": "add",
+  "milestone": {
+   "title": "Sprint 3"
+  }
+ },
+ {
+  "id": 141,
+  "created_at": "2026-10-22T10:00:00Z",
+  "action": "remove",
+  "milestone": {
+   "title": "Sprint 3"
+  }
+ },
+ {
+  "id": 142,
+  "created_at": "2026-10-22T10:00:01Z",
+  "action": "add",
+  "milestone": {
+   "title": "Sprint 4"
+  }
+ }
+]

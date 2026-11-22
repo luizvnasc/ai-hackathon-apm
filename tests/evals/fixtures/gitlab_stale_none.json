@@ -1,0 +1,14 @@
+{
+ "data": {
+  "project": {
+   "name": "Inventory",
+   "workItems": {
+    "pageInfo": {
+     "hasNextPage": false,
+     "endCursor": null
+    },
+    "nodes": []
+   }
+  }
+ }
+}

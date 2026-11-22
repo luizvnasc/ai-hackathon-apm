@@ -284,7 +284,8 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(got["S4"], (8, 2, 3, 0.375, 0, 0, 5, 2, 1, 0, 3, 0.375, 0.25, "current"))
         s1 = self.rows(res)["S1"]
         self.assertEqual([i["key"] for i in s1["carried_items"]], ["b"])
-        self.assertEqual([i["key"] for i in s1["removed_items"]], ["c", "d"])
+        self.assertEqual([i["key"] for i in s1["removed_items"]], ["c"])
+        self.assertEqual([i["key"] for i in s1["cancelled_items"]], ["d"])
 
     def test_summary(self):
         s = self.report()["summary"]
@@ -403,7 +404,7 @@ class ReportTest(unittest.TestCase):
         self.assertIn("| @alice | 10 | 10 | 100% |", out)
         self.assertIn("| (unassigned) | 2 | 0 | 0% |", out)
         self.assertIn("- carried over: [b](https://plane.example.com/demo-ws/i/b) Issue b (2)", out)
-        self.assertIn("- removed/cancelled: [d](https://plane.example.com/demo-ws/i/d) Issue d (2)", out)
+        self.assertIn("- cancelled: [d](https://plane.example.com/demo-ws/i/d) Issue d (2)", out)
         self.assertIn("### S4 — not delivered from the commitment", out)
         self.assertIn("- still open: [n](https://plane.example.com/demo-ws/i/n) Issue n (5)", out)
 

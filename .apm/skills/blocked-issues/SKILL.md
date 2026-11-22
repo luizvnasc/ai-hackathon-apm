@@ -7,7 +7,7 @@ description: Report on the blocked issues of a GitLab or Plane project, for one 
 
 Find the blocked issues of a project and explain, for each one, why it is blocked and what unblocks it.
 
-- **Read-only.** Never change anything in GitLab or Plane: no comments, no labels, no links, no state changes. Suggest changes in the report instead.
+- **Read-only.** Never change anything in GitLab or Plane: no comments, no labels, no links, no state changes. Suggest changes in the report instead. This holds even when the user asks you to close, move, relabel or fix issues: do not write your own scripts or API calls (curl, Python, an MCP tool) to do it. Say this skill only reports, and list what the user can change by hand.
 - **Data and diagnosis come from the bundled script** `scripts/blocked.py`, so every agent gets the same result. Never invent issues, causes or dates.
 - The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly; no MCP server is needed.
 
@@ -57,7 +57,7 @@ python3 <skill-dir>/scripts/blocked.py periods --target <gitlab|plane> --project
 
 - GitLab lists the active milestones, including group milestones. Plane lists the cycles that are not completed or archived and whose end date has not passed, so current and upcoming cycles appear.
 - The table shows open issues and issues marked blocked per milestone or cycle, plus a last row for the **whole project**.
-- Show the table and ask: **"Which milestone/cycle should I check, or the whole project?"** Wait for the answer. Do not pick one for the user, not even when only one exists.
+- Show the table and ask: **"Which milestone/cycle should I check, or the whole project?"** Then end your turn and wait for the answer: do not run the report (not even `--all`) until the user picks. Do not pick one for the user, not even when only one exists.
 - With no open milestone or cycle, say so and offer the whole project.
 
 ## 4. Run the report

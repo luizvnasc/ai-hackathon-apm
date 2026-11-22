@@ -1,0 +1,138 @@
+{
+ "data": {
+  "project": {
+   "name": "Inventory",
+   "workItems": {
+    "pageInfo": {
+     "hasNextPage": false,
+     "endCursor": null
+    },
+    "nodes": [
+     {
+      "iid": "16",
+      "title": "Inventory task 16",
+      "state": "OPEN",
+      "webUrl": "http://gitlab.mock/group/inv/-/issues/16",
+      "closedAt": null,
+      "widgets": [
+       {
+        "type": "LABELS",
+        "labels": {
+         "nodes": [
+          {
+           "title": "points::8"
+          },
+          {
+           "title": "workflow::in-progress"
+          }
+         ]
+        }
+       },
+       {
+        "type": "ASSIGNEES",
+        "assignees": {
+         "nodes": [
+          {
+           "username": "bob"
+          }
+         ]
+        }
+       },
+       {
+        "type": "MILESTONE",
+        "milestone": {
+         "title": "Sprint 5"
+        }
+       }
+      ],
+      "createdAt": "2026-11-05T09:00:00Z",
+      "updatedAt": "2026-11-05T09:00:00Z"
+     },
+     {
+      "iid": "17",
+      "title": "Inventory task 17",
+      "state": "OPEN",
+      "webUrl": "http://gitlab.mock/group/inv/-/issues/17",
+      "closedAt": null,
+      "widgets": [
+       {
+        "type": "LABELS",
+        "labels": {
+         "nodes": [
+          {
+           "title": "points::3"
+          },
+          {
+           "title": "workflow::blocked"
+          }
+         ]
+        }
+       },
+       {
+        "type": "ASSIGNEES",
+        "assignees": {
+         "nodes": [
+          {
+           "username": "carol"
+          }
+         ]
+        }
+       },
+       {
+        "type": "MILESTONE",
+        "milestone": {
+         "title": "Sprint 5"
+        }
+       }
+      ],
+      "createdAt": "2026-11-05T09:00:00Z",
+      "updatedAt": "2026-11-06T09:00:00Z"
+     },
+     {
+      "iid": "18",
+      "title": "Inventory task 18",
+      "state": "OPEN",
+      "webUrl": "http://gitlab.mock/group/inv/-/issues/18",
+      "closedAt": null,
+      "widgets": [
+       {
+        "type": "LABELS",
+        "labels": {
+         "nodes": [
+          {
+           "title": "points::3"
+          },
+          {
+           "title": "workflow::todo"
+          },
+          {
+           "title": "stale"
+          }
+         ]
+        }
+       },
+       {
+        "type": "ASSIGNEES",
+        "assignees": {
+         "nodes": [
+          {
+           "username": "alice"
+          }
+         ]
+        }
+       },
+       {
+        "type": "MILESTONE",
+        "milestone": {
+         "title": "Sprint 5"
+        }
+       }
+      ],
+      "createdAt": "2026-11-04T09:00:00Z",
+      "updatedAt": "2026-11-11T09:00:00Z"
+     }
+    ]
+   }
+  }
+ }
+}
