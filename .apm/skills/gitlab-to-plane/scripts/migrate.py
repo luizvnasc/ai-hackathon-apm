@@ -9,7 +9,7 @@ GITLAB_TOKEN with read_api) and writes Plane (REST API, PLANE_API_KEY):
         --plane-url http://localhost:8090 --workspace my-team \
         [--project-name "Inventory Manager"] [--identifier INVM] \
         [--user-map bruno=bruno@acme.io,ana=ana@acme.io] \
-        [--no-comments] [--dry-run] [--report report.json] [--save-export export.json]
+        [--no-comments] [--no-points] [--dry-run] [--report report.json] [--save-export export.json]
 
 --data export.json replaces --gitlab-project to migrate from a saved export,
 which is either a list of work items or
@@ -35,6 +35,11 @@ Mapping (GitLab -> Plane):
   non-system note                  -> comment
   created date                     -> created_at (kept)
 
+Story points need Plane's /estimates/ API. Plane CE does not register those
+documented routes (https://github.com/makeplane/plane/issues/9933), so when
+items have points the script checks them before anything is written and stops
+if they are missing. --no-points migrates without the points.
+
 Re-running is safe: every object carries external_source="gitlab" and an
 external_id, and work items are upserted, so nothing is duplicated.
 """
@@ -50,6 +55,8 @@ import urllib.parse
 import urllib.request
 
 SOURCE = "gitlab"
+NIL_UUID = "00000000-0000-0000-0000-000000000000"
+ESTIMATES_BUG = "https://github.com/makeplane/plane/issues/9933"
 STATE_SCOPES = {"workflow", "status", "state", "stage"}
 PRIORITY_SCOPES = {"priority", "prio"}
 POINT_SCOPES = {"points", "sp", "estimate", "story-points", "storypoints"}  # -> Plane Estimate field
@@ -325,6 +332,19 @@ class PlaneError(Exception):
         self.status, self.body = status, body
 
 
+class EstimatesUnavailable(Exception):
+    """The Plane server does not serve the estimate routes that story points need."""
+
+    def __init__(self, pointed):
+        super().__init__(
+            f"ESTIMATES UNAVAILABLE: {pointed} work item(s) have story points, but this Plane server does not serve "
+            f"the /estimates/ API needed to write them (a Plane bug: {ESTIMATES_BUG}). Nothing was written.\n"
+            "Options:\n"
+            "  - fix or upgrade Plane to a build that registers those routes, then run again; or\n"
+            "  - add --no-points to migrate everything except the story points (they stay in GitLab; running again "
+            "without it, on a fixed Plane, fills them in).")
+
+
 class Plane:
     def __init__(self, base_url, api_key, workspace, rate_per_min=60, dry_run=False):
         self.base = base_url.rstrip("/") + f"/api/v1/workspaces/{urllib.parse.quote(workspace, safe='')}"
@@ -414,6 +434,32 @@ class Migration:
     def count(self, kind, created):
         bucket = self.report["created" if created else "reused"]
         bucket[kind] = bucket.get(kind, 0) + 1
+
+    # -- preflight
+    def pointed(self):
+        """How many work items carry story points."""
+        return sum(1 for it in self.items if any(point_value(l["title"]) for l in it["labels"]))
+
+    def check_estimates(self):
+        """Stop before the first write when story points cannot be written (makeplane/plane#9933).
+        The nil project works before the project exists: a registered route answers it with 403 (or a JSON
+        404 of its own), a missing route with 404 "Page not found."."""
+        pointed = self.pointed()
+        if not pointed:
+            return
+        if self.args.no_points:
+            self.report["warnings"].append(f"--no-points: {pointed} work item(s) are migrated without their "
+                                           "story points")
+            return
+        try:
+            self.p.get(f"/projects/{NIL_UUID}/estimates/")
+        except PlaneError as e:
+            if e.status not in (403, 404):
+                raise
+            if e.status == 404:
+                payload = getattr(e, "payload", None)
+                if not isinstance(payload, dict) or str(payload.get("error", "")).startswith("Page not found"):
+                    raise EstimatesUnavailable(pointed) from None
 
     # -- project
     def project(self):
@@ -733,12 +779,13 @@ class Migration:
             self.count("comment", True)
 
     def run(self):
+        self.check_estimates()
         proj = self.project()
         pid = proj["id"]
         self.report["project"] = {"id": pid, "identifier": self.args.identifier, "name": proj.get("name")}
         states = self.states(pid)
         labels = self.labels(pid)
-        points = self.estimates(proj)
+        points = {} if self.args.no_points else self.estimates(proj)
         members = self.members(pid)
         cycles = self.cycles(pid)
         self.work_items(pid, states, labels, members, cycles, points)
@@ -818,6 +865,8 @@ def main(argv=None):
     ap.add_argument("--identifier", help="Plane project identifier, e.g. INVM (default: derived from the path)")
     ap.add_argument("--user-map", help="gitlab_user=plane_email pairs, comma separated")
     ap.add_argument("--no-comments", action="store_true", help="do not migrate GitLab comments")
+    ap.add_argument("--no-points", action="store_true",
+                    help="migrate without story points (for a Plane without the /estimates/ API)")
     ap.add_argument("--dry-run", action="store_true", help="read Plane, print the plan, write nothing")
     ap.add_argument("--rate", type=int, default=60, help="API calls per minute allowed for the key (default 60)")
     ap.add_argument("--report", help="write the GitLab -> Plane id mapping and summary to this JSON file")
@@ -889,6 +938,8 @@ def main(argv=None):
           f"GitLab {path}: {len(items)} work items -> Plane {a.plane_url} workspace '{a.workspace}', project {a.identifier}")
     try:
         report = Migration(plane, a, info, items).run()
+    except EstimatesUnavailable as e:
+        sys.exit(str(e))
     except PlaneError as e:
         sys.exit(f"Plane API error: {e}")
     report["api_calls"] = plane.calls

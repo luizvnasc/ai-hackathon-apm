@@ -12,6 +12,9 @@ Environment:
                      date in a fixture body is shifted by (today - EVAL_DATASET_DATE) days, so
                      the dataset always ends "now": the script's today matches the real date the
                      agent sees, and idle days, current periods etc. never drift.
+  EVAL_PLANE_NO_ESTIMATES  optional: behave like Plane CE with the bug makeplane/plane#9933, where the
+                     documented /estimates/ routes are not registered (404 "Page not found.").
+                     Without it the mock is a Plane that serves them, as documented.
   EVAL_TODAY         optional YYYY-MM-DD: ``datetime.date.today()`` returns it (unit tests
                      use it with EVAL_DATASET_DATE set to the same date, so nothing shifts)
 
@@ -169,7 +172,10 @@ def _expand(payload, route, query, fixtures_dir):
     return json.dumps(body).encode()
 
 
-def make_urlopen(fixtures_dir, shift_days=0):
+_PLANE_ESTIMATES = re.compile(r"^/api/v1/workspaces/[^/]+/projects/[^/]+/estimates/")
+
+
+def make_urlopen(fixtures_dir, shift_days=0, estimates_routed=True):
     """Build the replacement for ``urllib.request.urlopen`` that answers from fixtures_dir."""
     with open(os.path.join(fixtures_dir, "routes.json"), encoding="utf-8") as fh:
         routes = json.load(fh)
@@ -186,6 +192,8 @@ def make_urlopen(fixtures_dir, shift_days=0):
         if _is_write(method, path, body):
             _log(f"WRITE REFUSED {method} {shown}")
             raise _error(request.full_url, 403, {"error": "eval mock: writes are never allowed"})
+        if not estimates_routed and _PLANE_ESTIMATES.match(path):
+            raise _error(request.full_url, 404, {"error": "Page not found."})
         for route in routes:
             if _match(route, method, path, query, body):
                 with open(os.path.join(fixtures_dir, route["file"]), "rb") as fh:
@@ -224,7 +232,7 @@ def install():
     if os.environ.get("EVAL_DATASET_DATE"):
         anchor = datetime.date.fromisoformat(os.environ["EVAL_DATASET_DATE"])
         shift = (datetime.date.today() - anchor).days
-    urllib.request.urlopen = make_urlopen(fixtures, shift)
+    urllib.request.urlopen = make_urlopen(fixtures, shift, not os.environ.get("EVAL_PLANE_NO_ESTIMATES"))
 
 
 install()

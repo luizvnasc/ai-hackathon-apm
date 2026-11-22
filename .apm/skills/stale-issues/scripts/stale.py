@@ -97,6 +97,15 @@ def num(values):
     return None
 
 
+def estimate(r):
+    """Plane's story points: `estimate_point` expanded to {value: "5", ...}; None when unset or not numeric
+    (category or time estimates). Never from labels. The /estimates/ routes are not used: Plane CE does not
+    register them (makeplane/plane#9933), and expand works with or without that bug."""
+    ep = r.get("estimate_point")
+    value = str(ep.get("value") or "").strip() if isinstance(ep, dict) else ""
+    return float(value) if re.fullmatch(r"\d+(\.\d+)?", value) else None
+
+
 def new_issue(**kw):
     it = {"key": None, "title": "", "url": None, "created": None, "updated": None, "status": None,
           "started": False, "blocked": False, "stale_mark": False, "assignees": [], "priority": None,
@@ -237,30 +246,9 @@ class Plane:
         return [{"name": c["name"], "id": c["id"], "start": (c.get("start_date") or "")[:10] or None,
                  "end": (c.get("end_date") or "")[:10] or None} for c in self._cycles]
 
-    def estimate_values(self):
-        """{estimate point id: value} of the project's estimate. Story points live in the
-        work item's Estimate field (estimate_point), not in labels."""
-        if not hasattr(self, "_estimates"):
-            self._estimates = {}
-            try:
-                est = self.req(f"/projects/{self.pid}/estimates/")
-            except ApiError as e:
-                if e.status != 404:  # 404: the project has no estimate
-                    raise
-                est = None
-            if isinstance(est, dict) and est.get("id"):
-                self._estimates = {p["id"]: str(p.get("value") or "").strip() for p in
-                                   self.list(f"/projects/{self.pid}/estimates/{est['id']}/estimate-points/")}
-        return self._estimates
-
-    def points_of(self, r):
-        """The story points of a work item: the numeric value of its estimate point, or None."""
-        value = self.estimate_values().get(r.get("estimate_point"))
-        return float(value) if value and re.fullmatch(r"\d+(\.\d+)?", value) else None
-
     def issues(self, period):
         label_names = {l["id"]: l["name"] for l in self.list(f"/projects/{self.pid}/labels/")}
-        params = {"expand": "state,labels,assignees"}
+        params = {"expand": "state,labels,assignees,estimate_point"}
         if period:
             cycles = self.list(f"/projects/{self.pid}/cycles/")
             match = [c for c in cycles if c["id"] == period or c["name"].strip().lower() == period.strip().lower()]
@@ -289,7 +277,7 @@ class Plane:
                 blocked=sname.lower() in BLOCKED_VALUES or any(label_value(l) in BLOCKED_VALUES for l in labels),
                 stale_mark=sname.lower() in STALE_VALUES or any(label_value(l) in STALE_VALUES for l in labels),
                 priority=None if r.get("priority") in (None, "none") else r.get("priority"),
-                points=self.points_of(r), period=period,
+                points=estimate(r), period=period,
                 assignees=[a.get("display_name") or a.get("email") for a in r.get("assignees") or []
                            if isinstance(a, dict)]))
         return out

@@ -1,6 +1,6 @@
 {"results": [
   {"id": "i-3", "sequence_id": 3, "name": "Fix stock rounding", "is_draft": false, "priority": "urgent",
-   "estimate_point": "ep-half", "created_by": "u-x", "updated_at": "2026-02-20T10:00:00Z", "completed_at": null,
+   "estimate_point": {"id": "ep-half", "key": 3, "value": " 0.5 "}, "created_by": "u-x", "updated_at": "2026-02-20T10:00:00Z", "completed_at": null,
    "state": {"id": "s-blk", "name": "In Progress", "group": "started"},
    "labels": [{"id": "l-blk", "name": "Blocked", "parent": null}, {"id": "l-be", "name": "backend", "parent": "l-area"}],
    "assignees": [{"id": "u-b", "display_name": "", "email": "b@example.com"}]},

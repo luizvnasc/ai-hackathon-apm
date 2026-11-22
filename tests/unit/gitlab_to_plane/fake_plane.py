@@ -4,6 +4,9 @@ It answers the paths migrate.py calls with the shapes of Plane v1.4.3 /api/v1:
 paginated lists ({"results", "next_page_results", "next_cursor"}), the project
 estimate as a single object (404 when absent), estimate points created from a
 list, and a 409 with the existing id when a work item's external_id is known.
+
+With estimates_routed=False it has Plane CE's bug makeplane/plane#9933: the
+estimate routes are not registered and answer 404 "Page not found.".
 """
 import copy
 import json
@@ -25,8 +28,8 @@ def page(rows):
 
 
 class FakePlane:
-    def __init__(self, mig, members=None):
-        self.mig = mig
+    def __init__(self, mig, members=None, estimates_routed=True):
+        self.mig, self.estimates_routed = mig, estimates_routed
         self.members = fixture("plane_members.json") if members is None else members
         self.projects, self.states, self.labels, self.estimates, self.points = [], {}, {}, {}, {}
         self.project_members, self.cycles, self.items, self.links, self.comments = {}, {}, {}, {}, {}
@@ -74,6 +77,8 @@ class FakePlane:
             if f[0] == method and f[1].search(path):
                 self.failures.remove(f)
                 raise self.error(f[2], f[3], method, path)
+        if "/estimates/" in path and not self.estimates_routed:
+            raise self.error(404, {"error": "Page not found."}, method, path)
         for pattern, handler in self.ROUTES:
             m = re.fullmatch(pattern, path)
             if m:
@@ -129,6 +134,8 @@ class FakePlane:
 
     def r_estimates(self, method, body, pid):
         if method == "GET":
+            if pid not in self.states:  # Plane checks project membership before looking the estimate up
+                raise self.error(403, {"detail": "You do not have permission to perform this action."}, method, "estimates")
             if pid not in self.estimates:
                 raise self.error(404, {"error": "Estimate not found"}, method, "estimates")
             return dict(self.estimates[pid])

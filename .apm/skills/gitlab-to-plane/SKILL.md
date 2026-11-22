@@ -34,9 +34,10 @@ Use `python3` (or `python` if `python3` is missing). `<skill-dir>` is the direct
 1. **Dry run.** It reads the whole GitLab project and Plane, and prints the plan without writing: project created or reused, states, labels, cycles, and which assignees will not be mapped.
    ```bash
    python3 <skill-dir>/scripts/migrate.py --gitlab-project <group/project> --plane-url <url> --workspace <slug> \
-     [--identifier ABC] [--project-name "..."] [--user-map a=a@x.io,b=b@x.io] [--no-comments] --dry-run
+     [--identifier ABC] [--project-name "..."] [--user-map a=a@x.io,b=b@x.io] [--no-comments] [--no-points] --dry-run
    ```
    - **GitLab project not found or token refused:** report the error and stop. Do not try similar names.
+   - **`ESTIMATES UNAVAILABLE`:** this Plane server cannot receive story points (a Plane bug) and nothing was written. Tell the user how many items have points, give the bug link the script printed and both options (fix Plane, or `--no-points`), then end your turn and wait. Never add `--no-points` on your own, not even for a dry run: losing the points is the user's decision. If they choose it, do a new dry run with it and keep it on the writing command.
    - Show the user the plan and **get confirmation** before writing.
    - Always start with the dry run, even when the user asks to skip it or says the migration is already confirmed: a confirmation counts only after the user has seen the plan.
    - After the dry run, **end your turn** and wait for the user's reply. Never run the writing command in the same turn as the dry run, not even when the request said "just do it", "já está confirmado" or "don't ask me".
@@ -57,7 +58,7 @@ Use `python3` (or `python` if `python3` is missing). `<skill-dir>` is the direct
 | Project | Project, matched by identifier, otherwise created. Cycles are enabled when there are milestones. |
 | `workflow::` / `status::` label + open/closed state | State. backlog → Backlog; ready/todo → Todo; in-progress/doing → In Progress; review/qa → In Review; blocked → Blocked; closed → Done; closed + canceled/wontfix/duplicate → Cancelled; no label → Backlog. Missing states are created in the right group. |
 | `priority::` label | Priority field: critical/urgent → urgent, high, medium, low. |
-| Story points `points::N` (also `sp::`, `estimate::`) | The work item's **Estimate** (never a label). The project gets a `points` estimate with every value used, and it is enabled on the project. |
+| Story points `points::N` (also `sp::`, `estimate::`) | The work item's **Estimate** (never a label). The project gets a `points` estimate with every value used, and it is enabled on the project. This needs Plane's `/estimates/` API; see `ESTIMATES UNAVAILABLE` in the workflow. |
 | Other scoped label `scope::value` | Label `value` under the parent label `scope` (for example `type` → `bug`). Values that repeat across scopes keep the full `scope::value` name. |
 | Plain label | Label, keeping the GitLab color. |
 | Milestone | Cycle with the same start and due dates. The milestone's items are added to it. |
@@ -71,4 +72,5 @@ Use `python3` (or `python` if `python3` is missing). `<skill-dir>` is the direct
 
 - **Completion dates:** the Plane API does not let a closed date be set. Plane stamps closed items with the migration time, so cycle-time metrics in Plane start at the migration. The GitLab link on each item leads to the original history.
 - **Comment authors:** comments are posted by the API key's user. The original author and date are written in the comment text.
+- **Story points with `--no-points`:** they are not written to Plane. Running again without the option, on a Plane with the estimates API, fills them in.
 - **Not migrated:** attachments, issue links and relations, epics, time tracking, and merge requests.

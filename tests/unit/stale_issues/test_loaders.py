@@ -126,14 +126,12 @@ class GitLabLoaderTest(unittest.TestCase):
 
 
 class PlaneLoaderTest(unittest.TestCase):
-    def routes(self, estimate=None):
+    def routes(self):
         return {
             "/projects/p-1/cycles/": fixture("plane_cycles.json"),
             "/projects/p-1/labels/": fixture("plane_labels.json"),
             "/projects/p-1/cycles/c-2/cycle-issues/": fixture("plane_cycle_issues_c2.json"),
             "/projects/p-1/issues/": fixture("plane_cycle_issues_c2.json"),
-            "/projects/p-1/estimates/": fixture("plane_estimate.json") if estimate is None else estimate,
-            "/projects/p-1/estimates/est-1/estimate-points/": fixture("plane_estimate_points.json"),
         }
 
     def load(self, routes, period="Sprint 5"):
@@ -156,7 +154,7 @@ class PlaneLoaderTest(unittest.TestCase):
         _, _, by_key, router = self.load(self.routes())
         self.assertEqual(sorted(by_key), ["DEMO-1", "DEMO-2", "DEMO-3", "DEMO-8"])
         cycle_calls = [c for c in router.calls if c[0].endswith("cycle-issues/")]
-        self.assertEqual(cycle_calls[0][1]["expand"], "state,labels,assignees")
+        self.assertEqual(cycle_calls[0][1]["expand"], "state,labels,assignees,estimate_point")
 
     def test_issues_normalized_with_estimate_points(self):
         _, _, by_key, _ = self.load(self.routes())
@@ -189,7 +187,7 @@ class PlaneLoaderTest(unittest.TestCase):
 
     def test_whole_project_lists_project_issues(self):
         _, _, by_key, router = self.load(self.routes(), period=None)
-        self.assertIn(("/projects/p-1/issues/", {"per_page": 100, "expand": "state,labels,assignees"}), router.calls)
+        self.assertIn(("/projects/p-1/issues/", {"per_page": 100, "expand": "state,labels,assignees,estimate_point"}), router.calls)
         self.assertIsNone(by_key["DEMO-1"]["period"])
 
     def test_unknown_cycle_exits_with_the_list(self):
@@ -202,36 +200,23 @@ class PlaneLoaderTest(unittest.TestCase):
         for period in ("c-2", "  sprint 5 "):
             self.assertEqual(len(self.load(self.routes(), period=period)[2]), 4)
 
-    def test_estimate_values_are_cached(self):
-        p, _, _, router = self.load(self.routes())
-        self.assertEqual(p.estimate_values(), {"ep-3": "3", "ep-5": "5", "ep-xl": "XL", "ep-half": "0.5"})
-        self.assertEqual(sum(1 for c in router.calls if c[0] == "/projects/p-1/estimates/"), 1)
+    def test_estimates_endpoint_is_never_called(self):
+        # Plane CE does not register it (makeplane/plane#9933); expand works with or without that bug.
+        for period in ("Sprint 5", None):
+            _, _, _, router = self.load(self.routes(), period=period)
+            self.assertFalse([c for c in router.calls if "/estimates/" in c[0]])
 
-    def test_project_without_estimate_404_means_no_points(self):
-        _, _, by_key, _ = self.load(self.routes(estimate=404))
-        self.assertEqual(len(by_key), 4)
-        self.assertTrue(all(i["points"] is None for i in by_key.values()))
+    def test_estimate(self):
+        def point(value):
+            return st.estimate({"estimate_point": {"value": value}})
 
-    def test_empty_estimate_response_means_no_points(self):
-        _, _, by_key, _ = self.load(self.routes(estimate={}))
-        self.assertTrue(all(i["points"] is None for i in by_key.values()))
-
-    def test_estimate_other_errors_propagate(self):
-        def req(path, params=None):
-            raise st.ApiError(403, "forbidden", "GET", path)
-
-        with mock.patch.object(st.Plane, "req", side_effect=req):
-            with self.assertRaises(st.ApiError):
-                plane().estimate_values()
-
-    def test_points_of(self):
-        p = plane()
-        p._estimates = {"ep-3": "3", "ep-half": "0.5", "ep-xl": "XL", "ep-blank": ""}
-        self.assertEqual(p.points_of({"estimate_point": "ep-3"}), 3.0)
-        self.assertEqual(p.points_of({"estimate_point": "ep-half"}), 0.5)
-        for row in ({"estimate_point": "ep-xl"}, {"estimate_point": "ep-blank"}, {"estimate_point": "x"},
-                    {"estimate_point": None}, {}):
-            self.assertIsNone(p.points_of(row))
+        self.assertEqual(point("3"), 3.0)
+        self.assertEqual(point(" 0.5 "), 0.5)
+        self.assertIsNone(point("XL"))
+        self.assertIsNone(point(""))    # how Plane expands an unset estimate
+        self.assertIsNone(point(None))
+        self.assertIsNone(st.estimate({"estimate_point": "ep-3"}))  # not expanded
+        self.assertIsNone(st.estimate({}))
 
     def test_my_projects_skips_archived_and_non_member(self):
         p = plane()

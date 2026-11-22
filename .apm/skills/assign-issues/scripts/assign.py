@@ -113,6 +113,15 @@ def scoped(labels, scope):
     return out
 
 
+def estimate(r):
+    """Plane's story points: `estimate_point` expanded to {value: "5", ...}; None when unset or not numeric
+    (category or time estimates). Never from labels. The /estimates/ routes are not used: Plane CE does not
+    register them (makeplane/plane#9933), and expand works with or without that bug."""
+    ep = r.get("estimate_point")
+    value = str(ep.get("value") or "").strip() if isinstance(ep, dict) else ""
+    return float(value) if re.fullmatch(r"\d+(\.\d+)?", value) else None
+
+
 def new_issue(**kw):
     it = {"key": None, "title": "", "url": None, "open": True, "cancelled": False, "status": None,
           "labels": [], "areas": [], "types": [], "priority": None, "points": None, "assignees": [],
@@ -329,7 +338,7 @@ class Plane:
             for r in self.list(f"/projects/{self.pid}/cycles/{c['id']}/cycle-issues/"):
                 cycle_of[r["id"]] = c["name"]
         out = []
-        for r in self.list(f"/projects/{self.pid}/issues/", {"expand": "state,labels,assignees"}):
+        for r in self.list(f"/projects/{self.pid}/issues/", {"expand": "state,labels,assignees,estimate_point"}):
             if r.get("is_draft"):
                 continue
             state = r.get("state") if isinstance(r.get("state"), dict) else {}
@@ -352,33 +361,12 @@ class Plane:
                 open=group not in ("completed", "cancelled"), cancelled=group == "cancelled",
                 status=state.get("name"), labels=labels, areas=scoped(labels, "area"), types=scoped(labels, "type"),
                 priority=None if r.get("priority") in (None, "none") else r["priority"],
-                points=self.points_of(r),
+                points=estimate(r),
                 assignees=[a.get("display_name") or a.get("email") for a in r.get("assignees") or [] if isinstance(a, dict)],
                 assignee_ids=[a["id"] for a in r.get("assignees") or [] if isinstance(a, dict)],
                 author=names.get(r.get("created_by")), commenters=commenters,
                 period=cycle_of.get(r["id"]), updated=r.get("updated_at"), closed=r.get("completed_at")))
         return out
-
-    def estimate_values(self):
-        """{estimate point id: value} of the project's estimate. Story points live in the
-        work item's Estimate field (estimate_point), not in labels."""
-        if not hasattr(self, "_estimates"):
-            self._estimates = {}
-            try:
-                est = self.req("GET", f"/projects/{self.pid}/estimates/")
-            except ApiError as e:
-                if e.status != 404:  # 404: the project has no estimate
-                    raise
-                est = None
-            if isinstance(est, dict) and est.get("id"):
-                self._estimates = {p["id"]: str(p.get("value") or "").strip() for p in
-                                   self.list(f"/projects/{self.pid}/estimates/{est['id']}/estimate-points/")}
-        return self._estimates
-
-    def points_of(self, r):
-        """The story points of a work item: the numeric value of its estimate point, or None."""
-        value = self.estimate_values().get(r.get("estimate_point"))
-        return float(value) if value and re.fullmatch(r"\d+(\.\d+)?", value) else None
 
     def label_parent(self, label, known):
         pid = label.get("parent")

@@ -79,6 +79,11 @@
   "file": "plane_labels.json"
  },
  {
+  "path": "/api/v1/workspaces/eval/projects/00000000-0000-0000-0000-000000000000/estimates/",
+  "status": 403,
+  "file": "plane_403_no_permission.json"
+ },
+ {
   "path": "/api/v1/workspaces/eval/projects/proj-inv/estimates/",
   "file": "plane_estimate.json"
  },

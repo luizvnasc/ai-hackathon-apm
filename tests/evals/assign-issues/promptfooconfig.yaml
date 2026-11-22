@@ -40,6 +40,7 @@ providers:
         PYTHONPATH: '{{ env.PWD }}/.workspace/mock'
         EVAL_FIXTURES: '{{ env.PWD }}/.workspace/fixtures'
         EVAL_DATASET_DATE: '2026-11-12'
+        EVAL_PLANE_NO_ESTIMATES: '1'   # Plane CE as released (makeplane/plane#9933)
 
 prompts:
   - '{{request}}'

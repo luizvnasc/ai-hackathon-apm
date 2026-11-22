@@ -55,7 +55,7 @@ class PlaneRouter:
         return [c[1] for c in self.calls if c[0] == method]
 
 
-def plane_routes(estimate=None, comments=True):
+def plane_routes(comments=True):
     pages = {None: fixture("plane_issues.json"), "100:1:0": fixture("plane_issues_page2.json")}
     routes = {
         "/members/": fixture("plane_workspace_members.json"),
@@ -67,8 +67,6 @@ def plane_routes(estimate=None, comments=True):
         "/projects/p-1/cycles/c-4/cycle-issues/": {"results": []},
         "/projects/p-1/issues/": lambda params: pages[params.get("cursor")],
         "/projects/p-1/labels/": fixture("plane_labels.json"),
-        "/projects/p-1/estimates/": fixture("plane_estimate.json") if estimate is None else estimate,
-        "/projects/p-1/estimates/est-1/estimate-points/": fixture("plane_estimate_points.json"),
         "/projects/p-1/issues/i-1/comments/": fixture("plane_comments_i1.json"),
         "/projects/p-1/issues/i-2/comments/": {"results": []},
         "/projects/p-1/issues/i-3/comments/": {"results": []},
@@ -281,7 +279,7 @@ class PlaneLoaderTest(unittest.TestCase):
         self.assertEqual(sorted(by_key), ["DEMO-1", "DEMO-2", "DEMO-3", "DEMO-5"])
         issue_calls = [c for c in router.calls if c[1] == "/projects/p-1/issues/"]
         self.assertEqual([c[2].get("cursor") for c in issue_calls], [None, "100:1:0"])
-        self.assertEqual(issue_calls[0][2]["expand"], "state,labels,assignees")
+        self.assertEqual(issue_calls[0][2]["expand"], "state,labels,assignees,estimate_point")
 
     def test_issue_normalized_with_label_groups_and_estimate_points(self):
         _, _, _, by_key, _ = self.load(plane_routes())
@@ -321,20 +319,23 @@ class PlaneLoaderTest(unittest.TestCase):
     def test_label_parents_are_read_once(self):
         _, _, _, _, router = self.load(plane_routes())
         self.assertEqual(router.paths().count("/projects/p-1/labels/"), 1)
-        self.assertEqual(router.paths().count("/projects/p-1/estimates/"), 1)
 
-    def test_no_estimate_404_means_no_points(self):
-        _, _, _, by_key, router = self.load(plane_routes(estimate=404))
-        self.assertTrue(all(i["points"] is None for i in by_key.values()))
-        self.assertNotIn("/projects/p-1/estimates/est-1/estimate-points/", router.paths())
+    def test_estimates_endpoint_is_never_called(self):
+        # Plane CE does not register it (makeplane/plane#9933); expand works with or without that bug.
+        _, _, _, _, router = self.load(plane_routes())
+        self.assertFalse([p for p in router.paths() if "/estimates/" in p])
 
-    def test_empty_estimate_object_means_no_points(self):
-        _, _, _, by_key, _ = self.load(plane_routes(estimate={}))
-        self.assertTrue(all(i["points"] is None for i in by_key.values()))
+    def test_estimate(self):
+        def point(value):
+            return asg.estimate({"estimate_point": {"value": value}})
 
-    def test_estimate_server_error_is_raised(self):
-        with self.assertRaises(asg.ApiError):
-            self.load(plane_routes(estimate=500))
+        self.assertEqual(point("3"), 3.0)
+        self.assertEqual(point(" 0.5 "), 0.5)
+        self.assertIsNone(point("XL"))
+        self.assertIsNone(point(""))    # how Plane expands an unset estimate
+        self.assertIsNone(point(None))
+        self.assertIsNone(asg.estimate({"estimate_point": "ep-3"}))  # not expanded
+        self.assertIsNone(asg.estimate({}))
 
     def test_no_comments_reads_no_comment_endpoint(self):
         _, _, _, by_key, router = self.load(plane_routes(), comments=False)

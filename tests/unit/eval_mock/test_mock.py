@@ -119,6 +119,52 @@ class ExpandTest(unittest.TestCase):
         self.assertEqual(get("?expand=state,estimate_point"), [{"id": "ep-3", "value": "3"}, None])
 
 
+class EstimatesBugTest(unittest.TestCase):
+    """EVAL_PLANE_NO_ESTIMATES: the mock has Plane CE's bug makeplane/plane#9933."""
+
+    BUG = {"EVAL_PLANE_NO_ESTIMATES": "1"}
+
+    def run_script(self, script, *args, env=None):
+        full = {k: v for k, v in os.environ.items() if not k.startswith(("GITLAB_", "PLANE_", "EVAL_"))}
+        full.update(PYTHONPATH=str(MOCK_DIR), EVAL_FIXTURES=str(FIXTURES), EVAL_TODAY="2026-11-12",
+                    EVAL_DATASET_DATE="2026-11-12",
+                    GITLAB_URL="http://gitlab.mock", GITLAB_TOKEN="glpat-eval-fake",
+                    PLANE_URL="http://plane.mock", PLANE_WORKSPACE="eval", PLANE_API_KEY="plane-eval-fake")
+        full.update(env or {})
+        with tempfile.TemporaryDirectory() as cwd:
+            return subprocess.run([sys.executable, str(script), *args], env=full, cwd=cwd,
+                                  capture_output=True, text=True, timeout=120)
+
+    def test_stale_issues_still_has_the_points(self):
+        out = self.run_script(STALE, "report", "--target", "plane", "--project", "INV", "--all", env=self.BUG)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertNotIn("[eval-mock]", out.stderr)
+        self.assertIn("10 points (33% of the open points)", out.stdout)
+
+    def test_assign_issues_still_measures_load_in_points(self):
+        out = self.run_script(ASSIGN, "suggest-member", "--target", "plane", "--project", "INV", "--issue", "INV-23",
+                              "--no-comments", env=self.BUG)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertNotIn("[eval-mock]", out.stderr)
+        self.assertIn("(in points)", out.stdout)
+        self.assertIn("| 1 | @alice | 91 |", out.stdout)
+
+    def test_migration_stops_before_any_write(self):
+        for extra in (["--dry-run"], []):
+            out = self.run_script(MIGRATE, "--gitlab-project", "group/inv", "--identifier", "INVGL", "--rate", "6000",
+                                  *extra, env=self.BUG)
+            self.assertNotEqual(out.returncode, 0)
+            self.assertIn("ESTIMATES UNAVAILABLE", out.stderr)
+            self.assertNotIn("[eval-mock]", out.stderr)  # no miss and no write attempted
+
+    def test_migration_without_points(self):
+        out = self.run_script(MIGRATE, "--gitlab-project", "group/inv", "--identifier", "INVGL", "--rate", "6000",
+                              "--dry-run", "--no-points", env=self.BUG)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        self.assertIn("work_item 23", out.stdout)
+        self.assertIn("warning: --no-points", out.stdout)
+
+
 class WriteRefusalTest(unittest.TestCase):
     def setUp(self):
         # Even routes that would match a write must not be reached.

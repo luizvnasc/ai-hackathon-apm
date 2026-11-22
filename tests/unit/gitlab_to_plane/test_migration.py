@@ -12,7 +12,8 @@ PATH = "demo/inventory-manager"
 
 
 def make_args(**kw):
-    base = dict(identifier="INVM", project_name=None, user_map="bob=robert@example.com", no_comments=False)
+    base = dict(identifier="INVM", project_name=None, user_map="bob=robert@example.com", no_comments=False,
+                no_points=False)
     return argparse.Namespace(**{**base, **kw})
 
 
@@ -260,6 +261,82 @@ class EstimateTest(unittest.TestCase):
         _, ids = self.estimates([item(1, labels=["points::1"]), item(2, labels=["points::2"])], dry_run=True)
         self.assertEqual(self.fake.writes(), [])
         self.assertEqual(ids, {"1": "pt-1", "2": "<new:point:2>"})
+
+
+class EstimateApiBugTest(unittest.TestCase):
+    """makeplane/plane#9933: Plane CE does not register the documented estimate routes."""
+
+    def setUp(self):
+        self.fake = FakePlane(mig, estimates_routed=False)
+
+    def test_stops_before_any_write(self):
+        for dry_run in (True, False):
+            with self.assertRaises(mig.EstimatesUnavailable):
+                run(self.fake, dry_run=dry_run)
+            self.assertEqual(self.fake.writes(), [])
+            self.assertEqual(self.fake.projects, [])
+
+    def test_stops_before_any_write_into_an_existing_project(self):
+        self.fake.add_project()
+        with self.assertRaises(mig.EstimatesUnavailable):
+            run(self.fake)
+        self.assertEqual(self.fake.writes(), [])
+
+    def test_no_points_migrates_everything_else_and_says_what_was_left_out(self):
+        _, report = run(self.fake, no_points=True)
+        self.assertFalse([p for _, p, _ in self.fake.calls if "/estimates/" in p])
+        items = self.fake.items[self.fake.projects[0]["id"]]
+        self.assertTrue(items)
+        self.assertFalse([i for i in items if "estimate_point" in i])
+        pointed = sum(1 for i in export_items()[1] if any(mig.point_value(l["title"]) for l in i["labels"]))
+        self.assertIn(f"--no-points: {pointed} work item(s)", " ".join(report["warnings"]))
+        self.assertFalse([l for ls in self.fake.labels.values() for l in ls if l["name"].startswith("points")])
+
+    def test_items_without_points_do_not_need_the_estimate_api(self):
+        run(self.fake, items=[item("1", ["type::bug"])])
+        self.assertFalse([p for _, p, _ in self.fake.calls if "/estimates/" in p])
+        self.assertEqual(len(self.fake.items[self.fake.projects[0]["id"]]), 1)
+
+    def test_rerun_after_plane_is_fixed_fills_in_the_points(self):
+        items = [item("1", ["points::3"])]
+        run(self.fake, items=items, no_points=True)
+        self.fake.estimates_routed = True
+        run(self.fake, items=items)
+        rows = self.fake.items[self.fake.projects[0]["id"]]
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]["estimate_point"])
+
+    def test_rerun_with_no_points_keeps_the_points_already_in_plane(self):
+        self.fake.estimates_routed = True
+        items = [item("1", ["points::3"])]
+        run(self.fake, items=items)
+        rows = self.fake.items[self.fake.projects[0]["id"]]
+        before = rows[0]["estimate_point"]
+        run(self.fake, items=items, no_points=True)
+        self.assertEqual(rows[0]["estimate_point"], before)
+
+    def test_probe_tells_a_missing_route_from_other_answers(self):
+        def check(status, payload):
+            fake = FakePlane(mig)
+            fake.fail("GET", r"/estimates/$", status, payload)
+            migration(fake, items=[item("1", ["points::3"])]).check_estimates()
+
+        check(403, {"detail": "You do not have permission to perform this action."})  # routed
+        check(404, {"error": "Estimate not found"})                                    # routed
+        with self.assertRaises(mig.EstimatesUnavailable):
+            check(404, {"error": "Page not found."})
+        for status in (401, 500):
+            with self.assertRaises(mig.PlaneError):
+                check(status, {"error": "other"})
+
+    def test_probe_treats_a_404_without_json_as_a_missing_route(self):
+        def req(method, path, body=None, params=None):
+            err = mig.PlaneError(404, "<h1>Not Found</h1>", method, path)
+            err.payload = None
+            raise err
+
+        with self.assertRaises(mig.EstimatesUnavailable):
+            migration(req, items=[item("1", ["points::3"])]).check_estimates()
 
 
 class LabelTest(unittest.TestCase):

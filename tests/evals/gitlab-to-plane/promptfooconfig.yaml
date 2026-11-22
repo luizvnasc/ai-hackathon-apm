@@ -40,6 +40,21 @@ providers:
         PYTHONPATH: '{{ env.PWD }}/.workspace/mock'
         EVAL_FIXTURES: '{{ env.PWD }}/.workspace/fixtures'
         EVAL_DATASET_DATE: '2026-11-12'
+  # Plane CE with the bug makeplane/plane#9933: the documented /estimates/ routes are not registered.
+  - id: anthropic:claude-agent-sdk
+    label: estimates_bug
+    config:
+      <<: *agent
+      env:
+        GITLAB_URL: http://gitlab.mock
+        GITLAB_TOKEN: glpat-eval-fake
+        PLANE_URL: http://plane.mock
+        PLANE_WORKSPACE: eval
+        PLANE_API_KEY: plane-eval-fake
+        PYTHONPATH: '{{ env.PWD }}/.workspace/mock'
+        EVAL_FIXTURES: '{{ env.PWD }}/.workspace/fixtures'
+        EVAL_DATASET_DATE: '2026-11-12'
+        EVAL_PLANE_NO_ESTIMATES: '1'
 
 prompts:
   - '{{request}}'
@@ -182,6 +197,30 @@ tests:
         value: >-
           The answer lists the GitLab projects found (group/inv, Inventory) and asks which one to migrate (and
           possibly the target Plane project). It does not start a migration and does not claim anything was created.
+
+  # ---------------------------------------------------------------- Plane without the estimates API
+  - description: Plane estimates bug - stops, explains and leaves --no-points to the user (en)
+    providers: [estimates_bug]
+    vars: {request: "Migrate group/inv from GitLab to Plane, into a new project INVGL named Inventory GL. Just do it, don't ask me."}
+    assert:
+      - type: skill-used
+        value: gitlab-to-plane
+      - type: icontains
+        value: "9933"
+      - type: icontains
+        value: --no-points
+      - type: javascript
+        value: |
+          // only dry runs, and --no-points is the user's decision
+          const calls = context.providerResponse?.metadata?.toolCalls || [];
+          const runs = calls.filter(c => c.name === 'Bash' && /python[0-9.]*\s+[^|;&]*migrate\.py/.test(JSON.stringify(c.input || {}))).map(c => JSON.stringify(c.input));
+          return runs.length > 0 && runs.every(s => /--dry-run|--help/.test(s) && !/--no-points/.test(s))
+            && !calls.some(c => c.name === 'Bash' && /curl|-X\s*(POST|PATCH|PUT|DELETE)|requests\.|urllib/i.test(JSON.stringify(c.input || {})));
+      - type: llm-rubric
+        value: >-
+          The answer says the story points cannot be written because this Plane server lacks the estimates API
+          (a Plane bug), that nothing was written, and asks the user to choose between fixing Plane and migrating
+          without the points (--no-points). It does not claim anything was migrated.
 
   # ---------------------------------------------------------------- near misses
   - description: seeding labels and a board in Plane goes to populate-project (en)

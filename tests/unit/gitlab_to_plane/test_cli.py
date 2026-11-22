@@ -263,5 +263,31 @@ class ListProjectsTest(unittest.TestCase):
                 self.assertNotIn("glpat-secret-123", out + err)
 
 
+class EstimateApiBugCliTest(unittest.TestCase):
+    def test_explains_the_bug_and_the_way_out_without_writing(self):
+        for extra in (["--dry-run"], []):
+            fake = FakePlane(mig, estimates_routed=False)
+            with with_plane(fake):
+                code, out, err = Run(self, PLANE_ENV)("--data", "export.json", *extra, files={"export.json": EXPORT})
+            self.assertNotEqual(code, 0)
+            for text in ("ESTIMATES UNAVAILABLE", "makeplane/plane/issues/9933", "--no-points", "Nothing was written"):
+                self.assertIn(text, err)
+            self.assertNotIn("Summary", out)
+            self.assertNotIn("Traceback", err)
+            self.assertEqual(fake.writes(), [])
+            for s in SECRETS:
+                self.assertNotIn(s, out + err)
+
+    def test_no_points_option(self):
+        fake = FakePlane(mig, estimates_routed=False)
+        with with_plane(fake):
+            code, out, err = Run(self, PLANE_ENV)("--data", "export.json", "--dry-run", "--no-points",
+                                                  files={"export.json": EXPORT})
+        self.assertEqual(code, 0, err)
+        self.assertIn("warning: --no-points", out)
+        self.assertNotIn("estimate 1", out)
+        self.assertEqual(fake.writes(), [])
+
+
 if __name__ == "__main__":
     unittest.main()
