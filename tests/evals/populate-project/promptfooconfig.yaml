@@ -7,13 +7,13 @@ description: populate-project skill evals
 #                  EVAL_DATASET_DATE is the date the dataset was written for; the mock shifts every
 #                  fixture date so that date becomes the real today (the agent and the script then
 #                  agree on "today" and the numbers never drift). The mock covers only Python's
-#                  urlopen: it is NOT a sandbox, the agent's Bash can reach the host's files and
-#                  network. Do not run outside an isolated environment. See tests/README.md.
+#                  urlopen; containment comes from sandbox/run.py, the only way to run this
+#                  config (working_dir does not exist elsewhere). See tests/README.md.
 providers:
   - id: anthropic:claude-agent-sdk
     label: unconfigured
     config: &agent
-      working_dir: ../.workspace
+      working_dir: /sandbox/tests/evals/.workspace   # exists only in sandbox/run.py's container
       setting_sources: ['project']
       skills: 'all'
       append_allowed_tools: ['Read', 'Bash']
