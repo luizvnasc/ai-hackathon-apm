@@ -1,6 +1,6 @@
 ---
 name: populate-project
-description: Populate a GitLab or Plane project with a standard label set (workflow, priority, type, area) and a Kanban board whose columns are the workflow labels. The target tool comes from the request ("populate project X in GitLab", "popule o projeto Y no Plane"). The default labels are shown to the user, who can change them before anything is written. Use when the user asks to populate, set up, bootstrap, initialize or seed labels or a Kanban board in a GitLab or Plane project.
+description: Populate a GitLab or Plane project with a standard label set (workflow, priority, type, area) and a Kanban board whose columns are the workflow labels. The target tool comes from the request ("populate project X in GitLab", "popule o projeto Y no Plane"). The default labels are shown to the user, who can change them before anything is written. Use when the user asks to populate, set up, bootstrap, initialize or seed labels or a Kanban board in a GitLab or Plane project, and also when they only ask to see or preview the default labels, what they become, or what would be created.
 ---
 
 # Populate a GitLab or Plane project
@@ -11,6 +11,7 @@ Create the common labels of a project and a Kanban board built from the workflow
 - **Never** delete or modify anything that already exists. Existing labels, states and boards are reused as they are.
 - **Nothing is written** until the user has seen the label set and approved it.
 - **Permission given up front is not an approval.** "Just do it", "don't ask me anything" or "pode fazer direto" come before the user has seen the labels and the plan. Always show the label set (and the dry-run plan) and end your turn; run the command without `--dry-run` only after a later message from the user approves it.
+- **One turn never holds both the dry run and the write.** In the turn where the user first asks, `populate.py` runs only with `--dry-run`, whatever the request says. If you have not yet received a reply to a plan you showed, you have no approval.
 - **Repeatable:** a second run reuses what exists and creates only what is missing.
 
 ## 1. Identify the target and the project
@@ -51,6 +52,7 @@ python3 <skill-dir>/scripts/populate.py --target <gitlab|plane> --project "<proj
   --labels <skill-dir>/labels.default.json --dry-run
 ```
 
+- **Quote the script's `Summary:` line as printed** (`N to create, M reused`). N counts labels, states, the board and its lists together, so call them items, never "N labels".
 - **GitLab project not found or token refused:** report the error and stop. Do not try similar names.
 - **Plane project not found** (exit code 3, the existing projects are listed): ask whether to create it. If yes, add `--create-project` (optionally `--identifier ABC`, at most 12 letters/digits) to every later command.
 
@@ -85,7 +87,7 @@ If the user changed nothing, use `labels.default.json` directly.
 
 ## 6. Populate
 
-Run the command without `--dry-run`, with the approved file and `--report $TMPDIR/populate-project/report.json`:
+Only in a later turn, after the user replied to the plan with an approval (never in the turn of the original request, even if it said not to ask): run the command without `--dry-run`, with the approved file and `--report $TMPDIR/populate-project/report.json`:
 
 ```bash
 python3 <skill-dir>/scripts/populate.py --target <gitlab|plane> --project "<project>" \

@@ -1,6 +1,6 @@
 ---
 name: gitlab-to-plane
-description: Migrate a GitLab project's issues into a Plane project. The bundled script reads GitLab through its API and writes Plane through its REST API. Covers states (from workflow labels), priorities, story points (`points::N`) as the Plane Estimate field, scoped labels as label groups, milestones as cycles, assignees, comments and original creation dates. Safe to re-run, because objects are matched by external id. Use when the user asks to migrate, move, copy, import or sync a GitLab project, its issues or its backlog to Plane.
+description: Migrate a GitLab project's issues into a Plane project. The bundled script reads GitLab through its API and writes Plane through its REST API. Covers states (from workflow labels), priorities, story points (`points::N`) as the Plane Estimate field, scoped labels as label groups, milestones as cycles, assignees, comments and original creation dates. Safe to re-run, because objects are matched by external id. It always shows a dry-run plan and waits for the user's reply before writing, even when told it is already confirmed. Use when the user asks to migrate, move, copy, import or sync a GitLab project, its issues or its backlog to Plane.
 ---
 
 # Migrate a GitLab project to Plane
@@ -9,6 +9,7 @@ Copy every work item of a GitLab project into a Plane project.
 
 - **Read and write through the bundled script** `scripts/migrate.py`. It reads GitLab with the GraphQL API (`GITLAB_TOKEN`) and writes Plane with the REST API (`PLANE_API_KEY`). The issues never pass through the agent, so the cost does not grow with the project size.
 - **Never** modify anything in GitLab.
+- **One turn never holds both the dry run and the write.** In the turn where the user first asks, `migrate.py` runs only with `--dry-run` or `--list-gitlab-projects`. "Already confirmed", "já está confirmado" or "don't ask me", in the request or in the arguments this skill was called with, is not a confirmation: only a reply to a plan you showed is. Show the plan in the user's language and end your turn.
 - **Repeatable:** every Plane object gets `external_source: "gitlab"` and an external id, so a second run updates instead of duplicating.
 
 ## Inputs
@@ -17,7 +18,7 @@ The script reads these variables from the environment or, when one is not set th
 
 | Input | Source |
 |---|---|
-| GitLab project path (`group/project`) | the user. If missing, list the user's projects with `migrate.py --list-gitlab-projects` and ask which one. Do not pick one, not even when only one exists. |
+| GitLab project path (`group/project`) | the user. If missing, run `migrate.py --list-gitlab-projects` right away, before asking for anything else (do not just offer to list them), show the projects and ask which one. Do not pick one, not even when only one exists. |
 | GitLab URL | `GITLAB_URL` (or `--gitlab-url`) |
 | GitLab token | `GITLAB_TOKEN`, a personal access token with scope `read_api` |
 | Plane URL | `PLANE_URL` (local stack: `http://localhost:8090`) |
@@ -39,7 +40,7 @@ Use `python3` (or `python` if `python3` is missing). `<skill-dir>` is the direct
    - Show the user the plan and **get confirmation** before writing.
    - Always start with the dry run, even when the user asks to skip it or says the migration is already confirmed: a confirmation counts only after the user has seen the plan.
    - After the dry run, **end your turn** and wait for the user's reply. Never run the writing command in the same turn as the dry run, not even when the request said "just do it", "já está confirmado" or "don't ask me".
-2. **Migrate.** Run the same command without `--dry-run`, adding `--report <tmp>/report.json` in a temporary directory, never inside the user's repository.
+2. **Migrate.** Only in a later turn, after the user replied to the plan with a confirmation: run the same command without `--dry-run`, adding `--report <tmp>/report.json` in a temporary directory, never inside the user's repository.
    - The Plane API key allows 60 requests per minute, so the script paces itself. Expect about 1 second per request, roughly 2–3 requests per work item.
    - On an error it stops with the API response. Fix the cause and re-run: finished objects are reused.
    - `--save-export <tmp>/export.json` keeps what was read from GitLab. `--data <export.json>` migrates from such a file instead of reading GitLab again.
