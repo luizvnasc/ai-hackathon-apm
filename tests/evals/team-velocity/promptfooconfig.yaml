@@ -16,7 +16,14 @@ providers:
       working_dir: /sandbox/tests/evals/.workspace   # exists only in sandbox/run.py's container
       setting_sources: ['project']
       skills: 'all'
-      append_allowed_tools: ['Read', 'Bash']
+      append_allowed_tools: ['Read', 'Bash', 'mcp__hackathon-metrics__team_velocity']
+      # The package's MCP server, from the same place as in a user's project (see sync-skills.sh)
+      mcp:
+        enabled: true
+        servers:
+          - name: hackathon-metrics
+            command: python3
+            args: ['apm_modules/luizvnasc/ai-hackathon-apm/mcp/server.py']
       disallowed_tools: ['Write', 'Edit', 'WebFetch', 'WebSearch']
       max_turns: 8
       max_budget_usd: 0.5
@@ -119,8 +126,13 @@ tests:
           // Weekly buckets depend on the weekday of the (shifted) today, so compare the answer
           // with the table the script actually printed instead of fixed numbers.
           const o = String(output);
-          const runs = (context.providerResponse?.metadata?.toolCalls || [])
-            .filter(c => c.name === 'Bash' && /velocity\.py/.test(JSON.stringify(c.input || {})) && /--by week/.test(JSON.stringify(c.input || {})));
+          // A report can come from the script (Bash) or from the MCP tool team_velocity
+          const asText = out => typeof out === 'string' ? out
+            : Array.isArray(out) ? out.map(part => part.text || '').join('\n')
+            : out && Array.isArray(out.content) ? out.content.map(part => part.text || '').join('\n') : String(out || '');
+          const isWeekly = c => (c.name === 'Bash' && /velocity\.py/.test(JSON.stringify(c.input || {})) && /--by week/.test(JSON.stringify(c.input || {})))
+            || (/team_velocity$/.test(c.name) && (c.input || {}).by === 'week');
+          const runs = (context.providerResponse?.metadata?.toolCalls || []).filter(isWeekly);
           if (!runs.length) return false;
           // The agent may ask for the table or for --format json: read either.
           const weeklyValues = text => {
@@ -133,7 +145,7 @@ tests:
             }
           };
           // The last run that printed the table or the JSON: the agent may also print its own summary after it
-          const vel = runs.map(run => weeklyValues(String(run.output || ''))).filter(values => values.length >= 8).pop() || [];
+          const vel = runs.map(run => weeklyValues(asText(run.output))).filter(values => values.length >= 8).pop() || [];
           if (vel.length < 8) return false;
           // The number itself, also as 8.0 or 8,0, but not as a part of 8.5 or 18
           const quotes = value => new RegExp('(?<![\\d.,])' + value.replace('.', '[.,]') + '([.,]0)?(?![.,]?\\d)');
@@ -200,7 +212,7 @@ tests:
       - type: javascript
         value: |
           const calls = context.providerResponse?.metadata?.toolCalls || [];
-          return calls.some(c => c.name === 'Bash' && /velocity\.py/.test(JSON.stringify(c.input || {})))
+          return calls.some(c => (c.name === 'Bash' && /velocity\.py/.test(JSON.stringify(c.input || {}))) || /team_velocity$/.test(c.name))
       - type: llm-rubric
         value: >-
           The answer says the Plane connection is not configured, names the missing variables
@@ -236,7 +248,8 @@ tests:
         value: |
           const calls = context.providerResponse?.metadata?.toolCalls || [];
           const bash = calls.filter(c => c.name === 'Bash').map(c => JSON.stringify(c.input || {}));
-          return bash.some(c => /velocity\.py/.test(c)) && !bash.some(c => /\b(curl|wget)\b/.test(c))
+          const ranReport = bash.some(c => /velocity\.py/.test(c)) || calls.some(c => /team_velocity$/.test(c.name));
+          return ranReport && !bash.some(c => /\b(curl|wget)\b/.test(c))
       - type: javascript
         value: |
           const o = String(output);
@@ -295,14 +308,20 @@ tests:
       - type: javascript
         value: |
           const calls = context.providerResponse?.metadata?.toolCalls || [];
-          return calls.some(c => c.name === 'Bash' && /velocity\.py/.test(JSON.stringify(c.input || {})) && /--by week/.test(JSON.stringify(c.input || {})))
+          return calls.some(c => (c.name === 'Bash' && /velocity\.py/.test(JSON.stringify(c.input || {})) && /--by week/.test(JSON.stringify(c.input || {})))
+            || (/team_velocity$/.test(c.name) && (c.input || {}).by === 'week'))
       - type: javascript
         value: |
           // Weekly buckets depend on the weekday of the (shifted) today, so compare the answer
           // with the table the script actually printed instead of fixed numbers.
           const o = String(output);
-          const runs = (context.providerResponse?.metadata?.toolCalls || [])
-            .filter(c => c.name === 'Bash' && /velocity\.py/.test(JSON.stringify(c.input || {})) && /--by week/.test(JSON.stringify(c.input || {})));
+          // A report can come from the script (Bash) or from the MCP tool team_velocity
+          const asText = out => typeof out === 'string' ? out
+            : Array.isArray(out) ? out.map(part => part.text || '').join('\n')
+            : out && Array.isArray(out.content) ? out.content.map(part => part.text || '').join('\n') : String(out || '');
+          const isWeekly = c => (c.name === 'Bash' && /velocity\.py/.test(JSON.stringify(c.input || {})) && /--by week/.test(JSON.stringify(c.input || {})))
+            || (/team_velocity$/.test(c.name) && (c.input || {}).by === 'week');
+          const runs = (context.providerResponse?.metadata?.toolCalls || []).filter(isWeekly);
           if (!runs.length) return false;
           // The agent may ask for the table or for --format json: read either.
           const weeklyValues = text => {
@@ -315,7 +334,7 @@ tests:
             }
           };
           // The last run that printed the table or the JSON: the agent may also print its own summary after it
-          const vel = runs.map(run => weeklyValues(String(run.output || ''))).filter(values => values.length >= 8).pop() || [];
+          const vel = runs.map(run => weeklyValues(asText(run.output))).filter(values => values.length >= 8).pop() || [];
           if (vel.length < 8) return false;
           // The number itself, also as 8.0 or 8,0, but not as a part of 8.5 or 18
           const quotes = value => new RegExp('(?<![\\d.,])' + value.replace('.', '[.,]') + '([.,]0)?(?![.,]?\\d)');

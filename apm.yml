@@ -8,11 +8,19 @@
 # PLANE_API_KEY from the environment or the consumer's .env. When one is missing,
 # the skill says which and how to set it (Linux/macOS and Windows).
 name: hackathon-metrics
-version: 0.15.0
+version: 0.16.0
 description: GitLab and Plane project skills (populate, blocked and stale issues, assignment by area expertise, team velocity, commitment x delivered, scope stability, delivery quality) for Claude Code, GitHub Copilot and OpenCode
 license: MIT
 includes: auto
 
 dependencies:
   apm: []
-  mcp: []
+  # Prototype (branch mcp-prototype): the agent starts the server from the project folder. No env block:
+  # a value there is written into the agent's config file at install time.
+  mcp:
+    - name: hackathon-metrics
+      registry: false
+      transport: stdio
+      command: python3
+      args:
+        - apm_modules/luizvnasc/ai-hackathon-apm/mcp/server.py

@@ -21,7 +21,7 @@ Take both from the user's words. Never guess them.
 | "no plane", "in Plane", a cycle, an identifier such as `INV`, a Plane URL | `plane` |
 | neither | ask: "GitLab or Plane?" |
 
-If the user names no project, list their projects and ask which one. Wait for the answer, and do not pick one even when only one exists:
+If the user names no project, list their projects and ask which one (`team_velocity` with `command: projects`, or the script). Wait for the answer, and do not pick one even when only one exists:
 
 ```bash
 python3 <skill-dir>/scripts/velocity.py projects --target <gitlab|plane>
@@ -42,6 +42,8 @@ The script reads these variables from the environment or, when one is not set th
 Use `python3` (or `python`). `<skill-dir>` is the directory of this `SKILL.md`.
 
 ## 3. Run
+
+**Use the `team_velocity` tool when you have it** (MCP server `hackathon-metrics`). Its fields are the script's options: `command` (`projects`, `periods` or `report`), `target`, `project`, `last`, `unit`, `by`, `weeks`, `timezone`, `today`, `format`. It returns what the script prints, so everything below applies to it. **Otherwise, run the script:**
 
 ```bash
 python3 <skill-dir>/scripts/velocity.py report --target <t> --project "<p>" \

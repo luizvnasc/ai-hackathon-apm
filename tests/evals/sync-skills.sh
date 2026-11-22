@@ -2,6 +2,8 @@
 # Rebuild .workspace/ with a fresh copy of the source skills (../../.apm/skills).
 # It also copies mock/ (offline GitLab/Plane, see mock/sitecustomize.py) to .workspace/mock and
 # fixtures/ (one shared dataset) to .workspace/fixtures/, which "configured" providers use.
+# The package is also laid out as `apm install` leaves it (apm_modules/luizvnasc/ai-hackathon-apm/), so the
+# MCP server starts from the same relative path as in a user's project.
 # Every promptfooconfig.yaml points working_dir at .workspace, so evals always run
 # against the source skills, never the installed copy, and with no .env inside.
 set -euo pipefail
@@ -11,6 +13,10 @@ ws="$here/.workspace"
 rm -rf "$ws"
 mkdir -p "$ws/.claude/skills"
 cp -R "$src"/. "$ws/.claude/skills/"
+package="$ws/apm_modules/luizvnasc/ai-hackathon-apm"
+mkdir -p "$package/.apm/skills"
+cp -R "$src"/. "$package/.apm/skills/"
+cp -R "$here/../../shared" "$here/../../mcp" "$package/"
 mkdir -p "$ws/mock" "$ws/fixtures"
 cp "$here/mock/sitecustomize.py" "$ws/mock/"
 [ -d "$here/fixtures" ] && cp -R "$here/fixtures/." "$ws/fixtures/"

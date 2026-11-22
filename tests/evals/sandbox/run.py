@@ -59,18 +59,22 @@ def credential(environ):
              "--selftest needs no credential.")
 
 
+# What the agent needs: the skills, the MCP server with the shared code it imports, and the evals
+PAYLOAD_FOLDERS = (".apm/skills", "shared", "mcp", "tests/evals")
+
+
 def allowed_file(rel):
     """Whether a repository file may enter the sandbox."""
     parts = pathlib.PurePosixPath(rel).parts
     if any(p in ("node_modules", ".workspace", "output", "__pycache__", "..") or p.startswith(".env") for p in parts):
         return False
-    return rel.startswith((".apm/skills/", "tests/evals/"))
+    return rel.startswith(tuple(folder + "/" for folder in PAYLOAD_FOLDERS))
 
 
 def payload(root):
     """A tar of the skills and evals: regular files inside the repository that git does not ignore."""
-    names = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "-co", "--exclude-standard", "--",
-                            ".apm/skills", "tests/evals"], check=True, stdout=subprocess.PIPE).stdout.decode().split("\0")
+    names = subprocess.run(["git", "-C", str(root), "ls-files", "-z", "-co", "--exclude-standard", "--", *PAYLOAD_FOLDERS],
+                           check=True, stdout=subprocess.PIPE).stdout.decode().split("\0")
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w") as tar:
         for rel in sorted(set(filter(None, names))):
