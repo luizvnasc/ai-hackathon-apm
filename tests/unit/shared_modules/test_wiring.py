@@ -5,6 +5,7 @@ from unittest import mock
 from tests.unit._load import load
 
 SKILLS = {"assign-issues": "assign.py", "blocked-issues": "blocked.py", "commitment-delivered": "commitment.py",
+          "delivery-quality": "quality.py",
           "populate-project": "populate.py", "scope-stability": "stability.py", "stale-issues": "stale.py",
           "team-velocity": "velocity.py"}
 

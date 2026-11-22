@@ -1,5 +1,5 @@
 # APM package: the hackathon deliverable.
-# Portable agent skills for GitLab and Plane projects: setup, blocked and stale work, assignment, velocity, commitment x delivered and scope stability.
+# Portable agent skills for GitLab and Plane projects: setup, blocked and stale work, assignment, velocity, commitment x delivered, scope stability and delivery quality.
 # Skills follow the open Agent Skills format, so APM deploys them for Claude Code
 # (.claude/skills/), GitHub Copilot and OpenCode (.agents/skills/).
 #
@@ -8,8 +8,8 @@
 # PLANE_API_KEY from the environment or the consumer's .env. When one is missing,
 # the skill says which and how to set it (Linux/macOS and Windows).
 name: hackathon-metrics
-version: 0.14.0
-description: GitLab and Plane project skills (populate, blocked and stale issues, assignment by area expertise, team velocity, commitment x delivered, scope stability) for Claude Code, GitHub Copilot and OpenCode
+version: 0.15.0
+description: GitLab and Plane project skills (populate, blocked and stale issues, assignment by area expertise, team velocity, commitment x delivered, scope stability, delivery quality) for Claude Code, GitHub Copilot and OpenCode
 license: MIT
 includes: auto
 

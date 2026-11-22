@@ -132,7 +132,8 @@ tests:
               return lines.map(line => line.split('|').map(cell => cell.trim()).filter(Boolean).pop());
             }
           };
-          const vel = weeklyValues(String(runs[runs.length - 1].output || ''));
+          // The last run that printed the table or the JSON: the agent may also print its own summary after it
+          const vel = runs.map(run => weeklyValues(String(run.output || ''))).filter(values => values.length >= 8).pop() || [];
           if (vel.length < 8) return false;
           // The number itself, also as 8.0 or 8,0, but not as a part of 8.5 or 18
           const quotes = value => new RegExp('(?<![\\d.,])' + value.replace('.', '[.,]') + '([.,]0)?(?![.,]?\\d)');
@@ -313,7 +314,8 @@ tests:
               return lines.map(line => line.split('|').map(cell => cell.trim()).filter(Boolean).pop());
             }
           };
-          const vel = weeklyValues(String(runs[runs.length - 1].output || ''));
+          // The last run that printed the table or the JSON: the agent may also print its own summary after it
+          const vel = runs.map(run => weeklyValues(String(run.output || ''))).filter(values => values.length >= 8).pop() || [];
           if (vel.length < 8) return false;
           // The number itself, also as 8.0 or 8,0, but not as a part of 8.5 or 18
           const quotes = value => new RegExp('(?<![\\d.,])' + value.replace('.', '[.,]') + '([.,]0)?(?![.,]?\\d)');

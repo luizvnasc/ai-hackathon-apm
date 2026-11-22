@@ -65,32 +65,44 @@
  {
   "path": "/api/v1/workspaces/eval/projects/proj-inv/cycles/cyc-1/cycle-issues/",
   "file": "plane_cycle_issues_c1.json",
-  "expand": {"estimate_point": "plane_estimate_points.json"}
+  "expand": {
+   "estimate_point": "plane_estimate_points.json"
+  }
  },
  {
   "path": "/api/v1/workspaces/eval/projects/proj-inv/cycles/cyc-2/cycle-issues/",
   "file": "plane_cycle_issues_c2.json",
-  "expand": {"estimate_point": "plane_estimate_points.json"}
+  "expand": {
+   "estimate_point": "plane_estimate_points.json"
+  }
  },
  {
   "path": "/api/v1/workspaces/eval/projects/proj-inv/cycles/cyc-3/cycle-issues/",
   "file": "plane_cycle_issues_c3.json",
-  "expand": {"estimate_point": "plane_estimate_points.json"}
+  "expand": {
+   "estimate_point": "plane_estimate_points.json"
+  }
  },
  {
   "path": "/api/v1/workspaces/eval/projects/proj-inv/cycles/cyc-4/cycle-issues/",
   "file": "plane_cycle_issues_c4.json",
-  "expand": {"estimate_point": "plane_estimate_points.json"}
+  "expand": {
+   "estimate_point": "plane_estimate_points.json"
+  }
  },
  {
   "path": "/api/v1/workspaces/eval/projects/proj-inv/cycles/cyc-5/cycle-issues/",
   "file": "plane_cycle_issues_c5.json",
-  "expand": {"estimate_point": "plane_estimate_points.json"}
+  "expand": {
+   "estimate_point": "plane_estimate_points.json"
+  }
  },
  {
   "path": "/api/v1/workspaces/eval/projects/proj-inv/cycles/cyc-6/cycle-issues/",
   "file": "plane_cycle_issues_c6.json",
-  "expand": {"estimate_point": "plane_estimate_points.json"}
+  "expand": {
+   "estimate_point": "plane_estimate_points.json"
+  }
  },
  {
   "path": "/api/v4/projects",
@@ -209,7 +221,9 @@
  {
   "path": "/api/v1/workspaces/eval/projects/proj-inv/issues/",
   "file": "plane_issues.json",
-  "expand": {"estimate_point": "plane_estimate_points.json"}
+  "expand": {
+   "estimate_point": "plane_estimate_points.json"
+  }
  },
  {
   "path": "/api/v1/workspaces/eval/projects/proj-inv/issues/iss-3/activities/",
@@ -250,6 +264,14 @@
  {
   "path": "/api/v1/workspaces/eval/projects/proj-inv/issues/iss-17/activities/",
   "file": "plane_activities_i17.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/issues/iss-2/activities/",
+  "file": "plane_activities_i2.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/issues/iss-7/activities/",
+  "file": "plane_activities_i7.json"
  },
  {
   "path_regex": "^/api/v1/workspaces/eval/projects/proj-inv/issues/iss-\\d+/activities/$",
@@ -298,6 +320,26 @@
  {
   "path": "/api/v4/projects/group%2Finv/issues/18/resource_label_events",
   "file": "gitlab_label_events_i18.json"
+ },
+ {
+  "path": "/api/v4/projects/group%2Finv/issues/2/resource_label_events",
+  "file": "gitlab_label_events_i2.json"
+ },
+ {
+  "path": "/api/v4/projects/group%2Finv/issues/7/resource_label_events",
+  "file": "gitlab_label_events_i7.json"
+ },
+ {
+  "path": "/api/v4/projects/group%2Finv/issues/10/resource_label_events",
+  "file": "gitlab_label_events_i10.json"
+ },
+ {
+  "path": "/api/v4/projects/group%2Finv/issues/12/resource_label_events",
+  "file": "gitlab_label_events_i12.json"
+ },
+ {
+  "path": "/api/v4/projects/group%2Finv/issues/17/resource_label_events",
+  "file": "gitlab_label_events_group_inv_i17.json"
  },
  {
   "path_regex": "^/api/v4/projects/group%2Finv/issues/\\d+/resource_label_events$",
