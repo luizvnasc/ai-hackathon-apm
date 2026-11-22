@@ -2,13 +2,14 @@
 import json
 import urllib.parse
 
+from .days import InstanceZone, ProjectDays
 from .net import ApiError
 
 PAGE_SIZE = 100
 MEMBER_PROJECTS = {"membership": "true", "archived": "false", "order_by": "last_activity_at", "sort": "desc"}
 
 
-class GitLabClient:
+class GitLabClient(ProjectDays):
     """Base of each skill's GitLab class. The skill provides send(method, url, body), which makes one request."""
 
     kind = "milestone"
@@ -17,6 +18,7 @@ class GitLabClient:
     def __init__(self, url, token, project=None):
         self.url, self.project = url.rstrip("/"), project
         self.headers = {"PRIVATE-TOKEN": token}
+        self.tz = InstanceZone()
 
     def send(self, method, url, body=None):
         """Returns (data, response headers)."""

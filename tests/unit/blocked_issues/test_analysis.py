@@ -27,6 +27,8 @@ def link(kind, key, created=None):
 class FakeSource:
     """The interface analyze()/find_blocked() use, over an in-memory dict of items."""
 
+    tz = dt.timezone.utc
+
     def __init__(self, *items, prefix="DEMO"):
         self.items = {i["key"]: i for i in items}
         self.prefix = prefix
@@ -338,7 +340,7 @@ class AnalyzeTest(unittest.TestCase):
 
 class RenderTest(unittest.TestCase):
     def result(self, issues, stale=()):
-        return {"project": "Demo (DEMO)", "scope": "Cycle 2", "today": "2026-03-01", "stale_days": 30.0,
+        return {"project": "Demo (DEMO)", "scope": "Cycle 2", "today": "2026-03-01", "timezone": "UTC", "stale_days": 30.0,
                 "issues": issues, "stale_excluded": list(stale)}
 
     def test_empty_report(self):

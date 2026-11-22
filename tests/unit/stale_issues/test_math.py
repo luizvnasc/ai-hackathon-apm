@@ -8,6 +8,7 @@ st = load("stale-issues", "stale.py")
 
 TODAY = dt.date(2026, 3, 10)
 NOW = dt.datetime(2026, 3, 10, 23, 59, tzinfo=dt.timezone.utc)  # analyze() measures to the end of today
+UTC = dt.timezone.utc
 SPRINT = {"name": "Sprint 5", "start": "2026-03-01", "end": "2026-03-14"}
 
 
@@ -85,7 +86,7 @@ class KindTest(unittest.TestCase):
 
 class StaleRuleTest(unittest.TestCase):
     def stale_keys(self, issues, period=None, stale_days=14):
-        return [i["key"] for i in st.analyze(issues, period, stale_days, TODAY)["stale"]]
+        return [i["key"] for i in st.analyze(issues, period, stale_days, TODAY, UTC)["stale"]]
 
     def test_threshold_is_strictly_more_than_n_days(self):
         exactly = issue("exact", "2026-02-24T23:59:00Z")   # 14.0 days
@@ -106,7 +107,7 @@ class StaleRuleTest(unittest.TestCase):
 
     def test_zero_threshold_disables_the_idle_rule(self):
         issues = [issue("old", "2020-01-01T00:00:00Z"), issue("m", "2026-03-10T00:00:00Z", stale_mark=True)]
-        res = st.analyze(issues, None, 0, TODAY)
+        res = st.analyze(issues, None, 0, TODAY, UTC)
         self.assertEqual([i["key"] for i in res["stale"]], ["m"])
         self.assertEqual(res["aging"], [])
 
@@ -129,7 +130,7 @@ class StaleRuleTest(unittest.TestCase):
 
 class AnalyzeTest(unittest.TestCase):
     def setUp(self):
-        self.res = st.analyze(sample(), SPRINT, 14, TODAY, "milestone")
+        self.res = st.analyze(sample(), SPRINT, 14, TODAY, UTC, "milestone")
 
     def test_counts_and_order(self):
         r = self.res
@@ -148,13 +149,13 @@ class AnalyzeTest(unittest.TestCase):
     def test_share_falls_back_to_issues_when_any_issue_has_no_points(self):
         issues = sample()
         issues[4]["points"] = None
-        r = st.analyze(issues, SPRINT, 14, TODAY)
+        r = st.analyze(issues, SPRINT, 14, TODAY, UTC)
         self.assertEqual(r["unit"], "issues")
         self.assertEqual((r["open_size"], r["stale_size"]), (5, 3))
 
     def test_zero_points_still_count_as_pointed(self):
         issues = [issue("z", "2026-01-01T00:00:00Z", started=True, points=0)]
-        r = st.analyze(issues, None, 14, TODAY)
+        r = st.analyze(issues, None, 14, TODAY, UTC)
         self.assertEqual((r["unit"], r["open_size"], r["stale_size"]), ("points", 0, 0))
 
     def test_idle_days_and_next_step_are_set(self):
@@ -165,7 +166,7 @@ class AnalyzeTest(unittest.TestCase):
     def test_within_a_kind_longest_idle_first(self):
         issues = [issue("short", "2026-02-20T00:00:00Z", started=True),
                   issue("long", "2026-01-20T00:00:00Z", started=True)]
-        self.assertEqual([i["key"] for i in st.analyze(issues, None, 14, TODAY)["stale"]], ["long", "short"])
+        self.assertEqual([i["key"] for i in st.analyze(issues, None, 14, TODAY, UTC)["stale"]], ["long", "short"])
 
     def test_per_person(self):
         self.assertEqual(self.res["per_person"], [("alice", 2), ("bob", 1), ("(unassigned)", 1)])
@@ -175,19 +176,19 @@ class AnalyzeTest(unittest.TestCase):
         self.assertEqual([i["key"] for i in self.res["aging"]], ["B"])
 
     def test_empty_input(self):
-        r = st.analyze([], SPRINT, 14, TODAY)
+        r = st.analyze([], SPRINT, 14, TODAY, UTC)
         self.assertEqual((r["open"], r["stale_count"], r["unit"], r["open_size"], r["stale_size"]),
                          (0, 0, "issues", 0, 0))
         self.assertEqual(r["per_person"], [])
         self.assertEqual(r["aging"], [])
 
     def test_whole_project_has_no_period_left(self):
-        r = st.analyze(sample(), None, 14, TODAY)
+        r = st.analyze(sample(), None, 14, TODAY, UTC)
         self.assertIsNone(r["period_left"])
         self.assertIn("B", [i["key"] for i in r["stale"]])  # backlog time counts without a period
 
     def test_period_already_ended(self):
-        r = st.analyze(sample(), {"name": "S", "start": "2026-02-20", "end": "2026-03-08"}, 14, TODAY)
+        r = st.analyze(sample(), {"name": "S", "start": "2026-02-20", "end": "2026-03-08"}, 14, TODAY, UTC)
         self.assertEqual(r["period_left"], -2)
 
 
@@ -215,14 +216,15 @@ class NextStepTest(unittest.TestCase):
         self.assertTrue(self.step([], where="the plan").endswith("move it out of the plan"))
 
     def test_whole_project_says_the_plan(self):
-        res = st.analyze([issue("m", "2026-03-10T00:00:00Z", stale_mark=True)], None, 14, TODAY)
+        res = st.analyze([issue("m", "2026-03-10T00:00:00Z", stale_mark=True)], None, 14, TODAY, UTC)
         self.assertTrue(res["stale"][0]["next_step"].endswith("the plan"))
 
 
 class RenderTest(unittest.TestCase):
     def full(self, issues=None, period=SPRINT, today=TODAY):
-        res = st.analyze(sample() if issues is None else issues, period, 14, today, "milestone")
-        res.update(project="Demo Project", kind="milestone", period=period, today=today.isoformat(), stale_days=14)
+        res = st.analyze(sample() if issues is None else issues, period, 14, today, UTC, "milestone")
+        res.update(project="Demo Project", kind="milestone", period=period, today=today.isoformat(), stale_days=14,
+                   timezone="UTC")
         return st.render(res)
 
     def test_markdown_report(self):

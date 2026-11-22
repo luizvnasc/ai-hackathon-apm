@@ -61,7 +61,8 @@ import urllib.request
 sys.dont_write_bytecode = True  # never write into an installed skill
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))  # python3 -I leaves it out
 from hackathon_shared.config import load_dotenv, require_config  # noqa: E402
-from hackathon_shared.dates import parse_dt  # noqa: E402
+from hackathon_shared.dates import age_reference, parse_dt  # noqa: E402
+from hackathon_shared.days import timezone_arg  # noqa: E402
 from hackathon_shared.gitlab import GitLabClient  # noqa: E402
 from hackathon_shared.labels import has_cancelled_label, scoped  # noqa: E402
 from hackathon_shared.net import ApiError  # noqa: E402
@@ -153,11 +154,12 @@ class GitLab(GitLabClient):
                 for m in rows if m.get("state") == "active" and not m.get("bot")]
 
     def periods(self):
-        q = """query($p: ID!) { project(fullPath: $p) { milestones(state: active, includeAncestors: true, first: 100) {
+        q = """query($p: ID!) { project(fullPath: $p) { lastActivityAt milestones(state: active, includeAncestors: true, first: 100) {
                  nodes { title startDate dueDate } } } }"""
         proj = self.graphql(q, {"p": self.project})["project"]
         if not proj:
             sys.exit(f"GitLab project {self.project!r} not found (or the token cannot read it)")
+        self.learn_times(proj.get("lastActivityAt"))
         return [{"name": m["title"], "start": m["startDate"], "end": m["dueDate"]} for m in proj["milestones"]["nodes"]]
 
     def issues(self, comments=True):
@@ -170,6 +172,7 @@ class GitLab(GitLabClient):
             if not proj:
                 sys.exit(f"GitLab project {self.project!r} not found (or the token cannot read it)")
             for n in proj["workItems"]["nodes"]:
+                self.learn_times(n.get("createdAt"), n.get("updatedAt"), n.get("closedAt"))
                 out.append(self.to_issue(n))
             info = proj["workItems"]["pageInfo"]
             if not info["hasNextPage"]:
@@ -245,8 +248,8 @@ class Plane(PlaneClient):
         for c in self.list(f"/projects/{self.pid}/cycles/"):
             if c.get("archived_at") or (c.get("status") or "").lower() == "completed":
                 continue
-            out.append({"name": c["name"], "id": c["id"], "start": (c.get("start_date") or "")[:10] or None,
-                        "end": (c.get("end_date") or "")[:10] or None})
+            out.append({"name": c["name"], "id": c["id"], "start": self.local_day(c.get("start_date")),
+                        "end": self.local_day(c.get("end_date"))})
         return out
 
     def issues(self, comments=True):
@@ -526,6 +529,7 @@ def main(argv=None):
     ap.add_argument("--dry-run", action="store_true", help="assign: print the change, write nothing")
     ap.add_argument("--yes", action="store_true", help="assign: write the change (only after the user confirmed it)")
     ap.add_argument("--no-comments", action="store_true", help="do not read comments (faster, mostly for Plane)")
+    ap.add_argument("--timezone", type=timezone_arg, help="IANA name or +HH:MM: where a day begins and ends")
     ap.add_argument("--today")
     ap.add_argument("--format", choices=["md", "json"], default="md")
     ap.add_argument("--gitlab-url", default=os.environ.get("GITLAB_URL"))
@@ -536,8 +540,7 @@ def main(argv=None):
     require_config(gitlab=a.target == "gitlab", plane=a.target == "plane", gitlab_url=a.gitlab_url,
                    plane_url=a.plane_url, workspace=a.workspace, scope="read_api (api to assign)")
 
-    today = dt.date.fromisoformat(a.today) if a.today else dt.date.today()
-    today_dt = dt.datetime.combine(today, dt.time(23, 59), tzinfo=dt.timezone.utc)
+    chosen_today = dt.date.fromisoformat(a.today) if a.today else None
     roles = [r.strip().lower() for r in a.roles.split(",") if r.strip()]
     bad = [r for r in roles if r not in ROLE_LEVELS[a.target]]
     if bad:
@@ -553,10 +556,13 @@ def main(argv=None):
             rows = src.my_projects()
             return emit(rows, lambda r: render_projects(a.target, r))
 
+        src.set_days(a.timezone, chosen_today)
         periods = src.periods()
+        today = src.today()
+        src.warn_about_days()
         current = current_period(periods, today)
         if a.command == "periods":
-            return emit({"project": src.project, "kind": src.kind, "today": today.isoformat(),
+            return emit({"project": src.project, "kind": src.kind, "today": today.isoformat(), "timezone": str(src.tz),
                          "periods": periods, "current": current}, render_periods)
 
         if a.period and a.period not in [p["name"] for p in periods]:
@@ -569,7 +575,7 @@ def main(argv=None):
             sys.exit(f"no project member has the role(s) {roles}; members: "
                      + ", ".join(f"{m['name']} ({m['level']})" for m in all_members))
         issues = src.issues(comments=not a.no_comments)
-        scores = build_scores(issues, devs, today_dt, a.half_life)
+        scores = build_scores(issues, devs, age_reference(today, src.tz), a.half_life)
         dev_names = [d["name"] for d in devs]
         notes = []
         if scope is None and not a.all:
@@ -646,7 +652,7 @@ def main(argv=None):
                 notes.append(f"@{m['name']} does not have the {'/'.join(roles)} role; scored anyway.")
                 devs.append(m)
                 dev_names.append(m["name"])
-                scores = build_scores(issues, devs, today_dt, a.half_life)
+                scores = build_scores(issues, devs, age_reference(today, src.tz), a.half_life)
                 load, unit = loads(issues, devs, scope)
             who = m["name"]
             cands = [i for i in issues if i["open"] and not src.blocked(i)

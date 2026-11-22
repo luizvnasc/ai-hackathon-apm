@@ -3,6 +3,7 @@ import sys
 import time
 import urllib.parse
 
+from .days import ProjectDays
 from .labels import number
 from .net import ApiError, workspace_segment
 
@@ -40,7 +41,7 @@ def full_label_names(labels, names_by_id):
     return names
 
 
-class PlaneClient:
+class PlaneClient(ProjectDays):
     """Base of each skill's Plane class. The skill provides send(method, url, body), which makes one request."""
 
     kind = "cycle"
@@ -101,6 +102,8 @@ class PlaneClient:
         row = self.find_project(wanted)
         self.pid, self.ident = row["id"], row["identifier"]
         self.name = f"{row['name']} ({row['identifier']})"
+        if row.get("timezone"):
+            self.use_timezone(row["timezone"])  # Plane stores a cycle's days as times in this timezone
         return row
 
     def find_project(self, wanted):

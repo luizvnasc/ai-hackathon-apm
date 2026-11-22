@@ -113,7 +113,7 @@ class GitLabIssuesTest(unittest.TestCase):
 
     def test_days_follow_the_instance_offset(self):
         g = gl()
-        g.note_offset([{"created_at": "2026-03-05T10:00:00.000-03:00"}])
+        g.learn_times("2026-03-05T10:00:00.000-03:00")
         self.assertEqual(g.tz.utcoffset(None).total_seconds(), -3 * 3600)
 
     def test_milestones_are_paginated_and_keyed_by_id(self):

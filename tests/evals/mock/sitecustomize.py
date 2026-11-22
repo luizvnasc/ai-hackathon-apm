@@ -215,13 +215,22 @@ def make_urlopen(fixtures_dir, shift_days=0, estimates_routed=True):
 
 def _freeze_today(iso):
     real = datetime.date
+    real_datetime = datetime.datetime
 
     class FrozenDate(real):
         @classmethod
         def today(cls):
             return cls.fromisoformat(iso)
 
+    class FrozenDatetime(real_datetime):
+        @classmethod
+        def now(cls, tz=None):
+            # Noon UTC, so it is the same day from -11:59 to +11:59
+            noon = cls.fromisoformat(iso + "T12:00:00+00:00")
+            return noon.astimezone(tz) if tz else noon.replace(tzinfo=None)
+
     datetime.date = FrozenDate
+    datetime.datetime = FrozenDatetime
 
 
 def install():

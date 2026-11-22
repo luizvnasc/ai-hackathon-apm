@@ -36,7 +36,7 @@ def run(*argv, env=None):
     return code, out.getvalue(), err.getvalue()
 
 
-class Fake:
+class Fake(ss.PlaneClient):
     kind, name, tz, tz_note = "milestone", "Demo", ss.UTC, None
 
     def __init__(self, items):

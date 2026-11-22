@@ -45,12 +45,13 @@ Use `python3` (or `python`). `<skill-dir>` is the directory of this `SKILL.md`.
 
 ```bash
 python3 <skill-dir>/scripts/commitment.py report --target <t> --project "<p>" \
-  [--last 6] [--period "<name>" ...] [--unit auto|points|count] [--grace-days 0] [--format json]
+  [--last 6] [--period "<name>" ...] [--unit auto|points|count] [--grace-days 0] [--timezone -03:00] [--format json]
 ```
 
 - `periods` lists the milestones/cycles with their status: finished, current or upcoming. Use it when the user names one you need to match.
 - **Which periods:** by default the last `--last` finished ones (default 6) plus the current one. `--period` (repeatable) analyzes only the named ones. Use the user's choice if they give one.
 - **Commitment cutoff:** the end of the start day. If the team plans during the first days, pass `--grace-days N` (the user's number; ask only if they mention planning late).
+- **Days:** start, end and today are days of the project: Plane uses the project's timezone, GitLab the offset the instance writes in its times (UTC on gitlab.com). Pass `--timezone` (`-03:00` or `America/Sao_Paulo`) only when the user gives one. Relay any note that days are in UTC.
 - **Unit:**
   - `auto` uses points when every issue involved has them. Otherwise it counts issues, and the report says how many have no points.
   - Points come from the `points::N` label in GitLab. In Plane they come from the issue's **estimate** (Project settings → Estimates, a numeric scale), never from labels: an issue without a numeric estimate has no points.

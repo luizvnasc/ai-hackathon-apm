@@ -98,7 +98,7 @@ ISSUES = [
 
 
 def fake_source(periods, issues, kind="cycle", seen=None):
-    class Fake:
+    class Fake(cd.PlaneClient):
         def __init__(self, *args):
             self.args, self.kind, self.name = args, kind, "Demo (DEMO)"
 
@@ -262,7 +262,8 @@ class ReportTest(unittest.TestCase):
     def test_history_is_read_from_the_first_analyzed_period(self):
         seen = {}
         self.report("--last", "2", seen=seen)
-        self.assertEqual(seen["since"], dt.datetime(2026, 1, 19, tzinfo=dt.timezone.utc))
+        # One day before the period starts, as the instance's offset is only fully known after reading the issues
+        self.assertEqual(seen["since"], dt.datetime(2026, 1, 18, tzinfo=dt.timezone.utc))
 
     def test_grace_days(self):
         res = self.report("--grace-days", "1")
@@ -333,7 +334,7 @@ class ReportTest(unittest.TestCase):
     def test_markdown_report(self):
         out = self.run_report()
         self.assertIn("# Commitment x delivered — Demo (DEMO)", out)
-        self.assertIn("Unit: **points** · commitment cutoff: end of the start day · today 2026-02-22", out)
+        self.assertIn("Unit: **points** · commitment cutoff: end of the start day · days in UTC · today 2026-02-22", out)
         self.assertIn("| S1 | 2026-01-05 → 2026-01-18 | finished | 10 (5) | 5 | **50%** | 1 | 2 | 2 | 1 (1) | 1 | 6 "
                       "| 60% | +0% |", out)
         self.assertIn("## Summary (finished periods)", out)

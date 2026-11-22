@@ -76,7 +76,7 @@ ISSUES = [
 
 
 def fake_source(periods, issues, kind="cycle"):
-    class Fake:
+    class Fake(vel.PlaneClient):
         def __init__(self, *args):
             self.args, self.kind, self.name = args, kind, "Demo (DEMO)"
 
@@ -279,7 +279,7 @@ class ReportTest(unittest.TestCase):
 
     def test_markdown_without_rows(self):
         res = {"project": "P", "kind": "cycle", "unit": "count", "basis": "period", "today": "2026-02-22",
-               "rows": [], "notes": []}
+               "timezone": "UTC", "rows": [], "notes": []}
         self.assertIn("No finished cycle", vel.render(res))
 
     def test_periods_command_json(self):

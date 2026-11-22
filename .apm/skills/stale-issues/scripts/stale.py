@@ -35,7 +35,8 @@ import urllib.request
 sys.dont_write_bytecode = True  # never write into an installed skill
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))  # python3 -I leaves it out
 from hackathon_shared.config import load_dotenv, require_config  # noqa: E402
-from hackathon_shared.dates import UTC, parse_dt, to_date  # noqa: E402
+from hackathon_shared.dates import age_reference, parse_dt, start_of_day, to_date  # noqa: E402
+from hackathon_shared.days import timezone_arg  # noqa: E402
 from hackathon_shared.gitlab import GitLabClient  # noqa: E402
 from hackathon_shared.labels import BLOCKED_VALUES, STALE_VALUES, label_points, label_value, scoped  # noqa: E402
 from hackathon_shared.net import ApiError  # noqa: E402
@@ -90,12 +91,13 @@ class GitLab(GitLabClient):
         return http(method, url, self.headers, body)
 
     def periods(self, today):
-        q = """query($p: ID!) { project(fullPath: $p) { name milestones(state: active, includeAncestors: true, first: 100) {
+        q = """query($p: ID!) { project(fullPath: $p) { name lastActivityAt milestones(state: active, includeAncestors: true, first: 100) {
                  nodes { title startDate dueDate } } } }"""
         proj = self.graphql(q, {"p": self.project})["project"]
         if not proj:
             sys.exit(f"GitLab project {self.project!r} not found (or the token cannot read it)")
         self.name = proj["name"]
+        self.learn_times(proj.get("lastActivityAt"))
         return [{"name": m["title"], "start": m["startDate"], "end": m["dueDate"]} for m in proj["milestones"]["nodes"]]
 
     def issues(self, period):
@@ -114,6 +116,7 @@ class GitLab(GitLabClient):
             self.name = proj["name"]
             page = proj["workItems"]
             for n in page["nodes"]:
+                self.learn_times(n.get("createdAt"), n.get("updatedAt"), n.get("closedAt"))
                 w = {x.get("type"): x for x in n.get("widgets") or []}
                 labels = [l["title"] for l in ((w.get("LABELS") or {}).get("labels") or {}).get("nodes", [])]
                 flow = scoped(labels, "workflow") + scoped(labels, "status") + scoped(labels, "state")
@@ -143,12 +146,12 @@ class Plane(PlaneClient):
     def periods(self, today):
         self._cycles = []
         for c in self.list(f"/projects/{self.pid}/cycles/"):
-            end = to_date(c.get("end_date"))
+            end = to_date(self.local_day(c.get("end_date")))
             if c.get("archived_at") or (c.get("status") or "").lower() == "completed" or (end and end < today):
                 continue
             self._cycles.append(c)
-        return [{"name": c["name"], "id": c["id"], "start": (c.get("start_date") or "")[:10] or None,
-                 "end": (c.get("end_date") or "")[:10] or None} for c in self._cycles]
+        return [{"name": c["name"], "id": c["id"], "start": self.local_day(c.get("start_date")),
+                 "end": self.local_day(c.get("end_date"))} for c in self._cycles]
 
     def issues(self, period):
         label_names = {l["id"]: l["name"] for l in self.list(f"/projects/{self.pid}/labels/")}
@@ -218,12 +221,12 @@ def next_step(it, kind, period_left, where):
             else f"unassigned and untouched: assign it or move it out of {where}")
 
 
-def analyze(issues, period, stale_days, today, kind="milestone"):
-    now = dt.datetime.combine(today, dt.time(23, 59), tzinfo=UTC)
+def analyze(issues, period, stale_days, today, zone, kind="milestone"):
+    now = age_reference(today, zone)
     period_left = None
     if period and period.get("end"):
         period_left = (to_date(period["end"]) - today).days
-    start = parse_dt(period["start"]) if period and period.get("start") else None
+    start = start_of_day(to_date(period["start"]), zone) if period and period.get("start") else None
     where = f"the {kind}" if period else "the plan"
     stale, fresh = [], []
     for it in issues:
@@ -263,7 +266,7 @@ def render(res):
     p = res.get("period")
     scope = f"{res['kind']} **{p['name']}** ({p['start'] or '?'} → {p['end'] or '?'})" if p else "**whole project**"
     out = [f"# Stale issues — {res['project']}", "",
-           f"Scope: {scope} · today {res['today']} · stale = no activity for more than {res['stale_days']:g} days "
+           f"Scope: {scope} · days in {res['timezone']} · today {res['today']} · stale = no activity for more than {res['stale_days']:g} days "
            "or a stale label/state", ""]
     if p and res["period_left"] is not None:
         out.append(f"The {res['kind']} ends in **{res['period_left']} day(s)**." if res["period_left"] >= 0
@@ -309,6 +312,7 @@ def main(argv=None):
     scope.add_argument("--period", help="milestone title (GitLab) or cycle name/id (Plane)")
     scope.add_argument("--all", action="store_true", help="the whole project")
     ap.add_argument("--stale-days", type=float, default=14, help="idle days after which an issue is stale (default 14)")
+    ap.add_argument("--timezone", type=timezone_arg, help="IANA name or +HH:MM: where a day begins and ends")
     ap.add_argument("--today")
     ap.add_argument("--format", choices=["md", "json"], default="md")
     ap.add_argument("--gitlab-url", default=os.environ.get("GITLAB_URL"))
@@ -319,7 +323,7 @@ def main(argv=None):
     require_config(gitlab=a.target == "gitlab", plane=a.target == "plane", gitlab_url=a.gitlab_url,
                    plane_url=a.plane_url, workspace=a.workspace)
 
-    today = dt.date.fromisoformat(a.today) if a.today else dt.date.today()
+    chosen_today = dt.date.fromisoformat(a.today) if a.today else None
     if a.command != "projects" and not a.project:
         sys.exit(f"{a.command} needs --project (run `projects` to list yours)")
     try:
@@ -333,14 +337,17 @@ def main(argv=None):
             return print("\n".join([f"# Your {'GitLab' if a.target == 'gitlab' else 'Plane'} projects", "",
                                     md_table(["#", "Project", "Name"],
                                              [[n, f"[{r['path']}]({r['url']})", r["name"]] for n, r in enumerate(rows, 1)])]))
-        periods = sorted(src.periods(today), key=lambda p: p["start"] or "9999")
+        src.set_days(a.timezone, chosen_today)
+        src.warn_about_days()
+        periods = sorted(src.periods(src.today()), key=lambda p: p["start"] or "9999")
         if a.command == "periods":
             everything = src.issues(None)
+            today = src.today()
             for p in periods:
                 mine = [i for i in everything if i["period"] == p["name"]] if a.target == "gitlab" else src.issues(p["name"])
-                r = analyze(mine, p, a.stale_days, today, src.kind)
+                r = analyze(mine, p, a.stale_days, today, src.tz, src.kind)
                 p.update(open=r["open"], stale=r["stale_count"])
-            w = analyze(everything, None, a.stale_days, today)
+            w = analyze(everything, None, a.stale_days, today, src.tz)
             res = {"project": src.name, "kind": src.kind, "stale_days": a.stale_days, "periods": periods,
                    "whole": {"open": w["open"], "stale": w["stale_count"]}}
             return print(json.dumps(res, indent=2, default=str) if a.format == "json" else render_periods(res))
@@ -351,10 +358,12 @@ def main(argv=None):
             period = next((p for p in periods if p["name"].strip().lower() == a.period.strip().lower()), None) \
                 or {"name": a.period, "start": None, "end": None}
         issues = src.issues(period["name"] if period else None)
+        today = src.today()
     except ApiError as e:
         sys.exit(f"API error: {e}")
-    res = analyze(issues, period, a.stale_days, today, src.kind)
-    res.update(project=src.name, kind=src.kind, period=period, today=today.isoformat(), stale_days=a.stale_days)
+    res = analyze(issues, period, a.stale_days, today, src.tz, src.kind)
+    res.update(project=src.name, kind=src.kind, period=period, today=today.isoformat(), timezone=str(src.tz),
+               stale_days=a.stale_days)
     print(json.dumps(res, indent=2, default=str) if a.format == "json" else render(res))
 
 

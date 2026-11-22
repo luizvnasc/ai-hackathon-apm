@@ -122,11 +122,21 @@ tests:
           const runs = (context.providerResponse?.metadata?.toolCalls || [])
             .filter(c => c.name === 'Bash' && /velocity\.py/.test(JSON.stringify(c.input || {})) && /--by week/.test(JSON.stringify(c.input || {})));
           if (!runs.length) return false;
-          const table = String(runs[runs.length - 1].output || '');
-          const rows = table.split('\n').filter(l => /^\|\s*\d{4}-\d{2}-\d{2}/.test(l));
-          if (rows.length < 8) return false;
-          const vel = rows.map(l => l.split('|').map(s => s.trim()).filter(Boolean).pop());
-          return vel.every(v => new RegExp('(^|[^\\d.])' + v.replace('.', '\\.') + '([^\\d.]|$)').test(o))
+          // The agent may ask for the table or for --format json: read either.
+          const weeklyValues = text => {
+            try {
+              const report = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
+              return report.rows.map(row => String(Math.round(row.velocity * 10) / 10));
+            } catch (notJson) {
+              const lines = text.split('\n').filter(line => /^\|\s*\d{4}-\d{2}-\d{2}/.test(line));
+              return lines.map(line => line.split('|').map(cell => cell.trim()).filter(Boolean).pop());
+            }
+          };
+          const vel = weeklyValues(String(runs[runs.length - 1].output || ''));
+          if (vel.length < 8) return false;
+          // The number itself, also as 8.0 or 8,0, but not as a part of 8.5 or 18
+          const quotes = value => new RegExp('(?<![\\d.,])' + value.replace('.', '[.,]') + '([.,]0)?(?![.,]?\\d)');
+          return vel.every(v => quotes(v).test(o))
             && !/NOT CONFIGURED|\[eval-mock\] MISS|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
 
   # ---------------------------------------------------------------- near misses
@@ -293,11 +303,21 @@ tests:
           const runs = (context.providerResponse?.metadata?.toolCalls || [])
             .filter(c => c.name === 'Bash' && /velocity\.py/.test(JSON.stringify(c.input || {})) && /--by week/.test(JSON.stringify(c.input || {})));
           if (!runs.length) return false;
-          const table = String(runs[runs.length - 1].output || '');
-          const rows = table.split('\n').filter(l => /^\|\s*\d{4}-\d{2}-\d{2}/.test(l));
-          if (rows.length < 8) return false;
-          const vel = rows.map(l => l.split('|').map(s => s.trim()).filter(Boolean).pop());
-          return vel.every(v => new RegExp('(^|[^\\d.])' + v.replace('.', '\\.') + '([^\\d.]|$)').test(o))
+          // The agent may ask for the table or for --format json: read either.
+          const weeklyValues = text => {
+            try {
+              const report = JSON.parse(text.slice(text.indexOf('{'), text.lastIndexOf('}') + 1));
+              return report.rows.map(row => String(Math.round(row.velocity * 10) / 10));
+            } catch (notJson) {
+              const lines = text.split('\n').filter(line => /^\|\s*\d{4}-\d{2}-\d{2}/.test(line));
+              return lines.map(line => line.split('|').map(cell => cell.trim()).filter(Boolean).pop());
+            }
+          };
+          const vel = weeklyValues(String(runs[runs.length - 1].output || ''));
+          if (vel.length < 8) return false;
+          // The number itself, also as 8.0 or 8,0, but not as a part of 8.5 or 18
+          const quotes = value => new RegExp('(?<![\\d.,])' + value.replace('.', '[.,]') + '([.,]0)?(?![.,]?\\d)');
+          return vel.every(v => quotes(v).test(o))
             && !/NOT CONFIGURED|\[eval-mock\] MISS|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
 
   - description: no project given - lists the projects and asks which one

@@ -48,7 +48,8 @@ import urllib.request
 sys.dont_write_bytecode = True  # never write into an installed skill
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))  # python3 -I leaves it out
 from hackathon_shared.config import load_dotenv, require_config  # noqa: E402
-from hackathon_shared.dates import UTC, parse_dt, to_date  # noqa: E402
+from hackathon_shared.dates import end_of_day, parse_dt, start_of_day, to_date  # noqa: E402
+from hackathon_shared.days import timezone_arg  # noqa: E402
 from hackathon_shared.gitlab import GitLabClient  # noqa: E402
 from hackathon_shared.labels import has_cancelled_label, label_points  # noqa: E402
 from hackathon_shared.net import ApiError  # noqa: E402
@@ -70,10 +71,6 @@ def http(method, url, headers, body=None):
         sys.exit(f"cannot reach {url}: {e.reason}")
 
 
-def end_of(day):
-    return dt.datetime.combine(day, dt.time(23, 59, 59), tzinfo=UTC)
-
-
 def new_issue(**kw):
     """`events` is the period history: [(datetime, period name or None)], oldest first;
     `initial` is the period the issue had when it was created."""
@@ -89,12 +86,13 @@ class GitLab(GitLabClient):
         return http(method, url, self.headers, body)
 
     def periods(self):
-        q = """query($p: ID!) { project(fullPath: $p) { name milestones(includeAncestors: true, first: 100) {
+        q = """query($p: ID!) { project(fullPath: $p) { name lastActivityAt milestones(includeAncestors: true, first: 100) {
                  nodes { title state startDate dueDate } } } }"""
         proj = self.graphql(q, {"p": self.project})["project"]
         if not proj:
             sys.exit(f"GitLab project {self.project!r} not found (or the token cannot read it)")
         self.name = proj["name"]
+        self.learn_times(proj.get("lastActivityAt"))
         return [{"name": m["title"], "start": m["startDate"], "end": m["dueDate"], "closed": m["state"] == "closed"}
                 for m in proj["milestones"]["nodes"]]
 
@@ -110,6 +108,7 @@ class GitLab(GitLabClient):
         while True:
             page = self.graphql(q, {"p": self.project, "after": after})["project"]["workItems"]
             for n in page["nodes"]:
+                self.learn_times(n.get("createdAt"), n.get("updatedAt"), n.get("closedAt"))
                 w = {x.get("type"): x for x in n.get("widgets") or []}
                 labels = [l["title"] for l in ((w.get("LABELS") or {}).get("labels") or {}).get("nodes", [])]
                 closed = n["state"] != "OPEN"
@@ -150,8 +149,8 @@ class Plane(PlaneClient):
 
     def periods(self):
         self._cycles = [c for c in self.list(f"/projects/{self.pid}/cycles/") if not c.get("archived_at")]
-        return [{"name": c["name"], "id": c["id"], "start": (c.get("start_date") or "")[:10] or None,
-                 "end": (c.get("end_date") or "")[:10] or None,
+        return [{"name": c["name"], "id": c["id"], "start": self.local_day(c.get("start_date")),
+                 "end": self.local_day(c.get("end_date")),
                  "closed": (c.get("status") or "").lower() == "completed"} for c in self._cycles]
 
     def issues(self, since):
@@ -242,10 +241,10 @@ def delivered(it, name, until):
     return period_at(it, parse_dt(it["closed"])) == name
 
 
-def classify(p, issues, grace, today):
+def classify(p, issues, grace, today, zone):
     start, end = to_date(p["start"]), to_date(p["end"])
-    cutoff = end_of(start + dt.timedelta(days=grace))
-    stop = min(end_of(end), end_of(today))
+    cutoff = end_of_day(start + dt.timedelta(days=grace), zone)
+    stop = end_of_day(min(end, today), zone)
     name = p["name"]
     committed = [i for i in issues if period_at(i, cutoff) == name]
     cids = {id(i) for i in committed}
@@ -337,7 +336,7 @@ def render(res):
     u, kind = res["unit"], res["kind"]
     out = [f"# Commitment x delivered — {res['project']}", "",
            f"Unit: **{u}** · commitment cutoff: end of the start day"
-           + (f" + {res['grace_days']} day(s)" if res["grace_days"] else "") + f" · today {res['today']}", ""]
+           + (f" + {res['grace_days']} day(s)" if res["grace_days"] else "") + f" · days in {res['timezone']} · today {res['today']}", ""]
     rows = res["rows"]
     if not rows:
         out.append(f"No {kind} with dates and a commitment to analyze.")
@@ -423,11 +422,11 @@ def select(periods, a):
     return [p for p in chosen if p["status"] != "upcoming"], notes
 
 
-def analyze(src_name, kind, periods, issues, a, today):
+def analyze(src_name, kind, periods, issues, a, today, zone):
     """Pure calculation over loaded periods and issues (no API calls)."""
     chosen, notes = select(periods, a)
 
-    groups = [(p, classify(p, issues, a.grace_days, today)) for p in chosen]
+    groups = [(p, classify(p, issues, a.grace_days, today, zone)) for p in chosen]
     involved = [i for _, g in groups for i in g["committed"] + g["added"] if not i["cancelled"]]
     unit = choose_unit(involved, a.unit)
     if a.unit == "auto" and unit == "count" and involved:
@@ -456,6 +455,7 @@ def analyze(src_name, kind, periods, issues, a, today):
             members[m][0] += c
             members[m][1] += d
     res = {"project": src_name, "kind": kind, "unit": unit, "grace_days": a.grace_days, "today": today.isoformat(),
+           "timezone": str(zone),
            "rows": rows, "summary": summary, "notes": notes,
            "members": sorted(members.items(), key=lambda kv: -kv[1][0])}
     upcoming = [p for p in periods if p["status"] == "upcoming"]
@@ -477,6 +477,7 @@ def main(argv=None):
     ap.add_argument("--unit", choices=["auto", "points", "count"], default="auto")
     ap.add_argument("--grace-days", type=int, default=0,
                     help="days after the start day that still count as commitment (default 0)")
+    ap.add_argument("--timezone", type=timezone_arg, help="IANA name or +HH:MM: where a day begins and ends")
     ap.add_argument("--today")
     ap.add_argument("--format", choices=["md", "json"], default="md")
     ap.add_argument("--gitlab-url", default=os.environ.get("GITLAB_URL"))
@@ -487,7 +488,7 @@ def main(argv=None):
     require_config(gitlab=a.target == "gitlab", plane=a.target == "plane", gitlab_url=a.gitlab_url,
                    plane_url=a.plane_url, workspace=a.workspace)
 
-    today = dt.date.fromisoformat(a.today) if a.today else dt.date.today()
+    chosen_today = dt.date.fromisoformat(a.today) if a.today else None
     if a.command != "projects" and not a.project:
         sys.exit(f"{a.command} needs --project (run `projects` to list yours)")
     try:
@@ -501,16 +502,24 @@ def main(argv=None):
             return print("\n".join([f"# Your {'GitLab' if a.target == 'gitlab' else 'Plane'} projects", "",
                                     md_table(["#", "Project", "Name"],
                                              [[n, f"[{r['path']}]({r['url']})", r["name"]] for n, r in enumerate(rows, 1)])]))
-        periods = mark_status(src.periods(), today)
+        src.set_days(a.timezone, chosen_today)
+        periods = src.periods()
+        today = src.today()
+        periods = mark_status(periods, today)
         if a.command == "periods":
+            src.warn_about_days()
             res = {"project": src.name, "kind": src.kind, "periods": periods}
             return print(json.dumps(res, indent=2) if a.format == "json" else render_periods(res))
         starts = [to_date(p["start"]) for p in select(periods, a)[0]]
-        since = dt.datetime.combine(min(starts), dt.time(), tzinfo=UTC) if starts else end_of(today)
+        # A day earlier: the instance's offset is only fully known after the issues are read
+        since = (start_of_day(min(starts), src.tz) - dt.timedelta(days=1) if starts
+                 else end_of_day(today, src.tz))
         issues = src.issues(since)
     except ApiError as e:
         sys.exit(f"API error: {e}")
-    res = analyze(src.name, src.kind, periods, issues, a, today)
+    res = analyze(src.name, src.kind, periods, issues, a, today, src.tz)
+    if src.tz_note:
+        res["notes"].append(src.tz_note)
     print(json.dumps(res, indent=2, default=str) if a.format == "json" else render(res))
 
 

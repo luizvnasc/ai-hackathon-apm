@@ -80,7 +80,7 @@ ISSUES = [
 def fake_source(issues=ISSUES, members=MEMBERS, periods=PERIODS, kind="cycle"):
     writes = []
 
-    class Fake:
+    class Fake(asg.PlaneClient):
         blocked = asg.Plane.blocked
 
         def __init__(self, *args):

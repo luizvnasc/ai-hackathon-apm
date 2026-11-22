@@ -48,7 +48,8 @@ import urllib.request
 sys.dont_write_bytecode = True  # never write into an installed skill
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))  # python3 -I leaves it out
 from hackathon_shared.config import load_dotenv, require_config  # noqa: E402
-from hackathon_shared.dates import to_date  # noqa: E402
+from hackathon_shared.dates import day_of, parse_dt, to_date  # noqa: E402
+from hackathon_shared.days import timezone_arg  # noqa: E402
 from hackathon_shared.gitlab import GitLabClient  # noqa: E402
 from hackathon_shared.labels import has_cancelled_label, label_points  # noqa: E402
 from hackathon_shared.net import ApiError  # noqa: E402
@@ -90,12 +91,13 @@ class GitLab(GitLabClient):
         return http(method, url, self.headers, body)
 
     def periods(self):
-        q = """query($p: ID!) { project(fullPath: $p) { name milestones(includeAncestors: true, first: 100) {
+        q = """query($p: ID!) { project(fullPath: $p) { name lastActivityAt milestones(includeAncestors: true, first: 100) {
                  nodes { title state startDate dueDate } } } }"""
         proj = self.graphql(q, {"p": self.project})["project"]
         if not proj:
             sys.exit(f"GitLab project {self.project!r} not found (or the token cannot read it)")
         self.name = proj["name"]
+        self.learn_times(proj.get("lastActivityAt"))
         return [{"name": m["title"], "start": m["startDate"], "end": m["dueDate"], "closed": m["state"] == "closed"}
                 for m in proj["milestones"]["nodes"]]
 
@@ -103,7 +105,7 @@ class GitLab(GitLabClient):
         q = """query($p: ID!, $after: String) { project(fullPath: $p) {
                  workItems(types: [ISSUE, TASK, INCIDENT], first: 100, after: $after) {
                    pageInfo { hasNextPage endCursor }
-                   nodes { iid title state webUrl closedAt widgets { type
+                   nodes { iid title state webUrl createdAt updatedAt closedAt widgets { type
                      ... on WorkItemWidgetLabels { labels { nodes { title } } }
                      ... on WorkItemWidgetAssignees { assignees { nodes { username } } }
                      ... on WorkItemWidgetMilestone { milestone { title } } } } } } }"""
@@ -111,6 +113,7 @@ class GitLab(GitLabClient):
         while True:
             page = self.graphql(q, {"p": self.project, "after": after})["project"]["workItems"]
             for n in page["nodes"]:
+                self.learn_times(n.get("createdAt"), n.get("updatedAt"), n.get("closedAt"))
                 w = {x.get("type"): x for x in n.get("widgets") or []}
                 labels = [l["title"] for l in ((w.get("LABELS") or {}).get("labels") or {}).get("nodes", [])]
                 closed = n["state"] != "OPEN"
@@ -139,8 +142,8 @@ class Plane(PlaneClient):
 
     def periods(self):
         self._cycles = [c for c in self.list(f"/projects/{self.pid}/cycles/") if not c.get("archived_at")]
-        return [{"name": c["name"], "id": c["id"], "start": (c.get("start_date") or "")[:10] or None,
-                 "end": (c.get("end_date") or "")[:10] or None,
+        return [{"name": c["name"], "id": c["id"], "start": self.local_day(c.get("start_date")),
+                 "end": self.local_day(c.get("end_date")),
                  "closed": (c.get("status") or "").lower() == "completed"} for c in self._cycles]
 
     def issues(self):
@@ -182,11 +185,15 @@ def size(it, unit):
     return (it["points"] or 0) if unit == "points" else 1
 
 
-def period_stats(p, issues, unit, today):
+def closed_day(issue, zone):
+    return day_of(parse_dt(issue["closed"]), zone)
+
+
+def period_stats(p, issues, unit, today, zone):
     start, end = to_date(p["start"]), to_date(p["end"])
     mine = [i for i in issues if i["period"] == p["name"] and not i["cancelled"]]
-    on_time = [i for i in mine if i["closed"] and to_date(i["closed"]) <= end]
-    late = [i for i in mine if i["closed"] and to_date(i["closed"]) > end]
+    on_time = [i for i in mine if i["closed"] and closed_day(i, zone) <= end]
+    late = [i for i in mine if i["closed"] and closed_day(i, zone) > end]
     open_ = [i for i in mine if not i["closed"]]
     scope = sum(size(i, unit) for i in mine)
     velocity = sum(size(i, unit) for i in on_time)
@@ -217,13 +224,13 @@ def summarize(rows):
             "completion": statistics.mean(comp) if comp else None}
 
 
-def weekly(issues, unit, today, weeks):
+def weekly(issues, unit, today, weeks, zone):
     monday = today - dt.timedelta(days=today.weekday())
     out = []
     for k in range(weeks, 0, -1):
         ws = monday - dt.timedelta(weeks=k)
         we = ws + dt.timedelta(days=6)
-        done = [i for i in issues if i["closed"] and not i["cancelled"] and ws <= to_date(i["closed"]) <= we]
+        done = [i for i in issues if i["closed"] and not i["cancelled"] and ws <= closed_day(i, zone) <= we]
         out.append({"name": f"{ws.isoformat()} – {we.isoformat()}", "start": ws.isoformat(), "end": we.isoformat(),
                     "weeks": 1.0, "issues": len(done), "velocity": sum(size(i, unit) for i in done),
                     "per_week": sum(size(i, unit) for i in done), "scope": None, "late": None, "spilled": None,
@@ -241,7 +248,7 @@ def f1(x, pct=False):
 def render(res):
     u = res["unit"]
     out = [f"# Team velocity — {res['project']}", "",
-           f"Unit: **{u}** · basis: **{res['basis']}** · today {res['today']}", ""]
+           f"Unit: **{u}** · basis: **{res['basis']}** · days in {res['timezone']} · today {res['today']}", ""]
     rows = res["rows"]
     if not rows:
         out.append(f"No finished {res['kind']} with dates and issues yet. Try `--by week`.")
@@ -314,6 +321,7 @@ def main(argv=None):
     ap.add_argument("--unit", choices=["auto", "points", "count"], default="auto")
     ap.add_argument("--by", choices=["period", "week"], default="period")
     ap.add_argument("--weeks", type=int, default=8, help="--by week: full weeks to analyze (default 8)")
+    ap.add_argument("--timezone", type=timezone_arg, help="IANA name or +HH:MM: where a day begins and ends")
     ap.add_argument("--today")
     ap.add_argument("--format", choices=["md", "json"], default="md")
     ap.add_argument("--gitlab-url", default=os.environ.get("GITLAB_URL"))
@@ -324,7 +332,7 @@ def main(argv=None):
     require_config(gitlab=a.target == "gitlab", plane=a.target == "plane", gitlab_url=a.gitlab_url,
                    plane_url=a.plane_url, workspace=a.workspace, scope="read_api")
 
-    today = dt.date.fromisoformat(a.today) if a.today else dt.date.today()
+    chosen_today = dt.date.fromisoformat(a.today) if a.today else None
     if a.command != "projects" and not a.project:
         sys.exit(f"{a.command} needs --project (run `projects` to list yours)")
     try:
@@ -339,13 +347,16 @@ def main(argv=None):
                                     md_table(["#", "Project", "Name"],
                                              [[n, f"[{r['path']}]({r['url']})", r["name"]] for n, r in enumerate(rows, 1)])]))
 
+        src.set_days(a.timezone, chosen_today)
         periods = [p for p in src.periods() if p["start"] and p["end"]]
+        today = src.today()
         for p in periods:
             s, e = to_date(p["start"]), to_date(p["end"])
             p["finished"] = p["closed"] or e < today
             p["status"] = "finished" if p["finished"] else ("current" if s <= today <= e else "upcoming")
         periods.sort(key=lambda p: p["start"])
         if a.command == "periods":
+            src.warn_about_days()
             res = {"project": src.name, "kind": src.kind, "periods": periods}
             return print(json.dumps(res, indent=2) if a.format == "json" else render_periods(res))
 
@@ -353,14 +364,14 @@ def main(argv=None):
     except ApiError as e:
         sys.exit(f"API error: {e}")
 
-    notes = []
+    notes = [src.tz_note] if src.tz_note else []
     finished = [p for p in periods if p["finished"]][-a.last:]
     basis = a.by
     in_scope = [i for i in issues if i["period"] in {p["name"] for p in finished}] if basis == "period" else issues
     unit = choose_unit(in_scope, a.unit)
     rows = []
     if basis == "period":
-        rows = [period_stats(p, issues, unit, today) for p in finished]
+        rows = [period_stats(p, issues, unit, today, src.tz) for p in finished]
         rows = [r for r in rows if r["issues"]]
         if not rows:
             notes.append(f"No finished {src.kind} has issues: showing weekly throughput instead.")
@@ -369,7 +380,7 @@ def main(argv=None):
             basis, in_scope = "week", issues
             unit = choose_unit(in_scope, a.unit)
     if basis == "week":
-        rows = weekly(issues, unit, today, a.weeks)
+        rows = weekly(issues, unit, today, a.weeks, src.tz)
     if a.unit == "auto" and unit == "count" and in_scope:
         missing = sum(1 for i in in_scope if i["points"] is None and not i["cancelled"])
         where = "a `points::N` label" if a.target == "gitlab" else "an Estimate"
@@ -378,6 +389,7 @@ def main(argv=None):
 
     summary = summarize(rows)
     res = {"project": src.name, "kind": src.kind, "unit": unit, "basis": basis, "today": today.isoformat(),
+           "timezone": str(src.tz),
            "rows": rows, "summary": summary, "notes": notes, "members": [], "member_totals": {}, "total": 0}
     if summary:
         cv = summary["cv"] or 0
@@ -401,12 +413,12 @@ def main(argv=None):
             upcoming = [p for p in periods if p["status"] == "upcoming"]
             if current:
                 p = current[0]
-                st = period_stats(p, issues, unit, today)
+                st = period_stats(p, issues, unit, today, src.tz)
                 s, e = to_date(p["start"]), to_date(p["end"])
                 elapsed = min(1.0, max(0.0, ((today - s).days + 1) / ((e - s).days + 1)))
                 remaining_weeks = max(0.0, (e - today).days) / 7.0
                 done_now = sum(size(i, unit) for i in issues if i["period"] == p["name"] and not i["cancelled"]
-                               and i["closed"] and to_date(i["closed"]) <= today)
+                               and i["closed"] and closed_day(i, src.tz) <= today)
                 expected = done_now + mpw * remaining_weeks
                 gap = st["scope"] - expected
                 elapsed_weeks = max(1, (min(today, e) - s).days + 1) / 7.0
@@ -418,7 +430,7 @@ def main(argv=None):
                                   else "off track"}
             nxt = upcoming[0] if upcoming else None
             if nxt:
-                st = period_stats(nxt, issues, unit, today)
+                st = period_stats(nxt, issues, unit, today, src.tz)
                 res["next"] = {"name": nxt["name"], "start": nxt["start"], "end": nxt["end"], "weeks": st["weeks"],
                                "scope": st["scope"], "recommended": mpw * st["weeks"],
                                "conservative": summary["min_last3_per_week"] * st["weeks"]}
