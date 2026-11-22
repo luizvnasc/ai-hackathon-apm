@@ -8,7 +8,7 @@
 # PLANE_API_KEY from the environment or the consumer's .env. When one is missing,
 # the skill says which and how to set it (Linux/macOS and Windows).
 name: hackathon-metrics
-version: 0.13.0
+version: 0.13.1
 description: GitLab and Plane project skills (populate, blocked and stale issues, assignment by area expertise, team velocity, commitment x delivered, scope stability) for Claude Code, GitHub Copilot and OpenCode
 license: MIT
 includes: auto

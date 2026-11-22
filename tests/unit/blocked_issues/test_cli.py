@@ -130,10 +130,10 @@ class ConfigTest(unittest.TestCase):
         self.assert_not_configured(code, out, err, ["GITLAB_URL"])
         self.assertEqual(err.splitlines()[0], "NOT CONFIGURED: missing GITLAB_URL.")
 
-    def test_gitlab_url_from_mcp_json(self):
+    def test_gitlab_url_is_not_taken_from_mcp_json(self):
         mcp = json.dumps({"mcpServers": {"gitlab": {"url": "https://gitlab.example.com/api/v4/mcp"}}})
         code, out, err = Run(self)("projects", "--target", "gitlab", files={".mcp.json": mcp})
-        self.assertEqual(err.splitlines()[0], "NOT CONFIGURED: missing GITLAB_TOKEN.")
+        self.assertEqual(err.splitlines()[0], "NOT CONFIGURED: missing GITLAB_URL, GITLAB_TOKEN.")
 
     def test_dotenv_fills_missing_values_and_is_not_echoed(self):
         dotenv = "export GITLAB_URL=https://gitlab.example.com\nGITLAB_TOKEN='glpat-secret-123'\nOTHER=x\n"

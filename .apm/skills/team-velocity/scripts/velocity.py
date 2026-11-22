@@ -9,9 +9,8 @@ and OpenCode. Read-only: nothing is written to GitLab or Plane.
     python3 velocity.py report   --target ... --project P [--last 6] [--unit auto|points|count]
                                  [--by period|week] [--weeks 8] [--today YYYY-MM-DD] [--format md|json]
 
-Credentials: GitLab uses GITLAB_URL (default: derived from the gitlab MCP entry)
-and GITLAB_TOKEN (read_api). Plane uses PLANE_URL, PLANE_WORKSPACE and
-PLANE_API_KEY.
+Credentials: GitLab uses GITLAB_URL and GITLAB_TOKEN (read_api). Plane uses
+PLANE_URL, PLANE_WORKSPACE and PLANE_API_KEY.
 
 Definitions:
   * Period: a GitLab milestone or a Plane cycle with start and end dates. A
@@ -37,6 +36,7 @@ Definitions:
 """
 import argparse
 import datetime as dt
+import io
 import json
 import math
 import os
@@ -56,6 +56,38 @@ class ApiError(Exception):
     def __init__(self, status, body, method, url):
         super().__init__(f"{method} {url} -> HTTP {status}: {body[:400]}")
         self.status = status
+
+
+def workspace_segment(slug):
+    """The workspace slug as one path segment, so it cannot change the API route."""
+    if slug in (".", ".."):
+        sys.exit(f"invalid Plane workspace {slug!r}")
+    return urllib.parse.quote(slug, safe="")
+
+
+def safe_redirect(source, target):
+    """Whether a redirect may carry the token: same origin, or http -> https on the same host (default ports)."""
+    def origin(url):
+        u = urllib.parse.urlsplit(url)
+        return u.scheme, u.hostname, u.port or {"http": 80, "https": 443}.get(u.scheme)
+    try:
+        old, new = origin(source), origin(target)
+    except ValueError:
+        return False
+    return old == new or (old[1] == new[1] and old[0] == "http" and old[2] == 80 and new[0] == "https" and new[2] == 443)
+
+
+class SameOriginRedirects(urllib.request.HTTPRedirectHandler):
+    """urllib resends every header, tokens included, to wherever a redirect points: refuse other origins."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not safe_redirect(req.full_url, newurl):
+            why = b"redirect to another origin refused, so the token is not sent there: check the configured URL"
+            raise urllib.error.HTTPError(req.full_url, code, "redirect refused", headers, io.BytesIO(why))
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+urllib.request.install_opener(urllib.request.build_opener(SameOriginRedirects))
 
 
 def http(method, url, headers, body=None):
@@ -187,7 +219,7 @@ class Plane:
         if not (url and workspace and api_key):
             sys.exit("Plane needs PLANE_URL, PLANE_WORKSPACE and PLANE_API_KEY (or --plane-url/--workspace)")
         self.url, self.ws = url.rstrip("/"), workspace
-        self.base = f"{self.url}/api/v1/workspaces/{workspace}"
+        self.base = f"{self.url}/api/v1/workspaces/{workspace_segment(workspace)}"
         self.headers = {"X-API-Key": api_key}
         self.min_interval, self.last = 60.0 / max(1, rate_per_min - 2), 0.0
         self.all_projects = self.list("/projects/")
@@ -418,20 +450,6 @@ def render_periods(res):
                       md_table(["#", res["kind"].capitalize(), "Start", "End", "Status"], rows)])
 
 
-def gitlab_url_from_mcp():
-    for path in (".mcp.json", ".vscode/mcp.json", "opencode.json"):
-        try:
-            with open(path, encoding="utf-8") as f:
-                cfg = json.load(f)
-        except (OSError, ValueError):
-            continue
-        for section in ("mcpServers", "servers", "mcp"):
-            url = ((cfg.get(section) or {}).get("gitlab") or {}).get("url")
-            if url:
-                return re.sub(r"/api/v4/mcp/?$", "", url)
-    return None
-
-
 # ------------------------------------------------------------------ main
 
 
@@ -468,12 +486,17 @@ def require_config(gitlab=False, plane=False, gitlab_url=None, plane_url=None, w
     sys.exit(2)
 
 def load_dotenv(path=".env"):
-    """Fill unset GITLAB_*/PLANE_* variables from the project's .env; the environment always wins."""
+    """Fill unset GITLAB_*/PLANE_* variables from the project's .env; the environment always wins.
+
+    The .env of the current directory may come with a cloned repository, so its URL is used only with the
+    token of that same file: it can never choose the server that receives a token from the environment.
+    """
     try:
         with open(path, encoding="utf-8") as fh:
             lines = fh.read().splitlines()
     except OSError:
         return
+    found = {}
     for line in lines:
         m = re.match(r"\s*(?:export\s+)?((?:GITLAB|PLANE)_[A-Z0-9_]+)\s*=\s*(.*)$", line)
         if not m:
@@ -481,8 +504,17 @@ def load_dotenv(path=".env"):
         key, value = m.group(1), m.group(2).strip()
         if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
             value = value[1:-1]
-        if value and not os.environ.get(key):
+        if value:
+            found.setdefault(key, value)
+    for url_key, token_key in (("GITLAB_URL", "GITLAB_TOKEN"), ("PLANE_URL", "PLANE_API_KEY")):
+        if url_key in found and not os.environ.get(url_key) and (os.environ.get(token_key) or token_key not in found):
+            del found[url_key]
+            print(f"IGNORED {url_key} from .env: a .env URL is only used with the {token_key} of the same file, "
+                  f"never with one from the environment. Set {url_key} in the environment.", file=sys.stderr)
+    for key, value in found.items():
+        if not os.environ.get(key):
             os.environ[key] = value
+
 
 def main(argv=None):
     load_dotenv()
@@ -496,7 +528,7 @@ def main(argv=None):
     ap.add_argument("--weeks", type=int, default=8, help="--by week: full weeks to analyze (default 8)")
     ap.add_argument("--today")
     ap.add_argument("--format", choices=["md", "json"], default="md")
-    ap.add_argument("--gitlab-url", default=os.environ.get("GITLAB_URL") or gitlab_url_from_mcp())
+    ap.add_argument("--gitlab-url", default=os.environ.get("GITLAB_URL"))
     ap.add_argument("--plane-url", default=os.environ.get("PLANE_URL"))
     ap.add_argument("--workspace", default=os.environ.get("PLANE_WORKSPACE"))
     ap.add_argument("--rate", type=int, default=60)

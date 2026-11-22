@@ -173,20 +173,12 @@ class ConfigTest(unittest.TestCase):
         self.assertEqual(seen["args"][1], "from-env")
         self.assertEqual(seen["args"][2], "plane-secret-456")
 
-    def test_gitlab_url_from_mcp_json(self):
-        seen = {}
-
-        class Capture(fake_source(kind="milestone")):
-            def __init__(self, *args):
-                super().__init__(*args)
-                seen["args"] = args
-
+    def test_gitlab_url_is_not_taken_from_mcp_json(self):
         mcp = json.dumps({"mcpServers": {"gitlab": {"url": "https://gl.example.com/api/v4/mcp"}}})
-        with mock.patch.object(asg, "GitLab", Capture):
-            code, _, err = Run(self, {"GITLAB_TOKEN": "glpat-secret-123"})("projects", "--target", "gitlab",
-                                                                            files={".mcp.json": mcp})
-        self.assertEqual(code, 0, err)
-        self.assertEqual(seen["args"][0], "https://gl.example.com")
+        code, _, err = Run(self, {"GITLAB_TOKEN": "glpat-secret-123"})("projects", "--target", "gitlab",
+                                                                        files={".mcp.json": mcp})
+        self.assertEqual(code, 2)
+        self.assertIn("NOT CONFIGURED: missing GITLAB_URL.", err)
 
     def test_commands_need_a_project(self):
         with mock.patch.object(asg, "Plane", fake_source()):
