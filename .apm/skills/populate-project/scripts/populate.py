@@ -50,7 +50,7 @@ import urllib.request
 UA = "populate-project-skill"
 WORKFLOW_SCOPES = {"workflow", "status", "state", "stage"}
 PRIORITY_SCOPES = {"priority", "prio"}
-# normalized workflow value -> (Plane state name, Plane state group). Same mapping as gitlab-to-plane.
+# normalized workflow value -> (Plane state name, Plane state group).
 STATE_SYNONYMS = {
     "backlog": ("Backlog", "backlog"), "icebox": ("Backlog", "backlog"), "triage": ("Backlog", "backlog"),
     "todo": ("Todo", "unstarted"), "to-do": ("Todo", "unstarted"), "ready": ("Todo", "unstarted"),

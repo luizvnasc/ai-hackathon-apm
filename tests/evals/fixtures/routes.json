@@ -5,22 +5,6 @@
   "graphql": {
    "contains": [
     "workItems",
-    "first: 20",
-    "fullPath"
-   ],
-   "variables": {
-    "p": "group/inv",
-    "after": null
-   }
-  },
-  "file": "gitlab_migrate_items.json"
- },
- {
-  "method": "POST",
-  "path": "/api/graphql",
-  "graphql": {
-   "contains": [
-    "workItems",
     "author { username }"
    ],
    "variables": {
@@ -77,19 +61,6 @@
  {
   "path": "/api/v1/workspaces/eval/projects/proj-inv/labels/",
   "file": "plane_labels.json"
- },
- {
-  "path": "/api/v1/workspaces/eval/projects/00000000-0000-0000-0000-000000000000/estimates/",
-  "status": 403,
-  "file": "plane_403_no_permission.json"
- },
- {
-  "path": "/api/v1/workspaces/eval/projects/proj-inv/estimates/",
-  "file": "plane_estimate.json"
- },
- {
-  "path": "/api/v1/workspaces/eval/projects/proj-inv/estimates/est-1/estimate-points/",
-  "file": "plane_estimate_points.json"
  },
  {
   "path": "/api/v1/workspaces/eval/projects/proj-inv/cycles/cyc-1/cycle-issues/",

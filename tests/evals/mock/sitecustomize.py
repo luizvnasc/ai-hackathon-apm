@@ -3,8 +3,10 @@
 Python imports ``sitecustomize`` at startup when this directory is on PYTHONPATH.
 When ``EVAL_FIXTURES`` points to a fixtures directory, ``urllib.request.urlopen``
 is replaced by a function that answers from the JSON files in that directory, so
-the skills' scripts run unchanged but never touch a network. Without
+the skills' scripts run unchanged without touching a network. Without
 ``EVAL_FIXTURES`` this module does nothing.
+
+This is not a sandbox: curl, other programs and ``python3 -I`` do not go through it.
 
 Environment:
   EVAL_FIXTURES      directory with a ``routes.json`` manifest and the JSON bodies it names
@@ -14,7 +16,7 @@ Environment:
                      agent sees, and idle days, current periods etc. never drift.
   EVAL_PLANE_NO_ESTIMATES  optional: behave like Plane CE with the bug makeplane/plane#9933, where the
                      documented /estimates/ routes are not registered (404 "Page not found.").
-                     Without it the mock is a Plane that serves them, as documented.
+                     Without it those paths are ordinary routes of routes.json (none by default, so a MISS).
   EVAL_TODAY         optional YYYY-MM-DD: ``datetime.date.today()`` returns it (unit tests
                      use it with EVAL_DATASET_DATE set to the same date, so nothing shifts)
 

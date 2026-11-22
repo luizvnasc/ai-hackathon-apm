@@ -1,12 +1,11 @@
 # hackathon-metrics (APM package)
 
-The hackathon deliverable: portable **agent skills** that help teams run their **GitLab** and **Plane** projects: set them up, migrate between them, find blocked work, assign issues by expertise, find stale work, measure the team's velocity and compare commitment with delivery. They are packaged with [APM](https://github.com/microsoft/apm) so any team can install them in **Claude Code**, **GitHub Copilot** or **OpenCode**.
+The hackathon deliverable: portable **agent skills** that help teams run their **GitLab** and **Plane** projects: set them up, find blocked work, assign issues by expertise, find stale work, measure the team's velocity and compare commitment with delivery. They are packaged with [APM](https://github.com/microsoft/apm) so any team can install them in **Claude Code**, **GitHub Copilot** or **OpenCode**.
 
 ## Skills
 
 | Skill | What it answers | Script |
 |---|---|---|
-| `gitlab-to-plane` | "Migrate project X from GitLab to Plane." It brings over issues with states, priorities, story points (as the Plane Estimate field), label groups, milestones as cycles, assignees, comments and the original creation dates. It always does a dry run first. On a Plane CE with the bug [makeplane/plane#9933](https://github.com/makeplane/plane/issues/9933) (no estimates API) it stops before writing and offers `--no-points`. Re-running it updates instead of duplicating. Needs `GITLAB_TOKEN` (scope `read_api`) and `PLANE_API_KEY`. | `scripts/migrate.py` |
 | `populate-project` | "Populate project X in GitLab" / "popule o projeto Y no Plane". It creates the standard labels (workflow, priority, type, area) and a Kanban board whose columns are the workflow labels. In Plane, workflow labels become states and priority uses the built-in field. It shows the default labels and asks for changes before writing. Needs `GITLAB_TOKEN` (scope `api`) or `PLANE_API_KEY`. | `scripts/populate.py` |
 | `blocked-issues` | "Which issues are blocked in v0.3?" / "issues bloqueadas no ciclo X do Plane". For GitLab or Plane, it reports each blocked issue's parent, children, linked issues and comments, with how long it has been blocked, the cause and the next step. Stale issues are left out. When no project is given, it lists the projects you are a member of; when no milestone or cycle is given, it lists the open ones so you can pick one or the whole project. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `scripts/blocked.py` |
 | `assign-issues` | "Who should take #62?" / "qual a melhor task para a Carla na sprint atual?". For GitLab or Plane, it scores every developer per area (0–100) from the issues they were assignee, author or commenter on, then recommends the best developer for an issue or the best issues of the current milestone/cycle for a developer. Assigns only after you confirm. Needs `GITLAB_TOKEN` (scope `read_api`, `api` to assign) or `PLANE_API_KEY`. | `scripts/assign.py` |
@@ -14,7 +13,7 @@ The hackathon deliverable: portable **agent skills** that help teams run their *
 | `commitment-delivered` | "Did we deliver what we committed to?" / "comprometido x entregue no ciclo X". For GitLab or Plane, it rebuilds the commitment at the start of each milestone/cycle from its history and reports how much of it was delivered by the end (say/do ratio), what was removed, cancelled or carried over, the unplanned work added mid-period, total delivered against the commitment and the scope change. It adds the trend, a reliability rating, the split per person, the current period so far and whether the next one holds more than the team usually delivers. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `scripts/commitment.py` |
 | `stale-issues` | "Which tickets are stale in v1.0?" / "issues paradas no ciclo X". For a GitLab milestone, a Plane cycle or the whole project, it lists the open issues with a stale label/state or no activity for more than N days (default 14; for work not started the clock starts with the milestone/cycle). Each one gets a kind (stalled in progress, blocked, not started, marked stale), idle days, owner and a next step, plus the stale share of the open work, the split per person and the issues getting stale. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `scripts/stale.py` |
 
-Ask your agent in plain language, for example "which issues are blocked in v1.0?", "who should take #62?" or "migrate acme/inventory-manager to Plane". The agent loads the matching skill.
+Ask your agent in plain language, for example "which issues are blocked in v1.0?", "who should take #62?" or "what is stale in v1.0?". The agent loads the matching skill.
 
 How the skills stay portable:
 - **Standard format.** Each skill is a plain `SKILL.md` (`name` + `description` frontmatter, no agent-specific fields).
@@ -33,12 +32,10 @@ Average tokens one request adds to the agent's context, per skill. The **fixed**
 | `commitment-delivered` | ~2,100 + ~300–700 of results | **~0**; grows with periods (~70 each) and with the issues not delivered from the commitment (~25 each, they are listed) | ~700–1,000 | 2 milestones + the current one, 4 people: ~2,800 in / ~900 out (estimated from offline seed data) |
 | `stale-issues` | ~1,800 + ~200 of results | ~75 per **stale** issue (one table row); ~0 per other issue | ~400 + ~60 per stale issue | v0.3 on the seed date, 9 of 18 stale: ~2,700 in / ~950 out |
 | `populate-project` | ~3,000, two runs included (dry run + write) | **0**, it reads no issues; ~15 per label | ~600–800 | 23 labels: ~3,400 in / ~700 out |
-| `gitlab-to-plane` | ~2,600, two runs included (dry run + migration) | **~1**: the script reads GitLab itself and prints progress every 20 issues | ~500 | 67 issues: ~2,700 in / ~500 out |
 
 Why most skills are flat:
 - Every skill reads the issues inside its script. Only the finished table reaches the agent.
-- A 500-issue project costs about the same as the 67-issue seed. It only takes longer: Plane allows 60 requests per minute, so `assign-issues` takes about 1 s per issue there (`--no-comments` skips that), and `gitlab-to-plane` about 2–3 s per issue to write.
-- Before 0.9.0, `gitlab-to-plane` exported through the GitLab MCP server. Every issue then passed through the agent twice, read and then written to an export file: ~1,900 tokens per issue, ~130,000 for the seed. Reading GitLab in the script removed that.
+- A 500-issue project costs about the same as the 67-issue seed. It only takes longer: Plane allows 60 requests per minute, so `assign-issues` takes about 1 s per issue there (`--no-comments` skips that).
 
 How the numbers were measured:
 - Sizes of the real `SKILL.md` files and script outputs on the demo project `acme/inventory-manager` in GitLab: 67 issues, 36 open, 8 blocked, 4 developers, 2 finished milestones.
@@ -54,7 +51,6 @@ How the numbers were measured:
   apm.yml                        # package manifest
   .apm/
     skills/
-      gitlab-to-plane/           # SKILL.md + scripts/migrate.py
       populate-project/          # SKILL.md + labels.default.json + scripts/populate.py
       blocked-issues/            # SKILL.md + scripts/blocked.py
       assign-issues/             # SKILL.md + scripts/assign.py
@@ -63,7 +59,7 @@ How the numbers were measured:
       stale-issues/              # SKILL.md + scripts/stale.py
   tests/
     unit/                        # stdlib unittest for the bundled scripts (no network)
-    evals/                       # promptfoo evals: skill routing and behaviour
+    evals/                       # promptfoo evals: skill routing and behaviour (not sandboxed, see tests/README.md)
 ```
 
 See [tests/README.md](tests/README.md) for how to run them.
@@ -129,7 +125,6 @@ When a skill runs and something is missing, it stops and lists the missing varia
 
 Up to 0.8.0 the package registered the GitLab MCP server. The skills outgrew it:
 - **It could not do the job.** The GitLab MCP server has no tool to list milestones, returns an empty `LINKED_ITEMS` widget, gives no member roles, and cannot create labels or boards.
-- **The token was needed anyway.** Every skill but one already called the API with `GITLAB_TOKEN`.
-- **Cost.** The one skill that used MCP, `gitlab-to-plane`, paid ~1,900 tokens per issue.
+- **The token was needed anyway.** The skills already called the API with `GITLAB_TOKEN`.
 
 You can still connect the GitLab MCP server to your agent for ad-hoc questions ("what is the status of #45?"). The skills just do not depend on it.

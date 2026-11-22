@@ -6,8 +6,9 @@ description: commitment-delivered skill evals
 #                  and answers from the shared fixtures/, so reports have known numbers.
 #                  EVAL_DATASET_DATE is the date the dataset was written for; the mock shifts every
 #                  fixture date so that date becomes the real today (the agent and the script then
-#                  agree on "today" and the numbers never drift). Nothing reaches a network and
-#                  the mock refuses every write. See tests/README.md.
+#                  agree on "today" and the numbers never drift). The mock covers only Python's
+#                  urlopen: it is NOT a sandbox, the agent's Bash can reach the host's files and
+#                  network. Do not run outside an isolated environment. See tests/README.md.
 providers:
   - id: anthropic:claude-agent-sdk
     label: unconfigured

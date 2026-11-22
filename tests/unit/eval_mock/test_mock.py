@@ -20,7 +20,6 @@ COMMITMENT = ROOT / ".apm" / "skills" / "commitment-delivered" / "scripts" / "co
 ASSIGN = ROOT / ".apm" / "skills" / "assign-issues" / "scripts" / "assign.py"
 POPULATE = ROOT / ".apm" / "skills" / "populate-project" / "scripts" / "populate.py"
 POPULATE_LABELS = ROOT / ".apm" / "skills" / "populate-project" / "labels.default.json"
-MIGRATE = ROOT / ".apm" / "skills" / "gitlab-to-plane" / "scripts" / "migrate.py"
 BLOCKED = ROOT / ".apm" / "skills" / "blocked-issues" / "scripts" / "blocked.py"
 STALE = ROOT / ".apm" / "skills" / "stale-issues" / "scripts" / "stale.py"
 VELOCITY = ROOT / ".apm" / "skills" / "team-velocity" / "scripts" / "velocity.py"
@@ -148,21 +147,6 @@ class EstimatesBugTest(unittest.TestCase):
         self.assertNotIn("[eval-mock]", out.stderr)
         self.assertIn("(in points)", out.stdout)
         self.assertIn("| 1 | @alice | 91 |", out.stdout)
-
-    def test_migration_stops_before_any_write(self):
-        for extra in (["--dry-run"], []):
-            out = self.run_script(MIGRATE, "--gitlab-project", "group/inv", "--identifier", "INVGL", "--rate", "6000",
-                                  *extra, env=self.BUG)
-            self.assertNotEqual(out.returncode, 0)
-            self.assertIn("ESTIMATES UNAVAILABLE", out.stderr)
-            self.assertNotIn("[eval-mock]", out.stderr)  # no miss and no write attempted
-
-    def test_migration_without_points(self):
-        out = self.run_script(MIGRATE, "--gitlab-project", "group/inv", "--identifier", "INVGL", "--rate", "6000",
-                              "--dry-run", "--no-points", env=self.BUG)
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertIn("work_item 23", out.stdout)
-        self.assertIn("warning: --no-points", out.stdout)
 
 
 class WriteRefusalTest(unittest.TestCase):
@@ -615,45 +599,3 @@ class PopulateEndToEndTest(unittest.TestCase):
                 self.assertNotEqual(out.returncode, 0)
                 self.assertIn("[eval-mock] WRITE REFUSED", out.stderr)
                 self.assertNotIn("+ created", out.stdout)
-
-
-class MigrateEndToEndTest(unittest.TestCase):
-    """migrate.py reads group/inv (23 work items, 6 milestones, one comment on #17) and plans the Plane side."""
-
-    def run_cmd(self, *args):
-        env = {k: v for k, v in os.environ.items() if not k.startswith(("GITLAB_", "PLANE_", "EVAL_"))}
-        env.update(PYTHONPATH=str(MOCK_DIR), EVAL_FIXTURES=str(FIXTURES), EVAL_TODAY="2026-11-12",
-                   EVAL_DATASET_DATE="2026-11-12",
-                   GITLAB_URL="http://gitlab.mock", GITLAB_TOKEN="glpat-eval-fake",
-                   PLANE_URL="http://plane.mock", PLANE_WORKSPACE="eval", PLANE_API_KEY="plane-eval-fake")
-        with tempfile.TemporaryDirectory() as cwd:
-            return subprocess.run([sys.executable, str(MIGRATE), *args, "--rate", "6000"], env=env, cwd=cwd,
-                                  capture_output=True, text=True, timeout=120)
-
-    def test_list_projects(self):
-        out = self.run_cmd("--list-gitlab-projects")
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertIn("[group/inv](http://gitlab.mock/group/inv)", out.stdout)
-
-    def test_dry_run_into_a_new_project(self):
-        out = self.run_cmd("--gitlab-project", "group/inv", "--project-name", "Inventory GL", "--identifier", "INVGL",
-                           "--dry-run")
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertNotIn("[eval-mock]", out.stderr)
-        self.assertIn("Project: creating Inventory GL (INVGL)", out.stdout)
-        self.assertIn("Cycle membership: 20 items in 6 cycles", out.stdout)
-        self.assertIn("created: project 1, state 1, label 8, estimate 1, estimate_point 5, cycle 6, work_item 23, "
-                      "link 23, comment 1", out.stdout)
-
-    def test_dry_run_into_the_existing_project(self):
-        out = self.run_cmd("--gitlab-project", "group/inv", "--identifier", "INV", "--dry-run")
-        self.assertEqual(out.returncode, 0, out.stderr)
-        self.assertNotIn("[eval-mock]", out.stderr)
-        self.assertIn("Project: reusing Inventory (INV)", out.stdout)
-        self.assertIn("reused:  project 1, state 5, label 8, estimate 1, cycle 6", out.stdout)
-
-    def test_real_run_is_refused_by_the_mock(self):
-        out = self.run_cmd("--gitlab-project", "group/inv", "--project-name", "Inventory GL", "--identifier", "INVGL")
-        self.assertNotEqual(out.returncode, 0)
-        self.assertIn("[eval-mock] WRITE REFUSED", out.stderr)
-        self.assertNotIn("Traceback", out.stderr)
