@@ -59,7 +59,7 @@ How the numbers were measured:
       stale-issues/              # SKILL.md + scripts/stale.py
   tests/
     unit/                        # stdlib unittest for the bundled scripts (no network)
-    evals/                       # promptfoo evals: skill routing and behaviour (not sandboxed, see tests/README.md)
+    evals/                       # promptfoo evals: skill routing and behaviour (run in a sandbox, see tests/README.md)
 ```
 
 See [tests/README.md](tests/README.md) for how to run them.
