@@ -232,7 +232,8 @@ class RedirectTest(Case):
         code = ("import importlib.util, sys\n"
                 "s = importlib.util.spec_from_file_location('skill', sys.argv[1])\n"
                 "m = importlib.util.module_from_spec(s); s.loader.exec_module(m)\n"
-                "print([m.safe_redirect(a, b) for a, b in zip(sys.argv[2::2], sys.argv[3::2])])\n")
+                "guard = sys.modules['hackathon_shared.net']\n"
+                "print([guard.safe_redirect(a, b) for a, b in zip(sys.argv[2::2], sys.argv[3::2])])\n")
         pairs = [("http://h/a", "https://h/a", True),          # plain upgrade to TLS
                  ("https://h/a", "https://H:443/b", True),
                  ("https://h/a", "http://h/a", False),          # downgrade
@@ -264,17 +265,16 @@ class WorkspaceTest(Case):
             self.assertIn("invalid Plane workspace", out.stderr)
 
 
-class CopiesTest(unittest.TestCase):
-    """APM installs each skill by itself, so these helpers are copied. They must not drift."""
+class GuardsTest(unittest.TestCase):
+    """The guards live in shared/ (tests/unit/shared_modules checks the copies): every script must use them."""
 
-    def test_security_helpers_are_the_same_in_every_script(self):
-        for name in ("load_dotenv", "safe_redirect", "SameOriginRedirects", "workspace_segment"):
-            copies = set()
-            for script in SCRIPTS:
-                found = [n for n in ast.parse(script.read_text()).body if getattr(n, "name", None) == name]
-                self.assertEqual(len(found), 1, (script.name, name))
-                copies.add(ast.dump(found[0]))
-            self.assertEqual(len(copies), 1, name)
+    def test_every_script_imports_the_guards(self):
+        for script in SCRIPTS:
+            names = {(n.module, a.name) for n in ast.parse(script.read_text()).body
+                     if isinstance(n, ast.ImportFrom) for a in n.names}
+            # importing hackathon_shared.net is what installs the redirect guard
+            for wanted in (("hackathon_shared.config", "load_dotenv"), ("hackathon_shared.net", "workspace_segment")):
+                self.assertIn(wanted, names, script.name)
 
 
 if __name__ == "__main__":
