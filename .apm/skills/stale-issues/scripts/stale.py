@@ -28,31 +28,24 @@ import json
 import os
 import re
 import sys
-import time
 import urllib.error
-import urllib.parse
 import urllib.request
 
 # APM installs each skill by itself: hackathon_shared/ is generated from the package's shared/.
 sys.dont_write_bytecode = True  # never write into an installed skill
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))  # python3 -I leaves it out
 from hackathon_shared.config import load_dotenv, require_config  # noqa: E402
-from hackathon_shared.net import workspace_segment  # noqa: E402
+from hackathon_shared.dates import UTC, parse_dt, to_date  # noqa: E402
+from hackathon_shared.gitlab import GitLabClient  # noqa: E402
+from hackathon_shared.labels import BLOCKED_VALUES, STALE_VALUES, label_points, label_value, scoped  # noqa: E402
+from hackathon_shared.net import ApiError  # noqa: E402
+from hackathon_shared.plane import PlaneClient, full_label_names  # noqa: E402
 from hackathon_shared.report import md_table  # noqa: E402
 
 UA = "stale-issues-skill/1.0"
-UTC = dt.timezone.utc
-STALE_VALUES = {"stale"}
-BLOCKED_VALUES = {"blocked", "on-hold", "on hold", "onhold", "impeded", "bloqueado", "bloqueada"}
 STARTED_VALUES = {"in-progress", "in progress", "doing", "wip", "review", "in review", "in-review", "code review",
                   "testing", "qa", "em andamento", "em revisão", "em revisao"}
 KIND_ORDER = ["stalled", "blocked", "not started", "marked stale"]
-
-
-class ApiError(Exception):
-    def __init__(self, status, body, method, url):
-        super().__init__(f"{method} {url} -> HTTP {status}: {body[:400]}")
-        self.status = status
 
 
 def http(method, url, headers, body=None):
@@ -74,36 +67,6 @@ def http(method, url, headers, body=None):
         raise ApiError(status, "response is not JSON (check the URL): " + raw[:200], method, url) from None
 
 
-def parse_dt(value):
-    if not value:
-        return None
-    s = str(value).replace("Z", "+00:00")
-    if len(s) == 10:
-        s += "T00:00:00+00:00"
-    d = dt.datetime.fromisoformat(s)
-    return d if d.tzinfo else d.replace(tzinfo=UTC)
-
-
-def to_date(value):
-    d = parse_dt(value)
-    return d.date() if d else None
-
-
-def label_value(name):
-    return (name or "").rsplit("::", 1)[-1].strip().lower()
-
-
-def scoped(labels, scope):
-    return [label_value(l) for l in labels if "::" in l and l.rsplit("::", 1)[0].strip().lower() == scope]
-
-
-def num(values):
-    for v in values:
-        if re.fullmatch(r"\d+(\.\d+)?", v):
-            return float(v)
-    return None
-
-
 def estimate(r):
     """Plane's story points: `estimate_point` expanded to {value: "5", ...}; None when unset or not numeric
     (category or time estimates). Never from labels. The /estimates/ routes are not used: Plane CE does not
@@ -122,34 +85,14 @@ def new_issue(**kw):
 
 
 # ------------------------------------------------------------------ GitLab
-class GitLab:
-    kind = "milestone"
-
-    def __init__(self, url, token, project):
-        self.url, self.headers, self.project = url.rstrip("/"), {"PRIVATE-TOKEN": token}, project
-
-    def gql(self, query, variables=None):
-        data, _ = http("POST", self.url + "/api/graphql", self.headers, {"query": query, "variables": variables or {}})
-        if data.get("errors"):
-            raise ApiError(200, json.dumps(data["errors"]), "POST", "/api/graphql")
-        return data["data"]
-
-    def my_projects(self):
-        out, page = [], 1
-        while True:
-            q = urllib.parse.urlencode({"membership": "true", "archived": "false", "order_by": "last_activity_at",
-                                        "sort": "desc", "per_page": 100, "page": page})
-            data, headers = http("GET", f"{self.url}/api/v4/projects?{q}", self.headers)
-            out += [{"path": p["path_with_namespace"], "name": p["name"], "url": p["web_url"]}
-                    for p in data if not p.get("marked_for_deletion_at") and not p.get("marked_for_deletion_on")]
-            if not headers.get("X-Next-Page"):
-                return out
-            page = int(headers["X-Next-Page"])
+class GitLab(GitLabClient):
+    def send(self, method, url, body=None):
+        return http(method, url, self.headers, body)
 
     def periods(self, today):
         q = """query($p: ID!) { project(fullPath: $p) { name milestones(state: active, includeAncestors: true, first: 100) {
                  nodes { title startDate dueDate } } } }"""
-        proj = self.gql(q, {"p": self.project})["project"]
+        proj = self.graphql(q, {"p": self.project})["project"]
         if not proj:
             sys.exit(f"GitLab project {self.project!r} not found (or the token cannot read it)")
         self.name = proj["name"]
@@ -165,7 +108,7 @@ class GitLab:
                      ... on WorkItemWidgetMilestone { milestone { title } } } } } } }"""
         out, after = [], None
         while True:
-            proj = self.gql(q, {"p": self.project, "after": after, "ms": [period] if period else None})["project"]
+            proj = self.graphql(q, {"p": self.project, "after": after, "ms": [period] if period else None})["project"]
             if not proj:
                 sys.exit(f"GitLab project {self.project!r} not found (or the token cannot read it)")
             self.name = proj["name"]
@@ -180,7 +123,7 @@ class GitLab:
                     blocked=bool(set(flow) & BLOCKED_VALUES) or any(label_value(l) in BLOCKED_VALUES for l in labels),
                     stale_mark=any(label_value(l) in STALE_VALUES for l in labels),
                     priority=(scoped(labels, "priority") or [None])[0],
-                    points=num(scoped(labels, "points") + scoped(labels, "sp") + scoped(labels, "estimate")),
+                    points=label_points(labels),
                     assignees=[a["username"] for a in ((w.get("ASSIGNEES") or {}).get("assignees") or {}).get("nodes", [])],
                     period=((w.get("MILESTONE") or {}).get("milestone") or {}).get("title")))
             if not page["pageInfo"]["hasNextPage"]:
@@ -189,59 +132,13 @@ class GitLab:
 
 
 # ------------------------------------------------------------------ Plane
-class Plane:
-    kind = "cycle"
-
+class Plane(PlaneClient):
     def __init__(self, url, workspace, api_key, project, rate_per_min=60):
-        self.url, self.ws = url.rstrip("/"), workspace
-        self.base = f"{self.url}/api/v1/workspaces/{workspace_segment(workspace)}"
-        self.headers = {"X-API-Key": api_key}
-        self.min_interval, self.last = 60.0 / max(1, rate_per_min - 2), 0.0
-        self.all_projects = self.list("/projects/")
-        if project is None:
-            return
-        want = project.strip().lower()
-        match = [p for p in self.all_projects if want in (p["identifier"].lower(), p["name"].lower()) or p["id"] == project]
-        if not match:
-            names = ", ".join(f"{p['name']} ({p['identifier']})" for p in self.all_projects)
-            sys.exit(f"Plane project {project!r} not found in workspace {workspace!r}. Projects: {names}")
-        p = match[0]
-        self.pid, self.ident, self.name = p["id"], p["identifier"], f"{p['name']} ({p['identifier']})"
+        super().__init__(url, workspace, api_key, rate_per_min)
+        self.select_project(project)
 
-    def req(self, path, params=None):
-        url = self.base + path + ("?" + urllib.parse.urlencode(params) if params else "")
-        for attempt in range(8):
-            wait = self.min_interval - (time.monotonic() - self.last)
-            if wait > 0:
-                time.sleep(wait)
-            self.last = time.monotonic()
-            try:
-                return http("GET", url, self.headers)[0]
-            except ApiError as e:
-                if e.status == 429:
-                    time.sleep(10)
-                    continue
-                if e.status >= 500 and attempt < 3:
-                    time.sleep(2 ** attempt)
-                    continue
-                raise
-        raise ApiError(429, "rate limited too many times", "GET", url)
-
-    def list(self, path, params=None):
-        params, out = {"per_page": 100, **(params or {})}, []
-        while True:
-            data = self.req(path, params)
-            if isinstance(data, list):
-                return out + data
-            out += data.get("results") or []
-            if data.get("next_page_results") and data.get("next_cursor"):
-                params["cursor"] = data["next_cursor"]
-            else:
-                return out
-
-    def my_projects(self):
-        return [{"path": p["identifier"], "name": p["name"], "url": f"{self.url}/{self.ws}/projects/{p['id']}/issues"}
-                for p in self.all_projects if p.get("is_member", True) and not p.get("archived_at")]
+    def send(self, method, url, body=None):
+        return http(method, url, self.headers, body)
 
     def periods(self, today):
         self._cycles = []
@@ -270,11 +167,7 @@ class Plane:
             group = (state.get("group") or "").lower()
             if group in ("completed", "cancelled") or r.get("archived_at") or r.get("is_draft"):
                 continue
-            labels = []
-            for l in r.get("labels") or []:
-                if isinstance(l, dict):
-                    parent = label_names.get(l.get("parent"))
-                    labels.append(f"{parent}::{l['name']}" if parent else l["name"])
+            labels = full_label_names(r.get("labels"), label_names)
             sname = (state.get("name") or "").strip()
             out.append(new_issue(
                 key=f"{self.ident}-{r['sequence_id']}", title=r["name"],

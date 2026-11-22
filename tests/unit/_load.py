@@ -1,9 +1,12 @@
+import importlib
 import importlib.util
 import pathlib
 import sys
+import types
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SKILLS = ROOT / ".apm" / "skills"
+SHARED_SOURCE = "shared_source"
 
 
 def load(skill, script):
@@ -16,7 +19,11 @@ def load(skill, script):
 
 def load_shared(module):
     """Import apm/shared/<module>.py, the source of the copies in the skills."""
-    return _import(f"shared__{module}", ROOT / "shared" / f"{module}.py")
+    if SHARED_SOURCE not in sys.modules:
+        package = types.ModuleType(SHARED_SOURCE)  # a package, so `from .net import ...` works between the modules
+        package.__path__ = [str(ROOT / "shared")]
+        sys.modules[SHARED_SOURCE] = package
+    return importlib.import_module(f"{SHARED_SOURCE}.{module}")
 
 
 def _import(name, path):

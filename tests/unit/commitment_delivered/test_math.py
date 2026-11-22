@@ -30,14 +30,6 @@ S1 = period("S1", "2026-01-05", "2026-01-18")
 
 
 class DatesTest(unittest.TestCase):
-    def test_parse_dt_handles_dates_z_offsets_and_naive_values(self):
-        self.assertEqual(t("2026-01-05"), dt.datetime(2026, 1, 5, tzinfo=UTC))
-        self.assertEqual(t("2026-01-05T10:00:00Z"), dt.datetime(2026, 1, 5, 10, tzinfo=UTC))
-        self.assertEqual(t("2026-01-05T10:00:00"), dt.datetime(2026, 1, 5, 10, tzinfo=UTC))
-        self.assertEqual(t("2026-01-05T23:30:00-03:00"), dt.datetime(2026, 1, 6, 2, 30, tzinfo=UTC))
-        self.assertIsNone(t(None))
-        self.assertIsNone(t(""))
-
     def test_end_of_day(self):
         self.assertEqual(cd.end_of(dt.date(2026, 1, 5)), dt.datetime(2026, 1, 5, 23, 59, 59, tzinfo=UTC))
 

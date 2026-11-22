@@ -86,7 +86,7 @@ class GitLabIssuesTest(unittest.TestCase):
         def rest(path):
             return list(milestone_events if path.endswith("milestone_events") else label_events)
 
-        with mock.patch.object(g, "gql", return_value=page), mock.patch.object(g, "rest_all", side_effect=rest) as calls:
+        with mock.patch.object(g, "graphql", return_value=page), mock.patch.object(g, "rest_pages", side_effect=rest) as calls:
             return g.issues(at("03-01"))[0], calls
 
     def test_current_values_without_history(self):
@@ -124,7 +124,7 @@ class GitLabIssuesTest(unittest.TestCase):
                            "startDate": "2026-03-02", "dueDate": "2026-03-13"}]}}}
 
         g = gl()
-        with mock.patch.object(g, "gql", side_effect=[page(1, True), page(2, False)]):
+        with mock.patch.object(g, "graphql", side_effect=[page(1, True), page(2, False)]):
             self.assertEqual([p["id"] for p in g.periods()], ["1", "2"])
 
 
@@ -198,21 +198,16 @@ class PlaneTest(unittest.TestCase):
             got = p.periods()[0]
         self.assertEqual((got["start"], got["end"]), ("2026-03-02", "2026-03-13"))
 
-    def test_workspace_is_quoted_in_the_url(self):
-        with mock.patch.object(ss.Plane, "list", return_value=[]):
-            self.assertIn("/workspaces/a%2Fb", ss.Plane("https://p", "a/b", "key", None).base)
-
 
 class ClientTest(unittest.TestCase):
-    def test_gitlab_pagination(self):
-        with mock.patch.object(ss, "http", side_effect=[([1], {"X-Next-Page": "2"}), ([2], {})]):
-            self.assertEqual(gl().rest_all("/x"), [1, 2])
-
-    def test_plane_pagination(self):
+    def test_request_is_paced_once_and_retried_by_fetch(self):
         p = ss.Plane.__new__(ss.Plane)
-        pages = [{"results": [1], "next_page_results": True, "next_cursor": "c"}, {"results": [2]}]
-        with mock.patch.object(p, "req", side_effect=pages):
-            self.assertEqual(p.list("/x/"), [1, 2])
+        p.base, p.headers = "https://p/api", {}
+        error = ss.ApiError(502, "x", "GET", "u")
+        with mock.patch.object(p, "pace") as pace, mock.patch.object(ss.time, "sleep"), \
+                mock.patch.object(ss, "http", side_effect=[error, ({"ok": 1}, {})]):
+            self.assertEqual(p.request("/x/"), {"ok": 1})
+        pace.assert_called_once_with()
 
     def test_retries_are_bounded(self):
         for status, attempts in ((429, 6), (502, 4), (404, 1)):

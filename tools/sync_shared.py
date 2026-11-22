@@ -5,8 +5,8 @@
     python3 tools/sync_shared.py --check  # exit 1 when a copy differs
 
 APM installs each skill folder by itself, so shared code has to be inside every one. A skill gets the
-modules its scripts import with `from hackathon_shared.<module> import ...`, as generated files in
-scripts/hackathon_shared/. Edit only shared/.
+modules its scripts import with `from hackathon_shared.<module> import ...`, and the modules those import
+(`from .<module> import ...`), as generated files in scripts/hackathon_shared/. Edit only shared/.
 """
 import argparse
 import ast
@@ -23,16 +23,39 @@ def imported(script):
             if isinstance(n, ast.ImportFrom) and (n.module or "").startswith(PACKAGE + ".")}
 
 
+def dependencies(source):
+    """The shared modules a shared module imports."""
+    names = set()
+    for node in ast.walk(ast.parse(source.read_text(encoding="utf-8"))):
+        if isinstance(node, ast.ImportFrom) and node.level == 1 and node.module:
+            names.add(node.module)
+    return names
+
+
+def needed_modules(root, scripts_dir):
+    """What the scripts import, followed through the imports between shared modules."""
+    pending = set()
+    for script in sorted(scripts_dir.glob("*.py")):
+        pending |= imported(script)
+    needed = set()
+    while pending:
+        name = pending.pop()
+        source = root / "shared" / f"{name}.py"
+        if not source.is_file():
+            sys.exit(f"{scripts_dir}: imports {PACKAGE}.{name}, but shared/{name}.py does not exist")
+        needed.add(name)
+        pending |= dependencies(source) - needed
+    return needed
+
+
 def expected(root, scripts_dir):
     """{file name: content} of one skill's generated package."""
-    modules = set().union(*[imported(p) for p in sorted(scripts_dir.glob("*.py"))])
+    modules = needed_modules(root, scripts_dir)
     if not modules:
         return {}
     files = {"__init__.py": f"{MARK}: edit shared/, not this package.\n"}
     for name in sorted(modules):
         source = root / "shared" / f"{name}.py"
-        if not source.is_file():
-            sys.exit(f"{scripts_dir}: imports {PACKAGE}.{name}, but shared/{name}.py does not exist")
         files[f"{name}.py"] = f"{MARK} from shared/{name}.py: edit that file.\n" + source.read_text(encoding="utf-8")
     return files
 

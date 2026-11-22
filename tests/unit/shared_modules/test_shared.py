@@ -11,6 +11,20 @@ import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 SCRIPTS = sorted((ROOT / ".apm" / "skills").glob("*/scripts/*.py"))
+# Names of shared/ that a script still defines in its own way, because it behaves differently.
+# Remove the entry together with the variant.
+VARIANTS = {"assign": {"estimate"}, "stale": {"estimate"}, "stability": {"parse_dt"}}
+
+
+def defined_names(path):
+    """The functions, classes and constants at the top of a file."""
+    names = set()
+    for node in ast.parse(path.read_text()).body:
+        if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+            names.add(node.name)
+        elif isinstance(node, ast.Assign):
+            names |= {target.id for target in node.targets if isinstance(target, ast.Name) and target.id.isupper()}
+    return names
 
 
 def load_tool():
@@ -26,12 +40,12 @@ class RepositoryTest(unittest.TestCase):
                          "edit shared/*.py, then run: python3 tools/sync_shared.py")
 
     def test_scripts_do_not_redefine_shared_code(self):
-        shared = {n.name for p in (ROOT / "shared").glob("*.py") for n in ast.parse(p.read_text()).body
-                  if isinstance(n, (ast.FunctionDef, ast.ClassDef))}
+        shared = set()
+        for module in (ROOT / "shared").glob("*.py"):
+            shared |= defined_names(module)
         self.assertTrue(shared)
         for script in SCRIPTS:
-            own = {getattr(n, "name", None) for n in ast.parse(script.read_text()).body}
-            self.assertEqual(own & shared, set(), script.name)
+            self.assertEqual(defined_names(script) & shared, VARIANTS.get(script.stem, set()), script.name)
 
 
 class SyncTest(unittest.TestCase):
@@ -55,6 +69,16 @@ class SyncTest(unittest.TestCase):
     def test_each_skill_gets_only_what_it_imports(self):
         self.assertEqual(sorted(p.name for p in self.copy.iterdir()), ["__init__.py", "one.py"])
         self.assertEqual(self.check(), [])
+
+    def test_the_modules_a_module_imports_come_along(self):
+        (self.root / "shared/one.py").write_text("from .two import TWO\n")
+        self.tool.sync(self.root, write=True)
+        self.assertEqual(sorted(p.name for p in self.copy.iterdir()), ["__init__.py", "one.py", "two.py"])
+
+    def test_a_missing_dependency_fails(self):
+        (self.root / "shared/one.py").write_text("from .nope import X\n")
+        with self.assertRaises(SystemExit):
+            self.check()
 
     def test_an_edited_copy_is_detected_and_regenerated(self):
         path = self.copy / "one.py"

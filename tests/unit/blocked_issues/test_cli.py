@@ -86,7 +86,7 @@ def gitlab_transport():
             raise blk.ApiError(404, '{"message": "404 Not found"}', "GET", path)
         return rest[path]
 
-    patches = [mock.patch.object(blk.GitLab, "gql", side_effect=gql),
+    patches = [mock.patch.object(blk.GitLab, "graphql", side_effect=gql),
                mock.patch.object(blk.GitLab, "rest", side_effect=rest_call),
                mock.patch.object(blk.GitLab, "rest_pages", side_effect=rest_call)]
     return patches, log
@@ -98,7 +98,7 @@ class ConfigTest(unittest.TestCase):
             raise blk.ApiError(401, '{"detail": "invalid token"}', "GET",
                                "https://plane.example.com/api/v1/workspaces/demo-ws/projects/?per_page=100")
 
-        with mock.patch.object(blk, "http", side_effect=boom), mock.patch.object(blk.time, "sleep"):
+        with mock.patch.object(blk, "http", side_effect=boom), mock.patch("time.sleep"):
             code, out, err = Run(self, PLANE_ENV)("report", "--target", "plane", "--project", "DEMO", "--all")
         self.assertNotEqual(code, 0)
         self.assertIn("API error", err)
@@ -157,7 +157,7 @@ class ArgparseTest(unittest.TestCase):
             self.assertIn("needs --project", err)
 
     def test_report_needs_a_scope(self):
-        with mock.patch.object(blk.Plane, "req", side_effect=PlaneRouter(plane_routes(), blk.ApiError)):
+        with mock.patch.object(blk.Plane, "request", side_effect=PlaneRouter(plane_routes(), blk.ApiError)):
             code, _, err = Run(self, PLANE_ENV)("report", "--target", "plane", "--project", "DEMO")
         self.assertNotEqual(code, 0)
         self.assertIn("report needs --period <milestone/cycle> or --all", err)
@@ -166,7 +166,7 @@ class ArgparseTest(unittest.TestCase):
 class PlaneReportTest(unittest.TestCase):
     def run_cli(self, *argv, routes=None):
         router = PlaneRouter(routes or plane_routes(), blk.ApiError)
-        with mock.patch.object(blk.Plane, "req", side_effect=router):
+        with mock.patch.object(blk.Plane, "request", side_effect=router):
             code, out, err = Run(self, PLANE_ENV)(*argv)
         self.assertEqual(code, 0, err)
         return out, router
@@ -283,7 +283,7 @@ class GitLabReportTest(unittest.TestCase):
     def test_empty_milestone_warns(self):
         patches, _ = gitlab_transport()
         empty = {"project": {"workItems": {"pageInfo": {"hasNextPage": False}, "nodes": []}}}
-        with patches[1], patches[2], mock.patch.object(blk.GitLab, "gql", return_value=empty):
+        with patches[1], patches[2], mock.patch.object(blk.GitLab, "graphql", return_value=empty):
             code, out, err = Run(self, GITLAB_ENV)("report", "--target", "gitlab", "--project", "demo/app",
                                                    "--period", "v9", "--format", "json")
         self.assertEqual(code, 0, err)

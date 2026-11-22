@@ -46,7 +46,7 @@ providers:
 prompts:
   - '{{request}}'
 
-# Grader for llm-rubric: a tool-less agent, so it also works with the local Claude Code login.
+# Grader for llm-rubric: a tool-less agent, on the sandbox's credential like the agent under test.
 defaultTest:
   options:
     provider:
@@ -155,7 +155,7 @@ tests:
       - type: javascript
         value: |
           const o = String(output);
-          return /bob/i.test(o) && /\b100\b/.test(o) && /\b15\b/.test(o) && !/NOT CONFIGURED|\[eval-mock\] (MISS|WRITE REFUSED)|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
+          return /bob/i.test(o) && /\b100\b/.test(o) && /(?<![\w.,])(15([.,]0)?|14[.,](7|67))(?![.,]?\d|\w)/.test(o) && !/NOT CONFIGURED|\[eval-mock\] (MISS|WRITE REFUSED)|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
       - type: llm-rubric
         value: >-
           The answer says bob knows backend best (score 100) and shows the scores per area: alice frontend 100

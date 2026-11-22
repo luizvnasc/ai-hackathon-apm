@@ -53,7 +53,6 @@ import math
 import os
 import re
 import sys
-import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -62,7 +61,11 @@ import urllib.request
 sys.dont_write_bytecode = True  # never write into an installed skill
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))  # python3 -I leaves it out
 from hackathon_shared.config import load_dotenv, require_config  # noqa: E402
-from hackathon_shared.net import workspace_segment  # noqa: E402
+from hackathon_shared.dates import parse_dt  # noqa: E402
+from hackathon_shared.gitlab import GitLabClient  # noqa: E402
+from hackathon_shared.labels import has_cancelled_label, scoped  # noqa: E402
+from hackathon_shared.net import ApiError  # noqa: E402
+from hackathon_shared.plane import PlaneClient  # noqa: E402
 from hackathon_shared.report import md_table  # noqa: E402
 
 UA = "assign-issues-skill/1.0"
@@ -73,15 +76,6 @@ ROLE_LEVELS = {
 WEIGHTS = {"assignee_done": 3.0, "assignee_open": 1.5, "author": 1.0, "commenter": 1.0}
 PRIORITY_BONUS = {"urgent": 20, "critical": 20, "high": 10, "medium": 5, "low": 0}
 BLOCKED = {"blocked", "on-hold", "on hold", "onhold"}
-CANCELLED = {"canceled", "cancelled", "wontfix", "won't-fix", "duplicate"}
-
-
-class ApiError(Exception):
-    def __init__(self, status, body, method, url):
-        super().__init__(f"{method} {url} -> HTTP {status}: {body[:400]}")
-        self.status = status
-
-
 def http(method, url, headers, body=None):
     data = json.dumps(body).encode() if body is not None else None
     h = {"Content-Type": "application/json", "Accept": "application/json", "User-Agent": UA, **headers}
@@ -97,26 +91,6 @@ def http(method, url, headers, body=None):
         raise ApiError(e.code, e.read().decode(errors="replace"), method, url) from None
     except urllib.error.URLError as e:
         sys.exit(f"cannot reach {url}: {e.reason}")
-
-
-def parse_dt(value):
-    if not value:
-        return None
-    s = str(value).replace("Z", "+00:00")
-    if len(s) == 10:
-        s += "T00:00:00+00:00"
-    d = dt.datetime.fromisoformat(s)
-    return d if d.tzinfo else d.replace(tzinfo=dt.timezone.utc)
-
-
-def scoped(labels, scope):
-    out = []
-    for l in labels:
-        if "::" in l:
-            s, v = l.rsplit("::", 1)
-            if s.strip().lower() == scope:
-                out.append(v.strip().lower())
-    return out
 
 
 def estimate(r):
@@ -151,44 +125,26 @@ GL_FIELDS = """
 GL_NOTES = "... on WorkItemWidgetNotes { notes(first: 100) { nodes { system author { username } } } }"
 
 
-class GitLab:
-    kind = "milestone"
+class GitLab(GitLabClient):
+    empty_page_is_ok = True
 
     def __init__(self, url, token, project):
         if not url:
             sys.exit("GitLab URL missing: set GITLAB_URL or pass --gitlab-url")
         if not token:
             sys.exit("GITLAB_TOKEN is not set (a personal access token: read_api, or api to assign)")
-        self.url, self.headers, self.project = url.rstrip("/"), {"PRIVATE-TOKEN": token}, project
+        super().__init__(url, token, project)
 
-    def gql(self, query, variables=None):
-        data, _ = http("POST", self.url + "/api/graphql", self.headers, {"query": query, "variables": variables or {}})
-        if data.get("errors"):
-            raise ApiError(200, json.dumps(data["errors"]), "POST", "/api/graphql")
-        return data["data"]
-
-    def rest(self, method, path, params=None, body=None):
-        url = self.url + "/api/v4" + path + ("?" + urllib.parse.urlencode(params) if params else "")
-        return http(method, url, self.headers, body)[0]
-
-    def rest_pages(self, path, params=None):
-        params, out, page = dict(params or {}), [], 1
-        while True:
-            params.update(per_page=100, page=page)
-            data, headers = http("GET", self.url + "/api/v4" + path + "?" + urllib.parse.urlencode(params), self.headers)
-            out += data or []
-            if not headers.get("X-Next-Page"):
-                return out
-            page = int(headers["X-Next-Page"])
+    def send(self, method, url, body=None):
+        return http(method, url, self.headers, body)
 
     def pid(self):
         return urllib.parse.quote(self.project, safe="")
 
     def my_projects(self):
-        rows = self.rest_pages("/projects", {"membership": "true", "archived": "false",
-                                             "order_by": "last_activity_at", "sort": "desc"})
+        # Until the copies agree: unlike the other skills, only marked_for_deletion_on hides a project here
         return [{"path": p["path_with_namespace"], "name": p["name"], "url": p["web_url"],
-                 "open_issues": p.get("open_issues_count")} for p in rows
+                 "open_issues": p.get("open_issues_count")} for p in self.member_projects()
                 if not p.get("marked_for_deletion_on")]
 
     def members(self):
@@ -199,7 +155,7 @@ class GitLab:
     def periods(self):
         q = """query($p: ID!) { project(fullPath: $p) { milestones(state: active, includeAncestors: true, first: 100) {
                  nodes { title startDate dueDate } } } }"""
-        proj = self.gql(q, {"p": self.project})["project"]
+        proj = self.graphql(q, {"p": self.project})["project"]
         if not proj:
             sys.exit(f"GitLab project {self.project!r} not found (or the token cannot read it)")
         return [{"name": m["title"], "start": m["startDate"], "end": m["dueDate"]} for m in proj["milestones"]["nodes"]]
@@ -210,7 +166,7 @@ class GitLab:
                     pageInfo {{ hasNextPage endCursor }} nodes {{ {GL_FIELDS % (GL_NOTES if comments else "")} }} }} }} }}"""
         out, after = [], None
         while True:
-            proj = self.gql(q, {"p": self.project, "after": after})["project"]
+            proj = self.graphql(q, {"p": self.project, "after": after})["project"]
             if not proj:
                 sys.exit(f"GitLab project {self.project!r} not found (or the token cannot read it)")
             for n in proj["workItems"]["nodes"]:
@@ -230,7 +186,7 @@ class GitLab:
         is_open = n["state"] == "OPEN"
         return new_issue(
             key=f"#{n['iid']}", iid=int(n["iid"]), title=n["title"], url=n["webUrl"], open=is_open,
-            cancelled=not is_open and bool(set(scoped(labels, "workflow") + scoped(labels, "status")) & CANCELLED),
+            cancelled=not is_open and has_cancelled_label(labels),
             status=workflow or ("open" if is_open else "closed"), labels=labels,
             areas=scoped(labels, "area"), types=scoped(labels, "type"),
             priority=(scoped(labels, "priority") or [None])[0], points=points,
@@ -246,11 +202,11 @@ class GitLab:
     def assign(self, it, member, members, replace):
         ids = []
         if not replace:  # the issue's own assignee ids, so people who left the project are kept
-            current = self.rest("GET", f"/projects/{self.pid()}/issues/{it['iid']}") or {}
+            current = self.rest(f"/projects/{self.pid()}/issues/{it['iid']}") or {}
             ids = [a["id"] for a in current.get("assignees") or []]
         if member["id"] not in ids:
             ids.append(member["id"])
-        self.rest("PUT", f"/projects/{self.pid()}/issues/{it['iid']}", body={"assignee_ids": ids})
+        self.rest(f"/projects/{self.pid()}/issues/{it['iid']}", method="PUT", body={"assignee_ids": ids})
 
     def normalize_key(self, key):
         m = re.search(r"(?:#|/(?:issues|work_items)/)?(\d+)\s*$", key.strip())
@@ -258,64 +214,22 @@ class GitLab:
 
 
 # ------------------------------------------------------------------ Plane
-class Plane:
-    kind = "cycle"
-
+class Plane(PlaneClient):
     def __init__(self, url, workspace, api_key, project, rate_per_min=60):
         if not (url and workspace and api_key):
             sys.exit("Plane needs PLANE_URL, PLANE_WORKSPACE and PLANE_API_KEY (or --plane-url/--workspace)")
-        self.url, self.ws = url.rstrip("/"), workspace
-        self.base = f"{self.url}/api/v1/workspaces/{workspace_segment(workspace)}"
-        self.headers = {"X-API-Key": api_key}
-        self.min_interval, self.last = 60.0 / max(1, rate_per_min - 2), 0.0
-        self.all_projects = self.list("/projects/")
+        super().__init__(url, workspace, api_key, rate_per_min)
         self.project = project
-        if project is None:
-            return
-        want = project.strip().lower()
-        match = [p for p in self.all_projects
-                 if want in (p["identifier"].lower(), p["name"].lower()) or p["id"] == project]
-        if not match:
-            names = ", ".join(f"{p['name']} ({p['identifier']})" for p in self.all_projects)
-            sys.exit(f"Plane project {project!r} not found in workspace {workspace!r}. Projects: {names}")
-        self.proj = match[0]
-        self.pid, self.ident = self.proj["id"], self.proj["identifier"]
-        self.project = f"{self.proj['name']} ({self.ident})"
+        row = self.select_project(project)
+        if row:
+            self.proj, self.project = row, self.name
 
-    def req(self, method, path, params=None, body=None):
-        url = self.base + path + ("?" + urllib.parse.urlencode(params) if params else "")
-        for attempt in range(8):
-            wait = self.min_interval - (time.monotonic() - self.last)
-            if wait > 0:
-                time.sleep(wait)
-            self.last = time.monotonic()
-            try:
-                return http(method, url, self.headers, body)[0]
-            except ApiError as e:
-                if e.status == 429:
-                    time.sleep(10)
-                    continue
-                if e.status >= 500 and attempt < 3:
-                    time.sleep(2 ** attempt)
-                    continue
-                raise
-        raise ApiError(429, "rate limited too many times", method, url)
-
-    def list(self, path, params=None):
-        params, out = {"per_page": 100, **(params or {})}, []
-        while True:
-            data = self.req("GET", path, params)
-            if isinstance(data, list):
-                return out + data
-            out += data.get("results") or []
-            if data.get("next_page_results") and data.get("next_cursor"):
-                params["cursor"] = data["next_cursor"]
-            else:
-                return out
+    def send(self, method, url, body=None):
+        return http(method, url, self.headers, body)
 
     def my_projects(self):
-        return [{"path": p["identifier"], "name": p["name"], "url": f"{self.url}/{self.ws}/projects/{p['id']}/issues",
-                 "open_issues": None} for p in self.all_projects if p.get("is_member", True) and not p.get("archived_at")]
+        return [{"path": p["identifier"], "name": p["name"], "url": self.project_url(p["id"]), "open_issues": None}
+                for p in self.joined_projects()]
 
     def members(self):
         """Project members, with the role they hold in the workspace (the API key cannot read project roles)."""
@@ -389,7 +303,7 @@ class Plane:
         ids = [] if replace else list(it.get("assignee_ids") or [])
         if member["id"] not in ids:
             ids.append(member["id"])
-        self.req("PATCH", f"/projects/{self.pid}/issues/{it['id']}/", body={"assignees": ids})
+        self.request(f"/projects/{self.pid}/issues/{it['id']}/", method="PATCH", body={"assignees": ids})
 
     def normalize_key(self, key):
         m = re.search(r"(\d+)\s*/?\s*$", key.strip())
@@ -592,7 +506,6 @@ def render_projects(target, rows):
 
 
 # ------------------------------------------------------------------ main
-
 
 
 def main(argv=None):

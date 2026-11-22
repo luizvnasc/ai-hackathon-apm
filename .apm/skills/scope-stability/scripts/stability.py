@@ -45,24 +45,19 @@ import urllib.request
 sys.dont_write_bytecode = True  # never write into an installed skill
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))  # python3 -I leaves it out
 from hackathon_shared.config import load_dotenv, require_config  # noqa: E402
-from hackathon_shared.net import workspace_segment  # noqa: E402
+from hackathon_shared.dates import UTC  # noqa: E402
+from hackathon_shared.gitlab import GitLabClient  # noqa: E402
+from hackathon_shared.labels import has_cancelled_label, label_points, number  # noqa: E402
+from hackathon_shared.net import ApiError  # noqa: E402
+from hackathon_shared.plane import PlaneClient, estimate  # noqa: E402
 from hackathon_shared.report import md_table  # noqa: E402
 from hackathon_shared.stats import slope  # noqa: E402
 
 UA = "scope-stability-skill/1.0"
-CANCELLED = {"canceled", "cancelled", "wontfix", "won't-fix", "duplicate"}
-POINT_SCOPES = ("points", "sp", "estimate")
 STABLE, MODERATE = 0.9, 0.75
 PAIR_SECONDS = 5  # a replacement is logged as two events at (almost) the same instant
 MAX_LISTED = 50  # changes per period in markdown; the JSON has them all
 UNKNOWN = "?"  # a milestone/cycle that no longer exists
-UTC = dt.timezone.utc
-
-
-class ApiError(Exception):
-    def __init__(self, status, body, method, url):
-        super().__init__(f"{method} {url} -> HTTP {status}: {body[:400]}")
-        self.status = status
 
 
 def http(method, url, headers, body=None):
@@ -127,31 +122,6 @@ def day_of(when, tz):
     return when.astimezone(tz).date()
 
 
-def scoped(labels, scope):
-    return [l.rsplit("::", 1)[1].strip().lower() for l in labels
-            if "::" in l and l.rsplit("::", 1)[0].strip().lower() == scope]
-
-
-def number(value):
-    s = str(value).strip() if value is not None else ""
-    return float(s) if re.fullmatch(r"\d+(\.\d+)?", s) else None
-
-
-def label_points(labels):
-    for scope in POINT_SCOPES:
-        for v in scoped(labels, scope):
-            if number(v) is not None:
-                return number(v)
-    return None
-
-
-def estimate(r):
-    """Plane's native estimate, from expand=estimate_point. Never from labels, and never from /estimates/,
-    which Plane CE does not route (makeplane/plane#9933)."""
-    ep = r.get("estimate_point")
-    return number(ep.get("value")) if isinstance(ep, dict) else None
-
-
 def new_issue(**kw):
     """`initial` is the period (id) the issue was created in and `moves` its history [(when, period id or None)];
     `points_initial` and `estimates` do the same for its size."""
@@ -196,33 +166,13 @@ def replay(events):
 
 
 # ------------------------------------------------------------------ GitLab
-class GitLab:
-    kind = "milestone"
-
+class GitLab(GitLabClient):
     def __init__(self, url, token, project):
-        self.url, self.headers, self.project = url.rstrip("/"), {"PRIVATE-TOKEN": token}, project
+        super().__init__(url, token, project)
         self.tz, self.tz_known, self.tz_note = UTC, False, None
 
-    def gql(self, query, variables=None):
-        data, _ = fetch("POST", self.url + "/api/graphql", self.headers, {"query": query, "variables": variables or {}})
-        if data.get("errors"):
-            raise ApiError(200, json.dumps(data["errors"]), "POST", "/api/graphql")
-        return data["data"]
-
-    def rest_all(self, path):
-        out, page = [], 1
-        while True:
-            sep = "&" if "?" in path else "?"
-            data, headers = fetch("GET", f"{self.url}/api/v4{path}{sep}per_page=100&page={page}", self.headers)
-            out += data
-            if not headers.get("X-Next-Page"):
-                return out
-            page = int(headers["X-Next-Page"])
-
-    def my_projects(self):
-        rows = self.rest_all("/projects?membership=true&archived=false&order_by=last_activity_at&sort=desc")
-        return [{"path": p["path_with_namespace"], "name": p["name"], "url": p["web_url"]}
-                for p in rows if not p.get("marked_for_deletion_at") and not p.get("marked_for_deletion_on")]
+    def send(self, method, url, body=None):
+        return fetch(method, url, self.headers, body)
 
     def periods(self):
         q = """query($p: ID!, $after: String) { project(fullPath: $p) { name
@@ -230,7 +180,7 @@ class GitLab:
                    pageInfo { hasNextPage endCursor } nodes { id title state startDate dueDate } } } }"""
         self._periods, after = [], None
         while True:
-            proj = self.gql(q, {"p": self.project, "after": after})["project"]
+            proj = self.graphql(q, {"p": self.project, "after": after})["project"]
             if not proj:
                 sys.exit(f"GitLab project {self.project!r} not found (or the token cannot read it)")
             self.name = proj["name"]
@@ -281,7 +231,7 @@ class GitLab:
                      ... on WorkItemWidgetMilestone { milestone { id title } } } } } } }"""
         nodes, after = [], None
         while True:
-            page = self.gql(q, {"p": self.project, "after": after})["project"]["workItems"]
+            page = self.graphql(q, {"p": self.project, "after": after})["project"]["workItems"]
             nodes += page["nodes"]
             if not page["pageInfo"]["hasNextPage"]:
                 break
@@ -294,21 +244,21 @@ class GitLab:
             milestone = (w.get("MILESTONE") or {}).get("milestone")
             current = self.key(milestone) if milestone else None
             closed = parse_dt(n.get("closedAt")) if n["state"] != "OPEN" else None
-            is_cancelled = set(scoped(labels, "workflow") + scoped(labels, "status")) & CANCELLED
+            is_cancelled = has_cancelled_label(labels)
             it = new_issue(key=f"#{n['iid']}", title=n["title"], url=n["webUrl"], created=parse_dt(n["createdAt"]),
                            closed=closed, period=current, initial=current, points=label_points(labels),
                            points_initial=label_points(labels), cancelled=closed if is_cancelled else None)
             # Not touched since the first analyzed period began: it kept its milestone and size all along.
             if parse_dt(n["updatedAt"]) >= since:
                 path = f"{base}/{n['iid']}"
-                events = self.rest_all(path + "/resource_milestone_events")
+                events = self.rest_pages(path + "/resource_milestone_events")
                 self.note_offset(events)
                 if events:
                     it["initial"], it["moves"] = self.moves(events)
                     check_final(it)
                 else:
                     it["missing_history"] = bool(current)
-                first, changes = self.estimates(self.rest_all(path + "/resource_label_events"))
+                first, changes = self.estimates(self.rest_pages(path + "/resource_label_events"))
                 if changes or first is not None:
                     it["points_initial"], it["estimates"] = first, changes
             out.append(it)
@@ -316,55 +266,28 @@ class GitLab:
 
 
 # ------------------------------------------------------------------ Plane
-class Plane:
-    kind = "cycle"
-
+class Plane(PlaneClient):
     def __init__(self, url, workspace, api_key, project, rate_per_min=60):
-        self.url, self.ws = url.rstrip("/"), workspace
-        self.base = f"{self.url}/api/v1/workspaces/{workspace_segment(workspace)}"
-        self.headers = {"X-API-Key": api_key}
-        self.min_interval, self.last = 60.0 / max(1, rate_per_min - 2), 0.0
+        super().__init__(url, workspace, api_key, rate_per_min)
         self.tz, self.tz_note = UTC, None
-        self.all_projects = self.list("/projects/")
-        if project is None:
-            return
-        want = project.strip().lower()
-        match = [p for p in self.all_projects if want in (p["identifier"].lower(), p["name"].lower()) or p["id"] == project]
-        if not match:
-            names = ", ".join(f"{p['name']} ({p['identifier']})" for p in self.all_projects)
-            sys.exit(f"Plane project {project!r} not found in workspace {workspace!r}. Projects: {names}")
-        p = match[0]
-        self.pid, self.ident, self.name = p["id"], p["identifier"], f"{p['name']} ({p['identifier']})"
-        if p.get("timezone"):
-            try:
-                self.tz = parse_timezone(p["timezone"])
-            except ValueError:
-                self.tz_note = (f"The project's timezone {p['timezone']} is not available on this machine: days are "
-                                "in UTC. Pass --timezone +HH:MM or -HH:MM.")
+        row = self.select_project(project)
+        if row and row.get("timezone"):
+            self.use_timezone(row["timezone"])
 
-    def req(self, path, params=None):
-        wait = self.min_interval - (time.monotonic() - self.last)
-        if wait > 0:
-            time.sleep(wait)
-        self.last = time.monotonic()
-        url = self.base + path + ("?" + urllib.parse.urlencode(params) if params else "")
-        return fetch("GET", url, self.headers)[0]
+    def use_timezone(self, name):
+        try:
+            self.tz = parse_timezone(name)
+        except ValueError:
+            self.tz_note = (f"The project's timezone {name} is not available on this machine: days are "
+                            "in UTC. Pass --timezone +HH:MM or -HH:MM.")
 
-    def list(self, path, params=None):
-        params, out = {"per_page": 100, **(params or {})}, []
-        while True:
-            data = self.req(path, params)
-            if isinstance(data, list):
-                return out + data
-            out += data.get("results") or []
-            if data.get("next_page_results") and data.get("next_cursor"):
-                params["cursor"] = data["next_cursor"]
-            else:
-                return out
+    def send(self, method, url, body=None):
+        return fetch(method, url, self.headers, body)
 
-    def my_projects(self):
-        return [{"path": p["identifier"], "name": p["name"], "url": f"{self.url}/{self.ws}/projects/{p['id']}/issues"}
-                for p in self.all_projects if p.get("is_member", True) and not p.get("archived_at")]
+    def request(self, path, params=None):
+        # Until the copies agree: here the retries are in fetch(), which does not pace each attempt
+        self.pace()
+        return self.send("GET", self.api_url(path, params))[0]
 
     def local_day(self, value):
         if not value:

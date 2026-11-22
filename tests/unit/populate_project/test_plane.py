@@ -27,7 +27,7 @@ def run(server, label_set=DEFAULT, **kw):
     kw.setdefault("project", "SHOP")
     plan = pop.Plan(kw.get("dry_run", False))
     out, err = io.StringIO(), io.StringIO()
-    with mock.patch.object(pop, "http", server), mock.patch.object(pop.time, "sleep"), \
+    with mock.patch.object(pop, "http", server), mock.patch("time.sleep"), \
             mock.patch.dict(os.environ, {"PLANE_API_KEY": PLANE_KEY}, clear=True), \
             contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
         info = pop.populate_plane(args(**kw), label_set, plan)
@@ -186,7 +186,7 @@ class PlaneProjectTest(unittest.TestCase):
                              (404, "workspace 'demo-ws' not found")):
             err = pop.ApiError(status, "{}", "GET", "u")
             with self.assertRaises(SystemExit) as cm, mock.patch.object(pop, "http", side_effect=err), \
-                    mock.patch.object(pop.time, "sleep"), mock.patch.dict(os.environ, {"PLANE_API_KEY": PLANE_KEY}):
+                    mock.patch("time.sleep"), mock.patch.dict(os.environ, {"PLANE_API_KEY": PLANE_KEY}):
                 pop.populate_plane(args(target="plane", project="SHOP"), DEFAULT, pop.Plan(False))
             self.assertIn(text, str(cm.exception.code))
             self.assertNotIn(PLANE_KEY, str(cm.exception.code))
@@ -222,68 +222,6 @@ class PlaneClientTest(unittest.TestCase):
         p = pop.Plane("https://plane.example.com/", PLANE_KEY, "demo-ws", 60, dry_run)
         p.min_interval = 0
         return p
-
-    def test_headers_and_base_url(self):
-        p = self.client()
-        self.assertEqual(p.base, "https://plane.example.com/api/v1/workspaces/demo-ws")
-        self.assertEqual(p.headers, {"X-API-Key": PLANE_KEY})
-
-    def test_workspace_is_url_encoded(self):
-        # Regression: the workspace slug went into the URL as given, so "a/b?x" changed the path.
-        p = pop.Plane("https://plane.example.com", PLANE_KEY, "a/b?x", 60)
-        self.assertEqual(p.base, "https://plane.example.com/api/v1/workspaces/a%2Fb%3Fx")
-
-    def test_429_is_retried_then_succeeds(self):
-        p = self.client()
-        replies = [pop.ApiError(429, "slow down", "GET", "u"), (200, {"ok": 1}, {})]
-        with mock.patch.object(pop, "http", side_effect=replies) as http, mock.patch.object(pop.time, "sleep") as sleep:
-            self.assertEqual(p.req("GET", "/projects/"), {"ok": 1})
-        self.assertEqual(http.call_count, 2)
-        sleep.assert_any_call(10)
-
-    def test_429_retries_are_bounded(self):
-        p = self.client()
-        with mock.patch.object(pop, "http", side_effect=pop.ApiError(429, "slow", "GET", "u")) as http, \
-                mock.patch.object(pop.time, "sleep"):
-            with self.assertRaises(pop.ApiError) as cm:
-                p.req("GET", "/projects/")
-        self.assertEqual(http.call_count, 8)
-        self.assertEqual(cm.exception.status, 429)
-
-    def test_5xx_retried_three_times_then_raised(self):
-        p = self.client()
-        with mock.patch.object(pop, "http", side_effect=pop.ApiError(502, "bad gateway", "GET", "u")) as http, \
-                mock.patch.object(pop.time, "sleep"):
-            with self.assertRaises(pop.ApiError) as cm:
-                p.req("GET", "/projects/")
-        self.assertEqual(http.call_count, 4)
-        self.assertEqual(cm.exception.status, 502)
-
-    def test_4xx_is_not_retried(self):
-        p = self.client()
-        with mock.patch.object(pop, "http", side_effect=pop.ApiError(400, "bad", "POST", "u")) as http, \
-                mock.patch.object(pop.time, "sleep"):
-            with self.assertRaises(pop.ApiError):
-                p.req("POST", "/projects/", {"name": "x"})
-        self.assertEqual(http.call_count, 1)
-
-    def test_requests_are_paced(self):
-        p = pop.Plane("https://plane.example.com", PLANE_KEY, "demo-ws", 60)
-        p.last = pop.time.monotonic()
-        with mock.patch.object(pop, "http", return_value=(200, [], {})), \
-                mock.patch.object(pop.time, "sleep") as sleep:
-            p.req("GET", "/projects/")
-        self.assertGreater(sleep.call_args[0][0], 0.9)
-
-    def test_list_handles_plain_lists_and_cursors(self):
-        p = self.client()
-        with mock.patch.object(pop, "http", return_value=(200, [{"id": 1}], {})):
-            self.assertEqual(p.list("/x/"), [{"id": 1}])
-        pages = [(200, {"results": [{"id": 1}], "next_page_results": True, "next_cursor": "c2"}, {}),
-                 (200, {"results": [{"id": 2}], "next_page_results": False, "next_cursor": "c3"}, {})]
-        with mock.patch.object(pop, "http", side_effect=pages) as http:
-            self.assertEqual(p.list("/x/"), [{"id": 1}, {"id": 2}])
-        self.assertIn("cursor=c2", http.call_args_list[1][0][1])
 
     def test_write_in_dry_run_never_calls_the_api(self):
         p = self.client(dry_run=True)

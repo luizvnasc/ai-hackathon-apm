@@ -28,7 +28,7 @@ def plane():
     p.url, p.ws = "https://plane.example.com", "demo-ws"
     p.base = "https://plane.example.com/api/v1/workspaces/demo-ws"
     p.headers = {"X-API-Key": "plane-secret"}
-    p.min_interval, p.last = 0.0, 0.0
+    p.min_interval, p.last_request = 0.0, 0.0
     p.items, p.by_id = {}, {}
     p.idents = {"p-1": "DEMO", "p-2": "OPS"}
     p.pid, p.ident, p.project = "p-1", "DEMO", "Demo (DEMO)"
@@ -37,7 +37,7 @@ def plane():
 
 
 class PlaneRouter:
-    """Fake Plane.req: answers by path from fixtures; a missing or 404 entry raises ApiError(404).
+    """Fake Plane.request: answers by path from fixtures; a missing or 404 entry raises ApiError(404).
 
     Pass the `ApiError` of the module under test: every `load` returns a fresh module.
     """
@@ -104,7 +104,7 @@ class GitLabRouter:
 
 def gitlab_with(router):
     gl = gitlab()
-    gl.gql, gl.rest, gl.rest_pages = router.gql, router.rest, router.rest
+    gl.graphql, gl.rest, gl.rest_pages = router.gql, router.rest, router.rest
     return gl
 
 
@@ -263,9 +263,9 @@ class GitLabLoaderTest(unittest.TestCase):
 
     def test_full_of_an_unreadable_project_returns_none(self):
         gl = gitlab()
-        gl.gql = mock.Mock(return_value={"project": None})
+        gl.graphql = mock.Mock(return_value={"project": None})
         self.assertIsNone(gl.full("secret-group/x#1"))
-        gl.gql = mock.Mock(side_effect=blk.ApiError(403, "forbidden", "POST", "u"))
+        gl.graphql = mock.Mock(side_effect=blk.ApiError(403, "forbidden", "POST", "u"))
         self.assertIsNone(gl.full("secret-group/x#1"))
 
     def test_project_id_quotes_the_path(self):
@@ -297,7 +297,7 @@ class GitLabLoaderTest(unittest.TestCase):
     def test_graphql_errors_raise_api_error(self):
         with mock.patch.object(blk, "http", return_value=({"errors": [{"message": "boom"}]}, {})):
             with self.assertRaises(blk.ApiError):
-                gitlab().gql("query { x }")
+                gitlab().graphql("query { x }")
 
 
 # ====================================================================== Plane
@@ -305,7 +305,7 @@ class PlaneLoaderTest(unittest.TestCase):
     def run_plane(self, fn, routes=None):
         p = plane()
         router = PlaneRouter(routes or plane_routes())
-        with mock.patch.object(blk.Plane, "req", side_effect=router):
+        with mock.patch.object(blk.Plane, "request", side_effect=router):
             result = fn(p)
         return p, result, router
 
@@ -468,7 +468,7 @@ class PlaneLoaderTest(unittest.TestCase):
 class PlaneConstructorTest(unittest.TestCase):
     def make(self, project, routes=None):
         router = PlaneRouter(routes or plane_routes())
-        with mock.patch.object(blk.Plane, "req", side_effect=router):
+        with mock.patch.object(blk.Plane, "request", side_effect=router):
             return blk.Plane("https://plane.example.com/", "demo-ws", "plane-secret", project)
 
     def test_matches_identifier_name_or_id(self):
@@ -482,69 +482,10 @@ class PlaneConstructorTest(unittest.TestCase):
         routes = plane_routes(**{"/members/": 404})
         self.assertEqual(self.make("DEMO", routes).members, {})
 
-    def test_unknown_project_lists_the_others_without_the_key(self):
-        with self.assertRaises(SystemExit) as cm:
-            self.make("nope")
-        msg = str(cm.exception.code)
-        self.assertIn("'nope' not found", msg)
-        self.assertIn("Demo (DEMO)", msg)
-        self.assertNotIn("plane-secret", msg)
-
     def test_no_project_only_lists(self):
         p = self.make(None)
         self.assertFalse(hasattr(p, "pid"))
         self.assertEqual(p.base, "https://plane.example.com/api/v1/workspaces/demo-ws")
-
-
-class PlaneHttpTest(unittest.TestCase):
-    def setUp(self):
-        patcher = mock.patch.object(blk.time, "sleep")
-        self.sleep = patcher.start()
-        self.addCleanup(patcher.stop)
-
-    def test_list_follows_cursor_pagination(self):
-        pages = [({"results": [1, 2], "next_page_results": True, "next_cursor": "100:1:0"}, {}),
-                 ({"results": [3], "next_page_results": False, "next_cursor": "100:2:0"}, {})]
-        with mock.patch.object(blk, "http", side_effect=pages) as http:
-            self.assertEqual(plane().list("/projects/"), [1, 2, 3])
-        urls = [c.args[1] for c in http.call_args_list]
-        self.assertIn("per_page=100", urls[0])
-        self.assertIn("cursor=100%3A1%3A0", urls[1])
-        self.assertTrue(all("plane-secret" not in u for u in urls))
-        self.assertEqual(http.call_args_list[0].args[2], {"X-API-Key": "plane-secret"})
-
-    def test_list_accepts_a_plain_list_and_stops_without_a_cursor(self):
-        with mock.patch.object(blk, "http", return_value=([{"id": 1}], {})):
-            self.assertEqual(plane().list("/x/"), [{"id": 1}])
-        with mock.patch.object(blk, "http", return_value=({"results": [1], "next_page_results": True}, {})) as http:
-            self.assertEqual(plane().list("/x/"), [1])
-        self.assertEqual(http.call_count, 1)
-
-    def test_429_is_retried(self):
-        responses = [blk.ApiError(429, "slow down", "GET", "u"), ({"ok": True}, {})]
-        with mock.patch.object(blk, "http", side_effect=responses) as http:
-            self.assertEqual(plane().req("/x/"), {"ok": True})
-        self.assertEqual(http.call_count, 2)
-
-    def test_429_retries_are_bounded(self):
-        with mock.patch.object(blk, "http", side_effect=blk.ApiError(429, "slow", "GET", "u")) as http:
-            with self.assertRaises(blk.ApiError) as cm:
-                plane().req("/x/")
-        self.assertEqual(cm.exception.status, 429)
-        self.assertEqual(http.call_count, 8)
-
-    def test_5xx_retried_three_times_then_raised(self):
-        with mock.patch.object(blk, "http", side_effect=blk.ApiError(502, "bad gateway", "GET", "u")) as http:
-            with self.assertRaises(blk.ApiError) as cm:
-                plane().req("/x/")
-        self.assertEqual(cm.exception.status, 502)
-        self.assertEqual(http.call_count, 4)
-
-    def test_4xx_is_not_retried(self):
-        with mock.patch.object(blk, "http", side_effect=blk.ApiError(404, "nf", "GET", "u")) as http:
-            with self.assertRaises(blk.ApiError):
-                plane().req("/x/")
-        self.assertEqual(http.call_count, 1)
 
 
 class HttpTest(unittest.TestCase):

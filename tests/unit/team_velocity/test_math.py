@@ -16,41 +16,10 @@ S1 = {"name": "S1", "start": "2026-01-05", "end": "2026-01-18"}  # 14 days = 2 w
 
 
 class DatesTest(unittest.TestCase):
-    def test_parse_date_only_is_utc_midnight(self):
-        d = vel.parse_dt("2026-01-18")
-        self.assertEqual(d, dt.datetime(2026, 1, 18, tzinfo=dt.timezone.utc))
-
-    def test_parse_z_suffix(self):
-        self.assertEqual(vel.parse_dt("2026-01-18T10:00:00Z").utcoffset(), dt.timedelta(0))
-
-    def test_naive_datetime_becomes_utc(self):
-        self.assertEqual(vel.parse_dt("2026-01-18T10:00:00").tzinfo, dt.timezone.utc)
-
-    def test_empty_is_none(self):
-        self.assertIsNone(vel.parse_dt(None))
-        self.assertIsNone(vel.to_date(""))
-
-    def test_to_date_keeps_the_timestamp_offset(self):
-        # 23:30 at -03:00 is still Jan 18 for the team, although it is Jan 19 in UTC.
-        self.assertEqual(vel.to_date("2026-01-18T23:30:00-03:00"), dt.date(2026, 1, 18))
-
     def test_weeks_between_inclusive_and_at_least_one_day(self):
         self.assertEqual(vel.weeks_between(dt.date(2026, 1, 5), dt.date(2026, 1, 18)), 2.0)
         self.assertEqual(vel.weeks_between(dt.date(2026, 1, 5), dt.date(2026, 1, 5)), 1 / 7)
         self.assertEqual(vel.weeks_between(dt.date(2026, 1, 5), dt.date(2026, 1, 1)), 1 / 7)
-
-
-class LabelsTest(unittest.TestCase):
-    def test_scoped_is_case_insensitive_and_uses_last_separator(self):
-        labels = ["Points:: 5", "workflow::Done", "type::bug", "plain", "a::b::c"]
-        self.assertEqual(vel.scoped(labels, "points"), ["5"])
-        self.assertEqual(vel.scoped(labels, "workflow"), ["done"])
-        self.assertEqual(vel.scoped(labels, "a::b"), ["c"])
-
-    def test_num_takes_first_numeric(self):
-        self.assertEqual(vel.num(["many", "2.5", "3"]), 2.5)
-        self.assertIsNone(vel.num(["xl", "-1"]))
-        self.assertIsNone(vel.num([]))
 
 
 class UnitTest(unittest.TestCase):
