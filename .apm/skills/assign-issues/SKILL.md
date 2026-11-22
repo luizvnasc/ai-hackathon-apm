@@ -10,7 +10,7 @@ Recommend who should take an issue, or what a developer should take next, from t
 - **Read-only except for one command.** Only `assign --yes` writes, and only after the user confirmed that exact change in this conversation. Never assign on your own initiative.
 - **Permission given up front is not a confirmation.** "Assign it to the best dev", "do it directly", "no need to ask me" or "pode fazer direto" come before the user has seen who would get the issue. Always show the `--dry-run` preview first and end your turn; run `--yes` only after a later message from the user says yes to that preview.
 - **Data and math come from the bundled script** `scripts/assign.py`, so every agent gets the same scores. Never invent scores or history.
-- The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly; no MCP server is needed.
+- The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly.
 
 ## 1. Target, project and question
 

@@ -9,7 +9,7 @@ Find the open issues of a milestone (GitLab) or cycle (Plane) that nobody has to
 
 - **Read-only.** Never change anything in GitLab or Plane: no labels, comments, assignments or moves. Suggest them in the report instead. This holds even when the user asks you to close, move, relabel or fix issues: do not write your own scripts or API calls (curl, Python, an MCP tool) to do it. Say this skill only reports, and list what the user can change by hand.
 - **Data and classification come from the bundled script** `scripts/stale.py`, so every agent gets the same result. Never invent issues, dates or owners.
-- The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly; no MCP server is needed.
+- The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly.
 
 ## 1. Target and project
 

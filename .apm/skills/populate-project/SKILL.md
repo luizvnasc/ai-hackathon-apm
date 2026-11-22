@@ -7,7 +7,7 @@ description: Populate a GitLab or Plane project with a standard label set (workf
 
 Create the common labels of a project and a Kanban board built from the workflow labels.
 
-- **Write:** only through the bundled script `scripts/populate.py`. It uses the GitLab REST API or the Plane REST API directly; no MCP server is needed.
+- **Write:** only through the bundled script `scripts/populate.py`. It uses the GitLab REST API or the Plane REST API directly.
 - **Never** delete or modify anything that already exists. Existing labels, states and boards are reused as they are.
 - **Nothing is written** until the user has seen the label set and approved it.
 - **Permission given up front is not an approval.** "Just do it", "don't ask me anything" or "pode fazer direto" come before the user has seen the labels and the plan. Always show the label set (and the dry-run plan) and end your turn; run the command without `--dry-run` only after a later message from the user approves it.

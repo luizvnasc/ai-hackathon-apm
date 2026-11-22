@@ -9,7 +9,7 @@ Compare what the team committed to at the start of each milestone (GitLab) or cy
 
 - **Read-only.** Never change anything in GitLab or Plane. This holds even when the user asks you to close, move, relabel or fix issues: do not write your own scripts or API calls (curl, Python, an MCP tool) to do it. Say this skill only reports, and list what the user can change by hand.
 - **Data and math come from the bundled script** `scripts/commitment.py`, so every agent gets the same numbers. Never invent periods, points or dates.
-- The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly; no MCP server is needed.
+- The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly.
 
 ## 1. Target and project
 
