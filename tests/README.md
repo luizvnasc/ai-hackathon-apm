@@ -1,11 +1,11 @@
 # Tests
 
-Two layers, both offline with respect to GitLab and Plane:
+Two layers:
 
 | Layer | What it proves | Tooling | Network |
 |---|---|---|---|
 | `unit/` | The bundled scripts: math, loaders, API clients, config handling, CLI | Python 3.8+ stdlib `unittest` | none |
-| `evals/` | The skills as an agent sees them: picked for the right requests, ignored for the wrong ones, following their instructions | [promptfoo](https://promptfoo.dev) + Claude Agent SDK | Anthropic API only |
+| `evals/` | The skills as an agent sees them: picked for the right requests, ignored for the wrong ones, following their instructions | [promptfoo](https://promptfoo.dev) + Claude Agent SDK | **not isolated**: whatever the host can reach |
 
 ## Unit tests
 
@@ -42,6 +42,13 @@ Patterns used in `team_velocity/` that other skills can copy:
 
 ## Skill evals (promptfoo)
 
+> **Warning: do not run the evals on a machine with real credentials or reachable GitLab/Plane servers.**
+> The agent under test has an unrestricted Bash. The fake credentials and the mock below only redirect the
+> bundled scripts: the agent can still read the host's files (shell profiles, `.env`, git history), use curl,
+> or start Python with `-I`, and so reach real tokens and servers. Copying or cloning the repo to another
+> directory is not isolation. Until the evals have a sandbox, run them only in a disposable environment.
+> Do not add evals that ask for something no skill can do: the agent improvises.
+
 Prerequisites: Node.js 18+ and either `ANTHROPIC_API_KEY` or a logged-in local Claude Code (`claude auth status` shows `loggedIn: true`). The configs set `apiKeyRequired: false`, so the local login is used when no key is set; with a key set, the key is used.
 
 ```bash
@@ -72,7 +79,7 @@ The scripts all call `urllib.request.urlopen`. `evals/mock/sitecustomize.py` rep
 | `EVAL_FIXTURES` | `{{ env.PWD }}/.workspace/fixtures` (the same for every skill) |
 | `EVAL_DATASET_DATE` | `2026-11-12`, the date the dataset was written for. The mock shifts every fixture date by (today − this date), so the dataset always ends on the real today: the agent and the script agree on "today" and the numbers never drift. Weekly buckets (Monday–Sunday) still move with the weekday, so eval asserts compare weekly numbers with the script's own output; unit tests pin them with `EVAL_TODAY` (freezes `date.today()`). |
 
-`EVAL_PLANE_NO_ESTIMATES=1` makes the mock a Plane CE with the bug [makeplane/plane#9933](https://github.com/makeplane/plane/issues/9933): the documented `/estimates/` routes answer 404 `Page not found.`. The configs of the skills that read points set it. `gitlab-to-plane` is evaluated on both servers (`configured` and `estimates_bug`).
+`EVAL_PLANE_NO_ESTIMATES=1` makes the mock a Plane CE with the bug [makeplane/plane#9933](https://github.com/makeplane/plane/issues/9933): the documented `/estimates/` routes answer 404 `Page not found.`. The configs of the skills that read points set it.
 
 Rules of the mock: hosts are ignored; a request is matched by method, path, query (subset) and, for `POST /api/graphql`, by keywords in the query plus variables (subset). An unmatched request gets HTTP 404 with a JSON body and `[eval-mock] MISS ...` on stderr. **Every write is refused** (HTTP 403, `[eval-mock] WRITE REFUSED ...`): any method but GET, and GraphQL mutations, whatever the manifest says. Write skills can therefore only be evaluated up to their dry run.
 

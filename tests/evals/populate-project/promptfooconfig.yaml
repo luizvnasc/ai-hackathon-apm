@@ -6,8 +6,9 @@ description: populate-project skill evals
 #                  and answers from the shared fixtures/, so reports have known numbers.
 #                  EVAL_DATASET_DATE is the date the dataset was written for; the mock shifts every
 #                  fixture date so that date becomes the real today (the agent and the script then
-#                  agree on "today" and the numbers never drift). Nothing reaches a network and
-#                  the mock refuses every write. See tests/README.md.
+#                  agree on "today" and the numbers never drift). The mock covers only Python's
+#                  urlopen: it is NOT a sandbox, the agent's Bash can reach the host's files and
+#                  network. Do not run outside an isolated environment. See tests/README.md.
 providers:
   - id: anthropic:claude-agent-sdk
     label: unconfigured
@@ -196,24 +197,6 @@ tests:
           or state was created.
 
   # ---------------------------------------------------------------- near misses
-  - description: migrating issues goes to gitlab-to-plane (en)
-    providers: [configured]
-    vars: {request: "Migrate the issues of the GitLab project group/inv into the Plane project INV."}
-    assert:
-      - type: not-skill-used
-        value: populate-project
-      - type: skill-used
-        value: gitlab-to-plane
-
-  - description: copying the backlog goes to gitlab-to-plane (pt)
-    providers: [configured]
-    vars: {request: "Copie o backlog do projeto group/inv do GitLab para o Plane, com as labels e os milestones."}
-    assert:
-      - type: not-skill-used
-        value: populate-project
-      - type: skill-used
-        value: gitlab-to-plane
-
   - description: a general label advice question uses no skill
     providers: [configured]
     vars: {request: "In general, which labels would you recommend for a small team's Kanban workflow? Just your opinion, no need to look at or change any project."}
