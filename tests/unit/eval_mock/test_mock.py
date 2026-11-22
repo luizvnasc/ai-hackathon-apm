@@ -24,6 +24,8 @@ BLOCKED = ROOT / ".apm" / "skills" / "blocked-issues" / "scripts" / "blocked.py"
 STALE = ROOT / ".apm" / "skills" / "stale-issues" / "scripts" / "stale.py"
 VELOCITY = ROOT / ".apm" / "skills" / "team-velocity" / "scripts" / "velocity.py"
 
+NO_PACING = ("--rate", "6000")  # the mock has no rate limit: waiting for Plane's 60 requests/minute only slows the tests
+
 spec = importlib.util.spec_from_file_location("eval_mock_sitecustomize", MOCK_DIR / "sitecustomize.py")
 mock = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(mock)
@@ -131,7 +133,7 @@ class EstimatesBugTest(unittest.TestCase):
                     PLANE_URL="http://plane.mock", PLANE_WORKSPACE="eval", PLANE_API_KEY="plane-eval-fake")
         full.update(env or {})
         with tempfile.TemporaryDirectory() as cwd:
-            return subprocess.run([sys.executable, str(script), *args], env=full, cwd=cwd,
+            return subprocess.run([sys.executable, str(script), *args, *NO_PACING], env=full, cwd=cwd,
                                   capture_output=True, text=True, timeout=120)
 
     def test_stale_issues_still_has_the_points(self):
@@ -229,7 +231,7 @@ class VelocityEndToEndTest(unittest.TestCase):
                    GITLAB_URL="http://gitlab.mock", GITLAB_TOKEN="glpat-eval-fake",
                    PLANE_URL="http://plane.mock", PLANE_WORKSPACE="eval", PLANE_API_KEY="plane-eval-fake")
         with tempfile.TemporaryDirectory() as cwd:  # no .env
-            return subprocess.run([sys.executable, str(VELOCITY), *args], env=env, cwd=cwd,
+            return subprocess.run([sys.executable, str(VELOCITY), *args, *NO_PACING], env=env, cwd=cwd,
                                   capture_output=True, text=True, timeout=120)
 
     def check_report(self, res):

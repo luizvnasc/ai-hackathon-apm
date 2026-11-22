@@ -59,60 +59,12 @@ class Run:
 
 
 class ConfigTest(unittest.TestCase):
-    def assert_not_configured(self, code, out, err, names):
-        self.assertEqual(code, 2)
-        self.assertIn("NOT CONFIGURED", err)
-        for n in names:
-            self.assertIn(n, err)
-        self.assertIn("export ", err)
-        self.assertIn("$env:", err)
-        self.assertNotIn("Traceback", err)
-        for s in SECRETS:
-            self.assertNotIn(s, out + err)
-
-    def test_gitlab_nothing_set(self):
-        server = FakeGitLab(pop)
-        code, out, err = Run(self, server=server)("--target", "gitlab", "--project", "acme/shop", "--labels", DEFAULT)
-        self.assert_not_configured(code, out, err, ["GITLAB_URL", "GITLAB_TOKEN"])
-        self.assertIn("scope api", err)  # it writes, so read_api is not enough
-        self.assertNotIn("PLANE_", err)
-        self.assertEqual(server.calls, [])
-
-    def test_plane_nothing_set(self):
-        server = FakePlane(pop)
-        code, out, err = Run(self, server=server)("--target", "plane", "--project", "SHOP", "--labels", DEFAULT,
-                                                  "--dry-run")
-        self.assert_not_configured(code, out, err, ["PLANE_URL", "PLANE_WORKSPACE", "PLANE_API_KEY"])
-        self.assertNotIn("GITLAB_", err)
-        self.assertEqual(server.calls, [])
-
-    def test_partial_config_names_only_the_missing_and_never_the_token(self):
-        code, out, err = Run(self, {"PLANE_API_KEY": PLANE_KEY})("--target", "plane", "--project", "SHOP",
-                                                                 "--labels", DEFAULT)
-        self.assert_not_configured(code, out, err, ["PLANE_URL", "PLANE_WORKSPACE"])
-        self.assertEqual(err.splitlines()[0], "NOT CONFIGURED: missing PLANE_URL, PLANE_WORKSPACE.")
-        code, out, err = Run(self, {"GITLAB_TOKEN": GITLAB_TOKEN})("--target", "gitlab", "--project", "a/b",
-                                                                   "--labels", DEFAULT)
-        self.assert_not_configured(code, out, err, ["GITLAB_URL"])
-        self.assertEqual(err.splitlines()[0], "NOT CONFIGURED: missing GITLAB_URL.")
-
     def test_options_fill_the_url_and_workspace(self):
         server = FakePlane(pop)
         code, out, err = Run(self, {"PLANE_API_KEY": PLANE_KEY}, server)(
             "--target", "plane", "--project", "SHOP", "--labels", DEFAULT, "--dry-run",
             "--plane-url", "https://plane.example.com", "--workspace", "demo-ws")
         self.assertEqual(code, 0, err)
-
-    def test_dotenv_fills_missing_values_and_the_environment_wins(self):
-        dotenv = "export GITLAB_URL=https://wrong.example.com\nGITLAB_TOKEN='glpat-secret-123'\n"
-        server = FakeGitLab(pop)
-        code, out, err = Run(self, {"GITLAB_URL": "https://gitlab.example.com"}, server)(
-            "--target", "gitlab", "--project", "acme/shop", "--labels", DEFAULT, "--dry-run", files={".env": dotenv})
-        self.assertEqual(code, 0, err)
-        self.assertTrue(server.calls)
-        self.assertEqual(server.calls[0][4]["PRIVATE-TOKEN"], GITLAB_TOKEN)
-        for s in SECRETS:
-            self.assertNotIn(s, out + err)
 
     def test_api_error_ends_with_a_message_not_a_traceback(self):
         def boom(method, url, headers, body=None):

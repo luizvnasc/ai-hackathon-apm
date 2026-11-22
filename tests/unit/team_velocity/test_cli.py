@@ -92,59 +92,6 @@ def fake_source(periods, issues, kind="cycle"):
 
 
 class ConfigTest(unittest.TestCase):
-    def assert_not_configured(self, code, out, err, names):
-        self.assertNotEqual(code, 0)
-        self.assertIn("NOT CONFIGURED", err)
-        for n in names:
-            self.assertIn(n, err)
-        self.assertIn("export ", err)
-        self.assertIn("$env:", err)
-        for s in SECRETS:
-            self.assertNotIn(s, out + err)
-
-    def test_gitlab_nothing_set(self):
-        code, out, err = Run(self)("report", "--target", "gitlab", "--project", "g/p")
-        self.assertEqual(code, 2)
-        self.assert_not_configured(code, out, err, ["GITLAB_URL", "GITLAB_TOKEN"])
-        self.assertNotIn("PLANE_", err)
-
-    def test_plane_nothing_set(self):
-        code, out, err = Run(self)("report", "--target", "plane", "--project", "DEMO")
-        self.assert_not_configured(code, out, err, ["PLANE_URL", "PLANE_WORKSPACE", "PLANE_API_KEY"])
-        self.assertNotIn("GITLAB_", err)
-
-    def test_partial_config_names_only_the_missing_and_never_the_token(self):
-        env = {"PLANE_API_KEY": "plane-secret-456"}
-        code, out, err = Run(self, env)("projects", "--target", "plane")
-        self.assert_not_configured(code, out, err, ["PLANE_URL", "PLANE_WORKSPACE"])
-        self.assertNotIn("PLANE_API_KEY", err.splitlines()[0])
-        env = {"GITLAB_TOKEN": "glpat-secret-123"}
-        code, out, err = Run(self, env)("projects", "--target", "gitlab")
-        self.assert_not_configured(code, out, err, ["GITLAB_URL"])
-        self.assertEqual(err.splitlines()[0], "NOT CONFIGURED: missing GITLAB_URL.")
-
-    def test_dotenv_fills_missing_values(self):
-        dotenv = "export GITLAB_URL=https://gitlab.example.com\nGITLAB_TOKEN='glpat-secret-123'\nOTHER=x\n"
-        with mock.patch.object(vel, "GitLab", fake_source(PERIODS, ISSUES, "milestone")) as fake:
-            code, out, err = Run(self)("projects", "--target", "gitlab", files={".env": dotenv})
-        self.assertEqual(code, 0, err)
-        self.assertNotIn("NOT CONFIGURED", err)
-        for s in SECRETS:
-            self.assertNotIn(s, out + err)
-
-    def test_environment_wins_over_dotenv(self):
-        seen = {}
-
-        class Capture(fake_source(PERIODS, ISSUES)):
-            def __init__(self, *args):
-                super().__init__(*args)
-                seen["args"] = args
-
-        env = dict(PLANE_ENV, PLANE_WORKSPACE="from-env")
-        with mock.patch.object(vel, "Plane", Capture):
-            Run(self, env)("projects", "--target", "plane", files={".env": "PLANE_WORKSPACE=from-dotenv\n"})
-        self.assertEqual(seen["args"][1], "from-env")
-
     def test_report_needs_a_project(self):
         with mock.patch.object(vel, "Plane", fake_source(PERIODS, ISSUES)):
             code, _, err = Run(self, PLANE_ENV)("report", "--target", "plane")
@@ -164,6 +111,14 @@ class ConfigTest(unittest.TestCase):
         self.assertNotIn("Traceback", err)
         for s in SECRETS:
             self.assertNotIn(s, out + err)
+
+
+class ProjectsTableTest(unittest.TestCase):
+    def test_lists_the_projects(self):
+        with mock.patch.object(vel, "Plane", fake_source(PERIODS, ISSUES)):
+            code, out, err = Run(self, PLANE_ENV)("projects", "--target", "plane")
+        self.assertEqual(code, 0, err)
+        self.assertIn("| 1 | [DEMO](https://plane.example.com/demo-ws/projects/p-1/issues) | Demo |", out)
 
 
 class ArgparseTest(unittest.TestCase):

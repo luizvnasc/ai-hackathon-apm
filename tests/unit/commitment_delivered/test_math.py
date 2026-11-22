@@ -236,13 +236,6 @@ def row(name, say_do, committed=10.0, vs=None, scope=0.0):
 
 
 class StatisticsTest(unittest.TestCase):
-    def test_slope(self):
-        self.assertIsNone(cd.slope([]))
-        self.assertIsNone(cd.slope([0.5]))
-        self.assertAlmostEqual(cd.slope([0.5, 0.5, 1.0]), 0.25)
-        self.assertAlmostEqual(cd.slope([1.0, 0.8, 0.6, 0.4]), -0.2)
-        self.assertEqual(cd.slope([0.7, 0.7]), 0)
-
     def test_empty(self):
         self.assertIsNone(cd.summarize([]))
         self.assertIsNone(cd.summarize([row("S1", None)]))

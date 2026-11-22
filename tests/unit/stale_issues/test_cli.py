@@ -86,77 +86,11 @@ def fake_source(periods, issues, kind="cycle"):
 
 
 class ConfigTest(unittest.TestCase):
-    def assert_not_configured(self, code, out, err, names):
-        self.assertEqual(code, 2)
-        self.assertIn("NOT CONFIGURED", err)
-        for n in names:
-            self.assertIn(n, err)
-        self.assertIn("export ", err)
-        self.assertIn("$env:", err)
-        self.assertIn("setx ", err)
-        self.assertIn(".env", err)
-        self.assertEqual(out, "")
-        for s in SECRETS:
-            self.assertNotIn(s, out + err)
-
-    def test_gitlab_nothing_set(self):
-        code, out, err = Run(self)("report", "--target", "gitlab", "--project", "g/p", "--all")
-        self.assert_not_configured(code, out, err, ["GITLAB_URL", "GITLAB_TOKEN"])
-        self.assertIn("read_api", err)
-        self.assertNotIn("PLANE_", err)
-
-    def test_plane_nothing_set(self):
-        code, out, err = Run(self)("periods", "--target", "plane", "--project", "DEMO")
-        self.assert_not_configured(code, out, err, ["PLANE_URL", "PLANE_WORKSPACE", "PLANE_API_KEY"])
-        self.assertNotIn("GITLAB_", err)
-
-    def test_empty_values_count_as_missing(self):
-        env = {k: "" for k in list(GITLAB_ENV) + list(PLANE_ENV)}
-        code, out, err = Run(self, env)("projects", "--target", "plane")
-        self.assert_not_configured(code, out, err, ["PLANE_URL", "PLANE_WORKSPACE", "PLANE_API_KEY"])
-
-    def test_partial_config_names_only_the_missing_and_never_the_token(self):
-        code, out, err = Run(self, {"PLANE_API_KEY": "plane-secret-456"})("projects", "--target", "plane")
-        self.assert_not_configured(code, out, err, ["PLANE_URL", "PLANE_WORKSPACE"])
-        self.assertEqual(err.splitlines()[0], "NOT CONFIGURED: missing PLANE_URL, PLANE_WORKSPACE.")
-        code, out, err = Run(self, {"GITLAB_TOKEN": "glpat-secret-123"})("projects", "--target", "gitlab")
-        self.assert_not_configured(code, out, err, ["GITLAB_URL"])
-        self.assertEqual(err.splitlines()[0], "NOT CONFIGURED: missing GITLAB_URL.")
-
     def test_options_replace_url_and_workspace(self):
         with mock.patch.object(st, "Plane", fake_source(PERIODS, ISSUES)):
             code, _, err = Run(self, {"PLANE_API_KEY": "plane-secret-456"})(
                 "projects", "--target", "plane", "--plane-url", "https://p.example.com", "--workspace", "ws")
         self.assertEqual(code, 0, err)
-
-    def test_dotenv_fills_missing_values(self):
-        dotenv = "export GITLAB_URL=https://gitlab.example.com\nGITLAB_TOKEN='glpat-secret-123'\nOTHER=x\n"
-        seen = {}
-
-        class Capture(fake_source(PERIODS, ISSUES, "milestone")):
-            def __init__(self, *args):
-                super().__init__(*args)
-                seen["args"] = args
-
-        with mock.patch.object(st, "GitLab", Capture):
-            code, out, err = Run(self)("projects", "--target", "gitlab", files={".env": dotenv})
-        self.assertEqual(code, 0, err)
-        self.assertEqual(seen["args"][:2], ("https://gitlab.example.com", "glpat-secret-123"))
-        for s in SECRETS:
-            self.assertNotIn(s, out + err)
-
-    def test_environment_wins_over_dotenv(self):
-        seen = {}
-
-        class Capture(fake_source(PERIODS, ISSUES)):
-            def __init__(self, *args):
-                super().__init__(*args)
-                seen["args"] = args
-
-        env = dict(PLANE_ENV, PLANE_WORKSPACE="from-env")
-        with mock.patch.object(st, "Plane", Capture):
-            Run(self, env)("projects", "--target", "plane", files={".env": "PLANE_WORKSPACE=from-dotenv\n"})
-        self.assertEqual(seen["args"][1], "from-env")
 
     def test_api_error_ends_with_a_message_not_a_traceback(self):
         def boom(*args, **kw):

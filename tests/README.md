@@ -34,6 +34,17 @@ vel = load("team-velocity", "velocity.py")
 
 Every `load` call executes the script again, with that skill's own copy of `hackathon_shared`, and returns a fresh module, so patches in one test module never leak into another. Patch a shared function on the script's module when the script calls it.
 
+Where a test goes:
+
+| What it tests | Where | How many times |
+|---|---|---|
+| A rule of `shared/` | `unit/shared_modules/`, with `load_shared("<module>")` | once: the copies are proven identical |
+| A security rule | `unit/security/`, on the `REFERENCE` script | once |
+| That a skill uses the shared code | `WiringTest` in `unit/security/` | every script, automatically |
+| A rule of one skill | `unit/<skill_name>/` | there |
+
+Do not copy a test of shared code into a skill's folder. End-to-end runs against the Plane mock pass `--rate 6000`, or they wait for a rate limit the mock does not have.
+
 Patterns used in `team_velocity/` that other skills can copy:
 - API clients without a network: `Cls.__new__(Cls)` and set the attributes, then patch `req`/`list`/`gql` (or the module's `http`) with `unittest.mock`. Patch `module.time.sleep` when retries are involved.
 - CLI: run `module.main([...])` in a temporary working directory (no `.env`, no `.mcp.json`) under `mock.patch.dict(os.environ, {...}, clear=True)`, capture stdout/stderr, catch `SystemExit`. See `Run` in `team_velocity/test_cli.py`.
