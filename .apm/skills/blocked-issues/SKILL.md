@@ -9,7 +9,7 @@ Find the blocked issues of a project and explain, for each one, why it is blocke
 
 - **Read-only.** Never change anything in GitLab or Plane: no comments, no labels, no links, no state changes. Suggest changes in the report instead. This holds even when the user asks you to close, move, relabel or fix issues: do not write your own scripts or API calls (curl, Python, an MCP tool) to do it. Say this skill only reports, and list what the user can change by hand.
 - **Data and diagnosis come from the bundled script** `scripts/blocked.py`, so every agent gets the same result. Never invent issues, causes or dates.
-- The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly; no MCP server is needed.
+- The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly.
 
 ## 1. Target and project
 

@@ -3,12 +3,12 @@
 # Skills follow the open Agent Skills format, so APM deploys them for Claude Code
 # (.claude/skills/), GitHub Copilot and OpenCode (.agents/skills/).
 #
-# The skills need no MCP server: their bundled scripts call the GitLab and Plane
+# The skills only use the APIs: their bundled scripts call the GitLab and Plane
 # APIs directly, with GITLAB_URL / GITLAB_TOKEN and PLANE_URL / PLANE_WORKSPACE /
 # PLANE_API_KEY from the environment or the consumer's .env. When one is missing,
 # the skill says which and how to set it (Linux/macOS and Windows).
 name: hackathon-metrics
-version: 0.13.1
+version: 0.13.2
 description: GitLab and Plane project skills (populate, blocked and stale issues, assignment by area expertise, team velocity, commitment x delivered, scope stability) for Claude Code, GitHub Copilot and OpenCode
 license: MIT
 includes: auto

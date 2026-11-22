@@ -18,7 +18,7 @@ Ask your agent in plain language, for example "which issues are blocked in v1.0?
 
 How the skills stay portable:
 - **Standard format.** Each skill is a plain `SKILL.md` (`name` + `description` frontmatter, no agent-specific fields).
-- **No MCP server.** The scripts call the GitLab and Plane APIs directly, so the skills do not depend on which MCP tools an agent exposes or how it names them.
+- **APIs only.** The scripts call the GitLab and Plane APIs directly, so the skills do not depend on which tools an agent exposes or how it names them.
 - **Shared calculation.** All data access and numbers come from a bundled stdlib-only Python script (3.8+). The agent only runs it and writes the report, so every agent produces the same results.
 
 ## Token cost
@@ -123,11 +123,3 @@ Set only what your team uses (GitLab, Plane or both). Pick one way:
   Start the agent from a terminal that has the variables, or restart it after `setx`. A `.env` file needs no restart, because the scripts read it on every run.
 
 When a skill runs and something is missing, it stops and lists the missing variables, with these commands.
-
-### Why no MCP server
-
-Up to 0.8.0 the package registered the GitLab MCP server. The skills outgrew it:
-- **It could not do the job.** The GitLab MCP server has no tool to list milestones, returns an empty `LINKED_ITEMS` widget, gives no member roles, and cannot create labels or boards.
-- **The token was needed anyway.** The skills already called the API with `GITLAB_TOKEN`.
-
-You can still connect the GitLab MCP server to your agent for ad-hoc questions ("what is the status of #45?"). The skills just do not depend on it.

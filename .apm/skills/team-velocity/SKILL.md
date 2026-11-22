@@ -9,7 +9,7 @@ Measure how much the team delivers per milestone (GitLab) or cycle (Plane), and 
 
 - **Read-only.** Never change anything in GitLab or Plane. This holds even when the user asks you to close, move, relabel or fix issues: do not write your own scripts or API calls (curl, Python, an MCP tool) to do it. Say this skill only reports, and list what the user can change by hand.
 - **Data and math come from the bundled script** `scripts/velocity.py`, so every agent gets the same numbers. Never invent periods, points or dates. Do not derive new figures in your own words either (ranges, averages or totals over some sprints): quote the numbers the script printed.
-- The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly; no MCP server is needed.
+- The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly.
 
 ## 1. Target and project
 
