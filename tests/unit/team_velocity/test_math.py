@@ -5,6 +5,7 @@ import unittest
 from tests.unit._load import load
 
 vel = load("team-velocity", "velocity.py")
+UTC = dt.timezone.utc
 
 
 def issue(period="S1", points=3.0, closed=None, cancelled=False, assignees=()):
@@ -59,7 +60,7 @@ class PeriodStatsTest(unittest.TestCase):
         ]
 
     def test_points(self):
-        st = vel.period_stats(S1, self.issues(), "points", dt.date(2026, 2, 1))
+        st = vel.period_stats(S1, self.issues(), "points", dt.date(2026, 2, 1), UTC)
         self.assertEqual(st["issues"], 5)
         self.assertEqual(st["scope"], 11)
         self.assertEqual(st["velocity"], 8)
@@ -72,23 +73,23 @@ class PeriodStatsTest(unittest.TestCase):
         self.assertEqual(st["per_member"], {"a": 5.5, "b": 2.5, "(unassigned)": 0})
 
     def test_count(self):
-        st = vel.period_stats(S1, self.issues(), "count", dt.date(2026, 2, 1))
+        st = vel.period_stats(S1, self.issues(), "count", dt.date(2026, 2, 1), UTC)
         self.assertEqual((st["scope"], st["velocity"], st["late"], st["spilled"]), (5, 3, 1, 1))
         self.assertEqual(st["per_member"], {"a": 1.5, "b": 0.5, "(unassigned)": 1})
 
     def test_empty_period(self):
-        st = vel.period_stats(S1, [], "points", dt.date(2026, 2, 1))
+        st = vel.period_stats(S1, [], "points", dt.date(2026, 2, 1), UTC)
         self.assertEqual((st["issues"], st["scope"], st["velocity"]), (0, 0, 0))
         self.assertIsNone(st["completion"])
         self.assertEqual(st["per_member"], {})
 
     def test_zero_points_scope_has_no_completion(self):
-        st = vel.period_stats(S1, [issue(points=0.0, closed="2026-01-10")], "points", dt.date(2026, 2, 1))
+        st = vel.period_stats(S1, [issue(points=0.0, closed="2026-01-10")], "points", dt.date(2026, 2, 1), UTC)
         self.assertEqual(st["velocity"], 0)
         self.assertIsNone(st["completion"])
 
     def test_only_cancelled(self):
-        st = vel.period_stats(S1, [issue(cancelled=True, closed="2026-01-10")], "points", dt.date(2026, 2, 1))
+        st = vel.period_stats(S1, [issue(cancelled=True, closed="2026-01-10")], "points", dt.date(2026, 2, 1), UTC)
         self.assertEqual(st["issues"], 0)
 
 
@@ -146,7 +147,7 @@ class WeeklyTest(unittest.TestCase):
             issue(points=1.0),                                   # open
             issue(points=7.0, closed="2026-01-01T00:00:00Z"),   # older than the window
         ]
-        rows = vel.weekly(issues, "points", today, 2)
+        rows = vel.weekly(issues, "points", today, 2, UTC)
         self.assertEqual([r["start"] for r in rows], ["2026-02-02", "2026-02-09"])
         self.assertEqual([r["end"] for r in rows], ["2026-02-08", "2026-02-15"])
         self.assertEqual([r["velocity"] for r in rows], [4.0, 5.0])
@@ -155,13 +156,13 @@ class WeeklyTest(unittest.TestCase):
         self.assertTrue(all(r["weeks"] == 1.0 and r["scope"] is None for r in rows))
 
     def test_on_a_monday_the_current_week_is_excluded(self):
-        rows = vel.weekly([issue(closed="2026-02-16T08:00:00Z")], "count", dt.date(2026, 2, 16), 1)
+        rows = vel.weekly([issue(closed="2026-02-16T08:00:00Z")], "count", dt.date(2026, 2, 16), 1, UTC)
         self.assertEqual(rows[0]["start"], "2026-02-09")
         self.assertEqual(rows[0]["velocity"], 0)
 
     def test_empty_and_zero_weeks(self):
-        self.assertEqual(len(vel.weekly([], "count", dt.date(2026, 2, 18), 3)), 3)
-        self.assertEqual(vel.weekly([], "count", dt.date(2026, 2, 18), 0), [])
+        self.assertEqual(len(vel.weekly([], "count", dt.date(2026, 2, 18), 3, UTC)), 3)
+        self.assertEqual(vel.weekly([], "count", dt.date(2026, 2, 18), 0, UTC), [])
 
 
 class FormatTest(unittest.TestCase):

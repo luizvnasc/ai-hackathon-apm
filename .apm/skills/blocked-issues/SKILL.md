@@ -64,7 +64,7 @@ python3 <skill-dir>/scripts/blocked.py periods --target <gitlab|plane> --project
 
 ```bash
 python3 <skill-dir>/scripts/blocked.py report --target <gitlab|plane> --project "<project>" \
-  (--period "<milestone title | cycle name>" | --all) [--stale-days 30] [--today YYYY-MM-DD] [--deep]
+  (--period "<milestone title | cycle name>" | --all) [--stale-days 30] [--today YYYY-MM-DD] [--timezone -03:00] [--deep]
 ```
 
 - **Blocked** means open and either marked blocked (a `workflow::blocked`-style label or a Blocked / On hold state) or blocked by an open issue through a link or relation.
@@ -72,6 +72,7 @@ python3 <skill-dir>/scripts/blocked.py report --target <gitlab|plane> --project 
   - Plane finds them only with `--deep`, which reads the relations of every open issue (one request per issue; the API key allows 60 per minute). Add `--deep` when the user wants hidden dependencies too.
 - **Stale issues are left out.** An issue is stale when it has a `stale` label or state, or when nothing changed on it for more than `--stale-days` days (default 30). They are listed at the end of the report, not analyzed. Use the user's threshold if they give one. `--stale-days 0` turns the time rule off.
 - Add `--format json` when you need the raw fields.
+- **Days:** start, end and today are days of the project: Plane uses the project's timezone, GitLab the offset the instance writes in its times (UTC on gitlab.com). Pass `--timezone` (`-03:00` or `America/Sao_Paulo`) only when the user gives one. Relay any note that days are in UTC.
 - Plane paces itself to the rate limit: expect about 3–4 seconds per blocked issue.
 - On an API error the script stops with the response. Report it and stop. Do not try other project names.
 

@@ -29,11 +29,6 @@ def period(name, start, end, status="finished", closed=False):
 S1 = period("S1", "2026-01-05", "2026-01-18")
 
 
-class DatesTest(unittest.TestCase):
-    def test_end_of_day(self):
-        self.assertEqual(cd.end_of(dt.date(2026, 1, 5)), dt.datetime(2026, 1, 5, 23, 59, 59, tzinfo=UTC))
-
-
 class PeriodAtTest(unittest.TestCase):
     def test_before_creation_is_nowhere(self):
         it = issue("a", "S1", created="2026-01-10T00:00:00Z")
@@ -95,17 +90,18 @@ class UnitTest(unittest.TestCase):
 
 
 class DeliveredTest(unittest.TestCase):
-    END = cd.end_of(dt.date(2026, 1, 18))
+    END = cd.end_of_day(dt.date(2026, 1, 18), UTC)
 
     def test_closed_in_the_period_by_the_end(self):
         self.assertTrue(cd.delivered(issue("a", "S1", closed="2026-01-18T23:59:59Z"), "S1", self.END))
         self.assertFalse(cd.delivered(issue("a", "S1", closed="2026-01-19T00:00:00Z"), "S1", self.END))
         self.assertFalse(cd.delivered(issue("a", "S1"), "S1", self.END))
 
-    def test_time_zone_offset_moves_a_late_evening_close_past_the_end(self):
-        # 23:30 at UTC-3 on the end day is 02:30 UTC the next day.
-        self.assertFalse(cd.delivered(issue("a", "S1", closed="2026-01-18T23:30:00-03:00"), "S1", self.END))
-        self.assertTrue(cd.delivered(issue("a", "S1", closed="2026-01-18T23:30:00+03:00"), "S1", self.END))
+    def test_late_evening_of_the_last_day_is_delivered(self):
+        # 23:30 at UTC-3 is 02:30 UTC of the next day: it counts, because the day is the project's
+        end = cd.end_of_day(dt.date(2026, 1, 18), dt.timezone(dt.timedelta(hours=-3)))
+        self.assertTrue(cd.delivered(issue("a", "S1", closed="2026-01-18T23:30:00-03:00"), "S1", end))
+        self.assertFalse(cd.delivered(issue("a", "S1", closed="2026-01-19T00:00:00-03:00"), "S1", end))
 
     def test_cancelled_is_never_delivered(self):
         self.assertFalse(cd.delivered(issue("a", "S1", closed="2026-01-10T00:00:00Z", cancelled=True), "S1", self.END))
@@ -145,7 +141,7 @@ class ClassifyTest(unittest.TestCase):
         return {k: sorted(i["key"] for i in v) for k, v in rows.items()}
 
     def test_groups(self):
-        rows = self.keys(cd.classify(S1, self.issues(), 0, self.TODAY))
+        rows = self.keys(cd.classify(S1, self.issues(), 0, self.TODAY, UTC))
         self.assertEqual(rows["committed"], ["cx", "cx-late", "done", "dropped", "late", "moved", "open"])
         self.assertEqual(rows["delivered"], ["done"])
         self.assertEqual(rows["cancelled"], ["cx"])
@@ -155,19 +151,19 @@ class ClassifyTest(unittest.TestCase):
         self.assertEqual(rows["added_done"], ["new", "pulled-in"])
 
     def test_grace_days_move_the_cutoff(self):
-        rows = self.keys(cd.classify(S1, self.issues(), 3, self.TODAY))  # cutoff: end of 2026-01-08
+        rows = self.keys(cd.classify(S1, self.issues(), 3, self.TODAY, UTC))  # cutoff: end of 2026-01-08
         self.assertIn("new", rows["committed"])
         self.assertIn("pulled-in", rows["committed"])
         self.assertEqual(rows["added"], ["new-open"])  # created 01-09, after the cutoff
         self.assertIn("dropped", rows["committed"])  # still in S1 on 01-08, removed 01-10
         self.assertIn("dropped", rows["removed"])
-        rows = self.keys(cd.classify(S1, self.issues(), 5, self.TODAY))  # cutoff: end of 2026-01-10
+        rows = self.keys(cd.classify(S1, self.issues(), 5, self.TODAY, UTC))  # cutoff: end of 2026-01-10
         self.assertNotIn("dropped", rows["committed"])
         self.assertNotIn("moved", rows["committed"])
 
     def test_current_period_stops_today(self):
         cur = period("S1", "2026-01-05", "2026-01-18", status="current")
-        rows = self.keys(cd.classify(cur, self.issues(), 0, dt.date(2026, 1, 12)))
+        rows = self.keys(cd.classify(cur, self.issues(), 0, dt.date(2026, 1, 12), UTC))
         self.assertEqual(rows["delivered"], ["done"])
         self.assertEqual(rows["cancelled"], ["cx"])
         self.assertEqual(rows["added_done"], [])  # "new" closes on 01-15, after today
@@ -175,7 +171,7 @@ class ClassifyTest(unittest.TestCase):
         self.assertNotIn("pulled-in", rows["added_done"])
 
     def test_empty_input(self):
-        rows = cd.classify(S1, [], 0, self.TODAY)
+        rows = cd.classify(S1, [], 0, self.TODAY, UTC)
         self.assertTrue(all(v == [] for v in rows.values()))
 
 

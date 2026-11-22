@@ -225,7 +225,7 @@ class PlaneReportTest(unittest.TestCase):
         out, _ = self.run_cli("report", "--target", "plane", "--project", "DEMO", "--today", "2026-03-01",
                               "--period", "Cycle 2")
         self.assertIn("# Blocked issues — Demo (DEMO)", out)
-        self.assertIn("Scope: **Cycle 2** · today 2026-03-01", out)
+        self.assertIn("Scope: **Cycle 2** · days in UTC · today 2026-03-01", out)
         self.assertIn("**2 blocked issue(s)**, 1 stale left out.", out)
         self.assertIn("- **External references:** OPS-9", out)
         self.assertIn("### Stale, left out", out)

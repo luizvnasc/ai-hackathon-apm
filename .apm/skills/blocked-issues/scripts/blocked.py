@@ -46,7 +46,8 @@ import urllib.request
 sys.dont_write_bytecode = True  # never write into an installed skill
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))  # python3 -I leaves it out
 from hackathon_shared.config import load_dotenv, require_config  # noqa: E402
-from hackathon_shared.dates import parse_dt  # noqa: E402
+from hackathon_shared.dates import age_reference, day_of, parse_dt, to_date  # noqa: E402
+from hackathon_shared.days import timezone_arg  # noqa: E402
 from hackathon_shared.gitlab import GitLabClient  # noqa: E402
 from hackathon_shared.labels import BLOCKED_VALUES, STALE_VALUES, label_value  # noqa: E402
 from hackathon_shared.net import ApiError  # noqa: E402
@@ -241,12 +242,13 @@ class GitLab(GitLabClient):
 
     # --- scope
     def periods(self):
-        q = """query($p: ID!) { project(fullPath: $p) { name webUrl
+        q = """query($p: ID!) { project(fullPath: $p) { name webUrl lastActivityAt
                  milestones(state: active, includeAncestors: true, first: 100) {
                    nodes { title startDate dueDate webPath } } } }"""
         proj = self.graphql(q, {"p": self.project})["project"]
         if not proj:
             sys.exit(f"GitLab project {self.project!r} not found (or the token cannot read it)")
+        self.learn_times(proj.get("lastActivityAt"))
         items = self.load(None)
         out = []
         for m in proj["milestones"]["nodes"]:
@@ -268,6 +270,7 @@ class GitLab(GitLabClient):
                 sys.exit(f"GitLab project {self.project!r} not found (or the token cannot read it)")
             page = proj["workItems"]
             for n in page["nodes"]:
+                self.learn_times(n.get("createdAt"), n.get("updatedAt"), n.get("closedAt"))
                 item = self.to_item(n)
                 self.items[item["key"]] = item
                 self.by_gid[item["gid"]] = item["key"]
@@ -409,9 +412,9 @@ class Plane(PlaneClient):
     def open_cycles(self, today):
         out = []
         for c in self.list(f"/projects/{self.pid}/cycles/"):
-            end = parse_dt(c.get("end_date"))
+            end = to_date(self.local_day(c.get("end_date")))
             status = (c.get("status") or "").lower()
-            if c.get("archived_at") or status == "completed" or (end and end.date() < today):
+            if c.get("archived_at") or status == "completed" or (end and end < today):
                 continue
             out.append(c)
         return sorted(out, key=lambda c: c.get("start_date") or "")
@@ -422,8 +425,8 @@ class Plane(PlaneClient):
             items = [self.to_item(r) for r in self.list(f"/projects/{self.pid}/cycles/{c['id']}/cycle-issues/",
                                                        {"expand": "state,labels,assignees"})]
             items = [i for i in items if i["open"]]
-            out.append({"name": c["name"], "id": c["id"], "start": (c.get("start_date") or "")[:10] or None,
-                        "end": (c.get("end_date") or "")[:10] or None, "open_issues": len(items),
+            out.append({"name": c["name"], "id": c["id"], "start": self.local_day(c.get("start_date")),
+                        "end": self.local_day(c.get("end_date")), "open_issues": len(items),
                         "blocked_label": sum(self.marked_blocked(i) for i in items)})
         allitems = [i for i in self.load(None) if i["open"]]
         return {"project": self.project, "url": f"{self.url}/{self.ws}/projects/{self.pid}/issues", "kind": "cycle",
@@ -547,6 +550,12 @@ def summarize_other(src, key, today_dt):
             "stale": any(is_stale_name(l) for l in o["labels"]) or is_stale_name(o["status"])}
 
 
+def with_day(comment, zone):
+    """The comment with the project's day it was written on."""
+    day = day_of(parse_dt(comment["created"]), zone).isoformat()
+    return {**comment, "day": day}
+
+
 def analyze(src, it, today_dt, stale_days, marked):
     if hasattr(src, "resolve_links"):
         src.resolve_links(it)
@@ -637,12 +646,12 @@ def analyze(src, it, today_dt, stale_days, marked):
     return {
         "key": it["key"], "title": it["title"], "url": it["url"], "status": it["status"],
         "marked_blocked": marked, "assignees": it["assignees"], "priority": it["priority"], "period": it["period"],
-        "blocked_since": since.date().isoformat() if since else None, "blocked_since_source": source,
+        "blocked_since": day_of(since, src.tz).isoformat() if since else None, "blocked_since_source": source,
         "blocked_days": age_days(since, today_dt), "idle_days": age_days(parse_dt(it["updated"]), today_dt),
         "parent": parent, "children": children, "blocked_by": blockers, "blocks": by_type.get("blocks", []),
         "related": by_type.get("relates_to", []) + by_type.get("duplicate", []),
-        "block_comments": block_comments[-3:], "reason_in_description": reason_in_description,
-        "last_comment": it["comments"][-1] if it["comments"] else None, "comment_count": len(it["comments"]),
+        "block_comments": [with_day(c, src.tz) for c in block_comments[-3:]], "reason_in_description": reason_in_description,
+        "last_comment": with_day(it["comments"][-1], src.tz) if it["comments"] else None, "comment_count": len(it["comments"]),
         "mentioned_not_linked": mentioned, "external_refs": external,
         "causes": causes, "next_steps": steps,
     }
@@ -660,7 +669,7 @@ def ref_md(o):
 
 def render_md(res):
     out = [f"# Blocked issues — {res['project']}", "",
-           f"Scope: **{res['scope']}** · today {res['today']} · stale = no activity for more than "
+           f"Scope: **{res['scope']}** · days in {res['timezone']} · today {res['today']} · stale = no activity for more than "
            f"{res['stale_days']:g} days or a stale label/state", ""]
     rows = res["issues"]
     out.append(f"**{len(rows)} blocked issue(s)**, {len(res['stale_excluded'])} stale left out.")
@@ -701,7 +710,7 @@ def render_md(res):
             out.append("- **Linked issues:** none")
         if r["block_comments"]:
             out.append("- **Comments about the block:**" + "".join(
-                f"\n  - {c['created'][:10]} {('@' + c['author']) if c.get('author') else ''}: “{one_line(c['body'])}”"
+                f"\n  - {c['day']} {('@' + c['author']) if c.get('author') else ''}: “{one_line(c['body'])}”"
                 for c in r["block_comments"]))
         elif r["reason_in_description"]:
             out.append(f"- **Description says:** “{one_line(r['reason_in_description'])}”")
@@ -710,7 +719,7 @@ def render_md(res):
         if r["last_comment"] and r["last_comment"] not in r["block_comments"]:
             c = r["last_comment"]
             who = f" @{c['author']}" if c.get("author") else ""
-            out.append(f"- **Last comment:** {c['created'][:10]}{who}: “{one_line(c['body'], 160)}”")
+            out.append(f"- **Last comment:** {c['day']}{who}: “{one_line(c['body'], 160)}”")
         if r["mentioned_not_linked"]:
             out.append("- **Mentioned, not linked:**" + "".join(f"\n  - {ref_md(m)}" for m in r["mentioned_not_linked"]))
         if r["external_refs"]:
@@ -762,6 +771,7 @@ def main(argv=None):
     scope.add_argument("--all", action="store_true", help="the whole project")
     ap.add_argument("--deep", action="store_true",
                     help="Plane: also read the relations of every open issue, to find issues blocked only by a relation")
+    ap.add_argument("--timezone", type=timezone_arg, help="IANA name or +HH:MM: where a day begins and ends")
     ap.add_argument("--today", help="YYYY-MM-DD (default: today)")
     ap.add_argument("--stale-days", type=float, default=30, help="idle days after which an issue is stale (0: off)")
     ap.add_argument("--format", choices=["md", "json"], default="md")
@@ -773,8 +783,7 @@ def main(argv=None):
     require_config(gitlab=a.target == "gitlab", plane=a.target == "plane", gitlab_url=a.gitlab_url,
                    plane_url=a.plane_url, workspace=a.workspace, scope="read_api")
 
-    today = dt.date.fromisoformat(a.today) if a.today else dt.date.today()
-    today_dt = dt.datetime.combine(today, dt.time(23, 59), tzinfo=dt.timezone.utc)
+    chosen_today = dt.date.fromisoformat(a.today) if a.today else None
     try:
         if a.command != "projects" and not a.project:
             sys.exit(f"{a.command} needs --project (run `projects` to list yours)")
@@ -788,8 +797,10 @@ def main(argv=None):
             print(json.dumps(rows, indent=2) if a.format == "json" else render_projects_md(a.target, rows))
             return
 
+        src.set_days(a.timezone, chosen_today)
+        src.warn_about_days()
         if a.command == "periods":
-            p = src.periods() if a.target == "gitlab" else src.periods(today)
+            p = src.periods() if a.target == "gitlab" else src.periods(src.today())
             print(json.dumps(p, indent=2) if a.format == "json" else render_periods_md(p))
             return
 
@@ -798,6 +809,8 @@ def main(argv=None):
         items = src.load(a.period)
         if a.target == "gitlab" and not items and a.period:
             print(f"warning: no open issues in milestone {a.period!r}", file=sys.stderr)
+        today = src.today()
+        today_dt = age_reference(today, src.tz)
         marked, link_only, stale = find_blocked(src, items, a.deep, today_dt, a.stale_days, a.target)
         issues = [analyze(src, it, today_dt, a.stale_days, True) for it in marked] + \
                  [analyze(src, it, today_dt, a.stale_days, False) for it in link_only]
@@ -806,7 +819,7 @@ def main(argv=None):
         sys.exit(f"API error: {e}")
 
     res = {"target": a.target, "project": getattr(src, "project", a.project),
-           "scope": a.period or "whole project", "today": today.isoformat(), "stale_days": a.stale_days,
+           "scope": a.period or "whole project", "today": today.isoformat(), "timezone": str(src.tz), "stale_days": a.stale_days,
            "issues": issues, "stale_excluded": stale}
     print(json.dumps(res, indent=2, default=str) if a.format == "json" else render_md(res))
 

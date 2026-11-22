@@ -13,7 +13,7 @@ ROOT = pathlib.Path(__file__).resolve().parents[3]
 SCRIPTS = sorted((ROOT / ".apm" / "skills").glob("*/scripts/*.py"))
 # Names of shared/ that a script still defines in its own way, because it behaves differently.
 # Remove the entry together with the variant.
-VARIANTS = {"assign": {"estimate"}, "stale": {"estimate"}, "stability": {"parse_dt"}}
+VARIANTS = {"assign": {"estimate"}, "stale": {"estimate"}}
 
 
 def defined_names(path):

@@ -68,7 +68,7 @@ Use `python3` (or `python`). `<skill-dir>` is the directory of this `SKILL.md`.
 
 ```bash
 python3 <skill-dir>/scripts/assign.py <scores|suggest-member|suggest-issue> --target <t> --project "<p>" \
-  [--issue K] [--member X] [--period "<name>" | --all] [--roles developer] [--half-life 180] [--format json]
+  [--issue K] [--member X] [--period "<name>" | --all] [--roles developer] [--half-life 180] [--timezone -03:00] [--format json]
 ```
 
 - **Developers:**
@@ -80,6 +80,7 @@ python3 <skill-dir>/scripts/assign.py <scores|suggest-member|suggest-issue> --ta
   - `suggest-issue --include-assigned` also ranks issues already assigned to others.
   - `--limit N` changes the number of rows (default 10).
 - On an API error the script stops with the response. Report it and stop.
+- **Days:** start, end and today are days of the project: Plane uses the project's timezone, GitLab the offset the instance writes in its times (UTC on gitlab.com). Pass `--timezone` (`-03:00` or `America/Sao_Paulo`) only when the user gives one. Relay any note that days are in UTC.
 
 ### How the scores work (explain briefly when you report)
 

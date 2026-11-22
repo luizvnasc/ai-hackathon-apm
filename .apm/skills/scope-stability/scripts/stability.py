@@ -26,8 +26,8 @@ Definitions (delivery plays no part):
   * Cancelled counts once; removing that issue afterwards adds nothing.
   * Re-estimated: the difference between two values. A first estimate is not a
     change. When counting issues it is listed but not summed.
-  * Days: Plane project timezone; GitLab: the UTC offset of the instance's
-    events. --timezone overrides both.
+  * Days, today included: Plane project timezone; GitLab: the offset the
+    instance writes in its times. --timezone overrides both.
 """
 import argparse
 import datetime as dt
@@ -45,7 +45,8 @@ import urllib.request
 sys.dont_write_bytecode = True  # never write into an installed skill
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))  # python3 -I leaves it out
 from hackathon_shared.config import load_dotenv, require_config  # noqa: E402
-from hackathon_shared.dates import UTC  # noqa: E402
+from hackathon_shared.dates import UTC, day_of, parse_dt  # noqa: E402
+from hackathon_shared.days import timezone_arg  # noqa: E402
 from hackathon_shared.gitlab import GitLabClient  # noqa: E402
 from hackathon_shared.labels import has_cancelled_label, label_points, number  # noqa: E402
 from hackathon_shared.net import ApiError  # noqa: E402
@@ -92,36 +93,6 @@ def fetch(method, url, headers, body=None):
 
 
 # ------------------------------------------------------------------ values
-def parse_dt(value):
-    if not value:
-        return None
-    s = str(value).replace("Z", "+00:00")
-    if len(s) == 10:
-        s += "T00:00:00+00:00"
-    s = re.sub(r"(\.\d+)", lambda m: (m.group(1) + "000000")[:7], s, count=1) if "." in s else s
-    d = dt.datetime.fromisoformat(s)
-    return d if d.tzinfo else d.replace(tzinfo=UTC)
-
-
-def parse_timezone(value):
-    """An IANA name or +HH:MM / -HH:MM."""
-    m = re.fullmatch(r"([+-])(\d\d):(\d\d)", value)
-    if m and int(m.group(2)) <= 14 and int(m.group(3)) < 60:
-        delta = dt.timedelta(hours=int(m.group(2)), minutes=int(m.group(3)))
-        return dt.timezone(-delta if m.group(1) == "-" else delta)
-    if value.upper() in ("UTC", "Z"):
-        return UTC
-    try:
-        from zoneinfo import ZoneInfo  # Python 3.9+, and the system needs a timezone database
-        return ZoneInfo(value)
-    except (ImportError, KeyError, ValueError, OSError):
-        raise ValueError(f"unknown timezone {value!r}: use +HH:MM or -HH:MM") from None
-
-
-def day_of(when, tz):
-    return when.astimezone(tz).date()
-
-
 def new_issue(**kw):
     """`initial` is the period (id) the issue was created in and `moves` its history [(when, period id or None)];
     `points_initial` and `estimates` do the same for its size."""
@@ -167,15 +138,11 @@ def replay(events):
 
 # ------------------------------------------------------------------ GitLab
 class GitLab(GitLabClient):
-    def __init__(self, url, token, project):
-        super().__init__(url, token, project)
-        self.tz, self.tz_known, self.tz_note = UTC, False, None
-
     def send(self, method, url, body=None):
         return fetch(method, url, self.headers, body)
 
     def periods(self):
-        q = """query($p: ID!, $after: String) { project(fullPath: $p) { name
+        q = """query($p: ID!, $after: String) { project(fullPath: $p) { name lastActivityAt
                  milestones(includeAncestors: true, first: 100, after: $after) {
                    pageInfo { hasNextPage endCursor } nodes { id title state startDate dueDate } } } }"""
         self._periods, after = [], None
@@ -184,6 +151,7 @@ class GitLab(GitLabClient):
             if not proj:
                 sys.exit(f"GitLab project {self.project!r} not found (or the token cannot read it)")
             self.name = proj["name"]
+            self.learn_times(proj.get("lastActivityAt"))
             page = proj["milestones"]
             for m in page["nodes"]:
                 self._periods.append({"id": str(m["id"]).rsplit("/", 1)[-1] if m.get("id") else m["title"],
@@ -217,11 +185,6 @@ class GitLab(GitLabClient):
                 rows.append((parse_dt(e["created_at"]), e["action"], value))
         return replay(sorted(rows, key=lambda r: r[0]))
 
-    def note_offset(self, events):
-        if not self.tz_known and events:
-            self.tz = dt.timezone(parse_dt(events[0]["created_at"]).utcoffset())
-            self.tz_known = True
-
     def issues(self, since):
         q = """query($p: ID!, $after: String) { project(fullPath: $p) {
                  workItems(types: [ISSUE, TASK, INCIDENT], first: 100, after: $after) {
@@ -239,6 +202,7 @@ class GitLab(GitLabClient):
         base = f"/projects/{urllib.parse.quote(self.project, safe='')}/issues"
         out = []
         for n in nodes:
+            self.learn_times(n.get("createdAt"), n.get("updatedAt"), n.get("closedAt"))
             w = {x.get("type"): x for x in n.get("widgets") or []}
             labels = [l["title"] for l in ((w.get("LABELS") or {}).get("labels") or {}).get("nodes", [])]
             milestone = (w.get("MILESTONE") or {}).get("milestone")
@@ -252,7 +216,6 @@ class GitLab(GitLabClient):
             if parse_dt(n["updatedAt"]) >= since:
                 path = f"{base}/{n['iid']}"
                 events = self.rest_pages(path + "/resource_milestone_events")
-                self.note_offset(events)
                 if events:
                     it["initial"], it["moves"] = self.moves(events)
                     check_final(it)
@@ -269,17 +232,7 @@ class GitLab(GitLabClient):
 class Plane(PlaneClient):
     def __init__(self, url, workspace, api_key, project, rate_per_min=60):
         super().__init__(url, workspace, api_key, rate_per_min)
-        self.tz, self.tz_note = UTC, None
-        row = self.select_project(project)
-        if row and row.get("timezone"):
-            self.use_timezone(row["timezone"])
-
-    def use_timezone(self, name):
-        try:
-            self.tz = parse_timezone(name)
-        except ValueError:
-            self.tz_note = (f"The project's timezone {name} is not available on this machine: days are "
-                            "in UTC. Pass --timezone +HH:MM or -HH:MM.")
+        self.select_project(project)
 
     def send(self, method, url, body=None):
         return fetch(method, url, self.headers, body)
@@ -288,11 +241,6 @@ class Plane(PlaneClient):
         # Until the copies agree: here the retries are in fetch(), which does not pace each attempt
         self.pace()
         return self.send("GET", self.api_url(path, params))[0]
-
-    def local_day(self, value):
-        if not value:
-            return None
-        return value if len(value) == 10 else day_of(parse_dt(value), self.tz).isoformat()
 
     def periods(self):
         self._periods = [{"id": c["id"], "name": c["name"], "start": self.local_day(c.get("start_date")),
@@ -631,13 +579,6 @@ def at_least(low):
     return check
 
 
-def timezone_arg(value):
-    try:
-        return parse_timezone(value)
-    except ValueError as e:
-        raise argparse.ArgumentTypeError(str(e)) from None
-
-
 def date_arg(value):
     try:
         return dt.date.fromisoformat(value)
@@ -669,13 +610,11 @@ def main(argv=None):
     if a.command != "projects" and not a.project:
         sys.exit(f"{a.command} needs --project (run `projects` to list yours)")
 
-    today = a.today or dt.date.today()
     try:
         src = (GitLab(a.gitlab_url, os.environ["GITLAB_TOKEN"], (a.project or "").strip("/") or None)
                if a.target == "gitlab" else
                Plane(a.plane_url, a.workspace, os.environ["PLANE_API_KEY"], a.project, a.rate))
-        if a.timezone:
-            src.tz, src.tz_known, src.tz_note = a.timezone, True, None
+        src.set_days(a.timezone, a.today)
         if a.command == "projects":
             rows = src.my_projects()
             if a.format == "json":
@@ -684,8 +623,11 @@ def main(argv=None):
                                     md_table(["#", "Project", "Name"],
                                              [[n, f"[{r['path']}]({r['url']})", cell(r["name"])]
                                               for n, r in enumerate(rows, 1)])]))
-        periods = mark_status(src.periods(), today)
+        periods = src.periods()
+        today = src.today()
+        periods = mark_status(periods, today)
         if a.command == "periods":
+            src.warn_about_days()
             res = {"project": src.name, "kind": src.kind, "periods": periods}
             return print(json.dumps(res, indent=2) if a.format == "json" else render_periods(res))
         chosen = select(periods, a)[0]

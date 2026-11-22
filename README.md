@@ -79,7 +79,8 @@ APM installs each skill folder by itself, so code used by several skills is gene
 | `net` | `ApiError`, the redirect guard, the workspace as one path segment |
 | `gitlab` | `GitLabClient`: GraphQL, REST, pages, the user's projects |
 | `plane` | `PlaneClient`: rate limit, retries, pages, projects, estimates |
-| `dates` | parse dates and times |
+| `dates` | parse dates and times, the limits of a day in a timezone |
+| `days` | the project's timezone and today, `--timezone` |
 | `labels` | `scope::value`, points, cancelled, blocked and stale |
 | `report` | Markdown tables |
 | `stats` | trend |

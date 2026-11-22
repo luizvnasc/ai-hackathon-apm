@@ -57,10 +57,11 @@ python3 <skill-dir>/scripts/stale.py periods --target <gitlab|plane> --project "
 
 ```bash
 python3 <skill-dir>/scripts/stale.py report --target <t> --project "<p>" \
-  (--period "<milestone title | cycle name>" | --all) [--stale-days 14] [--today YYYY-MM-DD] [--format json]
+  (--period "<milestone title | cycle name>" | --all) [--stale-days 14] [--today YYYY-MM-DD] [--timezone -03:00] [--format json]
 ```
 
 - **Threshold:** `--stale-days` (default 14). Use the user's number if they give one ("parado há mais de uma semana" → 7).
+- **Days:** start, end and today are days of the project: Plane uses the project's timezone, GitLab the offset the instance writes in its times (UTC on gitlab.com). Pass `--timezone` (`-03:00` or `America/Sao_Paulo`) only when the user gives one. Relay any note that days are in UTC.
 - On an API error the script stops with the response. Report it and stop.
 
 ### Definitions (explain briefly when you report)

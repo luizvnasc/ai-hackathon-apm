@@ -67,7 +67,7 @@ ISSUES = [
 
 
 def fake_source(periods, issues, kind="cycle"):
-    class Fake:
+    class Fake(st.PlaneClient):
         calls = []
 
         def __init__(self, *args):
@@ -220,7 +220,7 @@ class ReportTest(unittest.TestCase):
     def test_markdown_report(self):
         out, _ = self.run_cli("report", "--period", "Sprint 5")
         self.assertIn("# Stale issues — Demo (DEMO)", out)
-        self.assertIn("cycle **Sprint 5** (2026-03-01 → 2026-03-14) · today 2026-03-10", out)
+        self.assertIn("cycle **Sprint 5** (2026-03-01 → 2026-03-14) · days in UTC · today 2026-03-10", out)
         self.assertIn("**3 of 5 open issue(s) are stale**: 8 points (42% of the open points).", out)
         self.assertIn("| [#1](https://example.com/#1) | Title #1 | stalled |", out)
         self.assertIn("| @dev-a | 2 |", out)

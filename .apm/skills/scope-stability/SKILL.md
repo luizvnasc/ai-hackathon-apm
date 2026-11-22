@@ -58,7 +58,7 @@ python3 <skill-dir>/scripts/stability.py report --target <t> --project "<p>" \
   - `auto` uses points when every issue involved has them. Otherwise it counts issues, and re-estimates are listed but not summed.
   - Points come from the `points::N` label in GitLab. In Plane they come from the issue's **estimate**, never from labels.
   - `--unit points` counts unpointed work as 0.
-- **Days:** Plane uses the project's timezone, GitLab the UTC offset of its events (UTC on gitlab.com). Pass `--timezone` only when the user gives one.
+- **Days:** start, end and today are days of the project: Plane uses the project's timezone, GitLab the offset the instance writes in its times (UTC on gitlab.com). Pass `--timezone` (`-03:00` or `America/Sao_Paulo`) only when the user gives one. Relay any note that days are in UTC.
 - **Time:** GitLab reads two histories per issue updated since the first analyzed period began. Plane reads one, at about 1 s per issue (60 requests per minute). Tell the user when the project is large.
 - On an API error the script stops with the response. Report it and stop.
 

@@ -45,7 +45,7 @@ Use `python3` (or `python`). `<skill-dir>` is the directory of this `SKILL.md`.
 
 ```bash
 python3 <skill-dir>/scripts/velocity.py report --target <t> --project "<p>" \
-  [--last 6] [--unit auto|points|count] [--by period|week] [--weeks 8] [--format json]
+  [--last 6] [--unit auto|points|count] [--by period|week] [--weeks 8] [--timezone -03:00] [--format json]
 ```
 
 - `periods` lists the milestones/cycles with their status: finished, current or upcoming. Use it when the user asks about specific ones.
@@ -55,6 +55,7 @@ python3 <skill-dir>/scripts/velocity.py report --target <t> --project "<p>" \
   - Points come from the `points::N` label in GitLab. In Plane they come from the issue's **estimate** (Project settings → Estimates, a numeric scale), never from labels: an issue without a numeric estimate has no points.
   - `--unit points` counts only pointed work.
 - **No finished milestones or cycles, or the user asks per week:** `--by week` gives weekly throughput over the last `--weeks` full weeks. The script also falls back to it on its own.
+- **Days:** start, end and today are days of the project: Plane uses the project's timezone, GitLab the offset the instance writes in its times (UTC on gitlab.com). Pass `--timezone` (`-03:00` or `America/Sao_Paulo`) only when the user gives one. Relay any note that days are in UTC.
 - On an API error the script stops with the response. Report it and stop.
 
 ### Definitions (explain briefly when you report)
