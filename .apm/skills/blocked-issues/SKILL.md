@@ -7,7 +7,7 @@ description: Report on the blocked issues of a GitLab or Plane project, for one 
 
 Find the blocked issues of a project and explain, for each one, why it is blocked and what unblocks it.
 
-- **Read-only.** Never change anything in GitLab or Plane: no comments, no labels, no links, no state changes. Suggest changes in the report instead.
+- **Read-only.** Never change anything in GitLab or Plane: no comments, no labels, no links, no state changes. Suggest changes in the report instead. This holds even when the user asks you to close, move, relabel or fix issues: do not write your own scripts or API calls (curl, Python, an MCP tool) to do it. Say this skill only reports, and list what the user can change by hand.
 - **Data and diagnosis come from the bundled script** `scripts/blocked.py`, so every agent gets the same result. Never invent issues, causes or dates.
 - The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly; no MCP server is needed.
 
@@ -33,7 +33,7 @@ Take both from the user's words. Never guess them.
 
 ## 2. Credentials
 
-The script reads these variables from the environment or, when one is not set there, from a `.env` file in the project root (the environment wins). **If any is missing, the script stops with a `NOT CONFIGURED` message** that lists the missing variables and how to set them on Linux/macOS, Windows PowerShell and cmd, or in `.env`. Show that message to the user as it is, then stop and wait: do not try other values. A URL or workspace the user gives in the chat can be passed as an option instead. Never ask for a token's value in the chat and never print one.
+The script reads these variables from the environment or, when one is not set there, from a `.env` file in the project root (the environment wins). **If any is missing, the script stops with a `NOT CONFIGURED` message** that lists the missing variables and how to set them on Linux/macOS, Windows PowerShell and cmd, or in `.env`. Show that message to the user as it is, then stop and wait: do not try other values, and do not add how long the report would take or what `--deep` costs (nothing ran). A URL or workspace the user gives in the chat can be passed as an option instead. Never ask for a token's value in the chat and never print one.
 
 | Target | Input | Source |
 |---|---|---|
@@ -57,7 +57,7 @@ python3 <skill-dir>/scripts/blocked.py periods --target <gitlab|plane> --project
 
 - GitLab lists the active milestones, including group milestones. Plane lists the cycles that are not completed or archived and whose end date has not passed, so current and upcoming cycles appear.
 - The table shows open issues and issues marked blocked per milestone or cycle, plus a last row for the **whole project**.
-- Show the table and ask: **"Which milestone/cycle should I check, or the whole project?"** Wait for the answer. Do not pick one for the user, not even when only one exists.
+- Show the table and ask: **"Which milestone/cycle should I check, or the whole project?"** Then end your turn and wait for the answer: do not run the report (not even `--all`) until the user picks. Do not pick one for the user, not even when only one exists.
 - With no open milestone or cycle, say so and offer the whole project.
 
 ## 4. Run the report

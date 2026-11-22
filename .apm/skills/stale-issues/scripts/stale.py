@@ -54,11 +54,17 @@ def http(method, url, headers, body=None):
     req = urllib.request.Request(url, data=data, method=method, headers=h)
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
-            return json.loads(resp.read().decode() or "null"), resp.headers
+            raw, status, resp_headers = resp.read().decode(errors="replace"), resp.status, resp.headers
     except urllib.error.HTTPError as e:
         raise ApiError(e.code, e.read().decode(errors="replace"), method, url) from None
     except urllib.error.URLError as e:
         sys.exit(f"cannot reach {url}: {e.reason}")
+    except OSError as e:  # e.g. a timeout while reading the body
+        sys.exit(f"cannot reach {url}: {e}")
+    try:
+        return json.loads(raw or "null"), resp_headers
+    except ValueError:
+        raise ApiError(status, "response is not JSON (check the URL): " + raw[:200], method, url) from None
 
 
 def parse_dt(value):
@@ -89,6 +95,15 @@ def num(values):
         if re.fullmatch(r"\d+(\.\d+)?", v):
             return float(v)
     return None
+
+
+def estimate(r):
+    """Plane's story points: `estimate_point` expanded to {value: "5", ...}; None when unset or not numeric
+    (category or time estimates). Never from labels. The /estimates/ routes are not used: Plane CE does not
+    register them (makeplane/plane#9933), and expand works with or without that bug."""
+    ep = r.get("estimate_point")
+    value = str(ep.get("value") or "").strip() if isinstance(ep, dict) else ""
+    return float(value) if re.fullmatch(r"\d+(\.\d+)?", value) else None
 
 
 def new_issue(**kw):
@@ -172,7 +187,7 @@ class Plane:
 
     def __init__(self, url, workspace, api_key, project, rate_per_min=60):
         self.url, self.ws = url.rstrip("/"), workspace
-        self.base = f"{self.url}/api/v1/workspaces/{workspace}"
+        self.base = f"{self.url}/api/v1/workspaces/{urllib.parse.quote(workspace, safe='')}"
         self.headers = {"X-API-Key": api_key}
         self.min_interval, self.last = 60.0 / max(1, rate_per_min - 2), 0.0
         self.all_projects = self.list("/projects/")
@@ -233,7 +248,7 @@ class Plane:
 
     def issues(self, period):
         label_names = {l["id"]: l["name"] for l in self.list(f"/projects/{self.pid}/labels/")}
-        params = {"expand": "state,labels,assignees"}
+        params = {"expand": "state,labels,assignees,estimate_point"}
         if period:
             cycles = self.list(f"/projects/{self.pid}/cycles/")
             match = [c for c in cycles if c["id"] == period or c["name"].strip().lower() == period.strip().lower()]
@@ -262,7 +277,7 @@ class Plane:
                 blocked=sname.lower() in BLOCKED_VALUES or any(label_value(l) in BLOCKED_VALUES for l in labels),
                 stale_mark=sname.lower() in STALE_VALUES or any(label_value(l) in STALE_VALUES for l in labels),
                 priority=None if r.get("priority") in (None, "none") else r.get("priority"),
-                points=num(scoped(labels, "points")), period=period,
+                points=estimate(r), period=period,
                 assignees=[a.get("display_name") or a.get("email") for a in r.get("assignees") or []
                            if isinstance(a, dict)]))
         return out

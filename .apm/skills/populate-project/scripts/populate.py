@@ -81,8 +81,13 @@ def split_scope(name):
 
 
 def load_labels(path):
-    with open(path, encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+    except OSError as e:
+        sys.exit(f"{path}: cannot read the label file ({e.strerror or e})")
+    except ValueError as e:
+        sys.exit(f"{path}: not valid JSON ({e})")
     raw = data.get("labels") if isinstance(data, dict) else data
     if not isinstance(raw, list) or not raw:
         sys.exit(f"{path}: expected a non-empty list of labels or {{\"labels\": [...]}}")
@@ -90,6 +95,12 @@ def load_labels(path):
     for i, l in enumerate(raw):
         if isinstance(l, str):
             l = {"name": l}
+        if not isinstance(l, dict):
+            sys.exit(f"{path}: label #{i + 1} must be a name or an object with name/color/description")
+        for field in ("name", "color", "description"):
+            if l.get(field) is not None and not isinstance(l[field], str):
+                sys.exit(f"{path}: label #{i + 1} has a non-text {field} ({l[field]!r})"
+                         + (" - invalid color, use #rrggbb" if field == "color" else ""))
         name = (l.get("name") or "").strip()
         if not name:
             sys.exit(f"{path}: label #{i + 1} has no name")
@@ -207,19 +218,19 @@ def populate_gitlab(args, labels, plan):
             plan.reuse("label", l["name"], where)
             ids[l["name"]] = cur["id"]
             continue
-        plan.create("label", l["name"])
         if not args.dry_run:
             body = {"name": l["name"], "color": l["color"]}
             if l["description"]:
                 body["description"] = l["description"]
             ids[l["name"]] = gl.req("POST", f"/projects/{pid}/labels", body)["id"]
+        plan.create("label", l["name"])  # only after the write succeeded
 
     workflow = [l for l in labels if is_workflow(l)]
     print(f"Kanban board ({args.board_name}):")
     if not workflow:
         plan.note("no workflow labels in the set, so no board columns were created")
         return {"target": "gitlab", "project": proj["path_with_namespace"], "url": proj.get("web_url")}
-    boards = gl.req("GET", f"/projects/{pid}/boards") or []
+    boards = gl.pages(f"/projects/{pid}/boards")
     board = next((b for b in boards if (b.get("name") or "").lower() == args.board_name.lower()), None)
     if board:
         plan.reuse("board", board["name"])
@@ -236,9 +247,9 @@ def populate_gitlab(args, labels, plan):
         if l["name"].lower() in in_board:
             plan.reuse("board list", l["name"])
             continue
-        plan.create("board list", l["name"])
         if not args.dry_run:
             gl.req("POST", f"/projects/{pid}/boards/{board['id']}/lists", {"label_id": ids[l["name"]]})
+        plan.create("board list", l["name"])
     board_url = proj.get("web_url", "") + "/-/boards" + (f"/{board['id']}" if board and board.get("id") else "")
     print(f"Board URL: {board_url}")
     return {"target": "gitlab", "project": proj["path_with_namespace"], "url": proj.get("web_url"),
@@ -248,7 +259,7 @@ def populate_gitlab(args, labels, plan):
 # ------------------------------------------------------------------ Plane
 class Plane:
     def __init__(self, base_url, api_key, workspace, rate_per_min=60, dry_run=False):
-        self.base = base_url.rstrip("/") + f"/api/v1/workspaces/{workspace}"
+        self.base = base_url.rstrip("/") + "/api/v1/workspaces/" + urllib.parse.quote(workspace, safe="")
         self.headers = {"X-API-Key": api_key}
         self.dry_run = dry_run
         self.min_interval = 60.0 / max(1, rate_per_min - 2)
@@ -330,8 +341,8 @@ def populate_plane(args, labels, plan):
     elif args.create_project:
         ident = (args.identifier or default_identifier(args.project)).upper()
         print(f"Plane project: {args.project} ({ident})")
-        plan.create("project", f"{args.project} ({ident})")
         proj = p.write("POST", "/projects/", {"name": args.project, "identifier": ident})
+        plan.create("project", f"{args.project} ({ident})")
     else:
         names = ", ".join(f"{x['name']} ({x['identifier']})" for x in projects) or "none"
         print(f"Plane project {args.project!r} not found in workspace {args.workspace!r}. Existing: {names}",
@@ -364,11 +375,11 @@ def populate_plane(args, labels, plan):
             continue
         same_group = [s.get("sequence") or 0 for s in states if s.get("group") == group]
         seq = (max(same_group) if same_group else max([s.get("sequence") or 0 for s in states] or [0])) + 1000
-        plan.create("state", f"{name} [{group}] for {l['name']}")
         body = {"name": name, "group": group, "color": GROUP_COLORS[group], "sequence": seq}
         if l["description"]:
             body["description"] = l["description"]
         s = p.write("POST", f"/projects/{pid}/states/", body)
+        plan.create("state", f"{name} [{group}] for {l['name']}")
         s.setdefault("group", group)
         s.setdefault("sequence", seq)
         states.append(s)
@@ -403,13 +414,13 @@ def populate_plane(args, labels, plan):
         if cur:
             plan.reuse("label", name)
             return cur["id"]
-        plan.create("label", name + (f" (in {parent[1]})" if parent else ""))
         body = {"name": name, "color": color}
         if description:
             body["description"] = description
         if parent:
             body["parent"] = parent[0]
         made = p.write("POST", f"/projects/{pid}/labels/", body)
+        plan.create("label", name + (f" (in {parent[1]})" if parent else ""))
         existing[name.lower()] = made
         return made["id"]
 

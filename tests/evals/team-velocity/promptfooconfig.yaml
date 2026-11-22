@@ -1,0 +1,313 @@
+# yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
+description: team-velocity skill evals
+# Two providers share one agent setup and differ only in the environment:
+#   unconfigured - credentials blank: routing tests and the NOT CONFIGURED path.
+#   configured   - fake credentials; the scripts' HTTP layer is mocked by ../mock/sitecustomize.py
+#                  and answers from the shared fixtures/, so reports have known numbers.
+#                  EVAL_DATASET_DATE is the date the dataset was written for; the mock shifts every
+#                  fixture date so that date becomes the real today (the agent and the script then
+#                  agree on "today" and the numbers never drift). Nothing reaches a network and
+#                  the mock refuses every write. See tests/README.md.
+providers:
+  - id: anthropic:claude-agent-sdk
+    label: unconfigured
+    config: &agent
+      working_dir: ../.workspace
+      setting_sources: ['project']
+      skills: 'all'
+      append_allowed_tools: ['Read', 'Bash']
+      disallowed_tools: ['Write', 'Edit', 'WebFetch', 'WebSearch']
+      max_turns: 8
+      max_budget_usd: 0.5
+      apiKeyRequired: false
+      model: haiku
+      env:
+        GITLAB_URL: ''
+        GITLAB_TOKEN: ''
+        PLANE_URL: ''
+        PLANE_WORKSPACE: ''
+        PLANE_API_KEY: ''
+  - id: anthropic:claude-agent-sdk
+    label: configured
+    config:
+      <<: *agent
+      env:
+        GITLAB_URL: http://gitlab.mock
+        GITLAB_TOKEN: glpat-eval-fake
+        PLANE_URL: http://plane.mock
+        PLANE_WORKSPACE: eval
+        PLANE_API_KEY: plane-eval-fake
+        PYTHONPATH: '{{ env.PWD }}/.workspace/mock'
+        EVAL_FIXTURES: '{{ env.PWD }}/.workspace/fixtures'
+        EVAL_DATASET_DATE: '2026-11-12'
+        EVAL_PLANE_NO_ESTIMATES: '1'   # Plane CE as released (makeplane/plane#9933)
+
+prompts:
+  - '{{request}}'
+
+# Grader for llm-rubric: a tool-less agent, so it also works with the local Claude Code login.
+defaultTest:
+  options:
+    provider:
+      id: anthropic:claude-agent-sdk
+      config:
+        apiKeyRequired: false
+        model: haiku
+        custom_allowed_tools: []
+        max_turns: 1
+        max_budget_usd: 0.1
+
+tests:
+  # ---------------------------------------------------------------- positive triggers (real numbers)
+  - description: triggers on a direct request (en)
+    providers: [configured]
+    vars: {request: "What is the team velocity of project INV in Plane?"}
+    assert:
+      - type: skill-used
+        value: team-velocity
+      - type: javascript
+        value: |
+          const o = String(output);
+          return /\b14\b/.test(o) && /\b11\b/.test(o)
+            && !/NOT CONFIGURED|\[eval-mock\] MISS|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
+
+  - description: triggers on planning capacity (en)
+    providers: [configured]
+    vars: {request: "How many story points should we plan for the next milestone of group/inv in GitLab?"}
+    assert:
+      - type: skill-used
+        value: team-velocity
+      - type: javascript
+        value: |
+          const o = String(output);
+          return /\b11\b/.test(o) && /Sprint 6/.test(o)
+            && !/NOT CONFIGURED|\[eval-mock\] MISS|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
+
+  - description: triggers on velocidade do time (pt)
+    providers: [configured]
+    vars: {request: "Qual a velocidade do time no projeto INV do Plane?"}
+    assert:
+      - type: skill-used
+        value: team-velocity
+      - type: javascript
+        value: |
+          const o = String(output);
+          return /\b14\b/.test(o) && /\b11\b/.test(o)
+            && !/NOT CONFIGURED|\[eval-mock\] MISS|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
+
+  - description: triggers on quantos pontos planejar (pt)
+    providers: [configured]
+    vars: {request: "Quantos pontos planejar no próximo ciclo do projeto INV no Plane?"}
+    assert:
+      - type: skill-used
+        value: team-velocity
+      - type: javascript
+        value: |
+          const o = String(output);
+          return /\b11\b/.test(o) && /Sprint 6/.test(o)
+            && !/NOT CONFIGURED|\[eval-mock\] MISS|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
+
+  - description: triggers on weekly throughput (pt)
+    providers: [configured]
+    vars: {request: "Quanto o time entrega por semana no projeto group/inv do GitLab? Queremos o throughput semanal."}
+    assert:
+      - type: skill-used
+        value: team-velocity
+      - type: javascript
+        value: |
+          // Weekly buckets depend on the weekday of the (shifted) today, so compare the answer
+          // with the table the script actually printed instead of fixed numbers.
+          const o = String(output);
+          const runs = (context.providerResponse?.metadata?.toolCalls || [])
+            .filter(c => c.name === 'Bash' && /velocity\.py/.test(JSON.stringify(c.input || {})) && /--by week/.test(JSON.stringify(c.input || {})));
+          if (!runs.length) return false;
+          const table = String(runs[runs.length - 1].output || '');
+          const rows = table.split('\n').filter(l => /^\|\s*\d{4}-\d{2}-\d{2}/.test(l));
+          if (rows.length < 8) return false;
+          const vel = rows.map(l => l.split('|').map(s => s.trim()).filter(Boolean).pop());
+          return vel.every(v => new RegExp('(^|[^\\d.])' + v.replace('.', '\\.') + '([^\\d.]|$)').test(o))
+            && !/NOT CONFIGURED|\[eval-mock\] MISS|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
+
+  # ---------------------------------------------------------------- near misses
+  - description: commitment vs delivery goes to commitment-delivered (en)
+    providers: [configured]
+    vars: {request: "Did the team deliver what it committed to in the last milestones of group/inv in GitLab? I want the say/do ratio."}
+    assert:
+      - type: not-skill-used
+        value: team-velocity
+      - type: skill-used
+        value: commitment-delivered
+
+  - description: comprometido x entregue goes to commitment-delivered (pt)
+    providers: [configured]
+    vars: {request: "Comprometido x entregue no ciclo atual do projeto INV no Plane: o time entrega o que promete?"}
+    assert:
+      - type: not-skill-used
+        value: team-velocity
+      - type: skill-used
+        value: commitment-delivered
+
+  - description: stale tickets go to stale-issues (pt)
+    providers: [configured]
+    vars: {request: "Quais tickets estão parados há mais de duas semanas no milestone Sprint 5 do group/inv no GitLab?"}
+    assert:
+      - type: not-skill-used
+        value: team-velocity
+      - type: skill-used
+        value: stale-issues
+
+  - description: blocked issues go to blocked-issues (en)
+    providers: [configured]
+    vars: {request: "Which issues are blocked in project INV in Plane?"}
+    assert:
+      - type: not-skill-used
+        value: team-velocity
+      - type: skill-used
+        value: blocked-issues
+
+  - description: a general agile question uses no skill
+    providers: [configured]
+    vars: {request: "In general terms, what is the difference between velocity and throughput in Scrum? No need to look at any project."}
+    assert:
+      - type: not-skill-used
+        value: team-velocity
+
+  # ---------------------------------------------------------------- missing configuration
+  - description: Plane credentials missing - relays NOT CONFIGURED and invents no numbers
+    providers: [unconfigured]
+    vars: {request: "What is the team velocity of project INV in Plane?"}
+    assert:
+      - type: skill-used
+        value: team-velocity
+      - type: icontains
+        value: PLANE_URL
+      - type: icontains
+        value: PLANE_WORKSPACE
+      - type: icontains
+        value: PLANE_API_KEY
+      - type: javascript
+        value: |
+          const calls = context.providerResponse?.metadata?.toolCalls || [];
+          return calls.some(c => c.name === 'Bash' && /velocity\.py/.test(JSON.stringify(c.input || {})))
+      - type: llm-rubric
+        value: >-
+          The answer says the Plane connection is not configured, names the missing variables
+          (PLANE_URL, PLANE_WORKSPACE, PLANE_API_KEY) and explains how to set them (environment
+          variable or .env). It reports no velocity, points, periods or other metrics, and it
+          does not ask the user to paste a token or API key into the chat.
+
+  - description: GitLab credentials missing - relays NOT CONFIGURED in Portuguese
+    providers: [unconfigured]
+    vars: {request: "Qual a velocidade do time no projeto group/inv do GitLab?"}
+    assert:
+      - type: skill-used
+        value: team-velocity
+      - type: icontains
+        value: GITLAB_URL
+      - type: icontains
+        value: GITLAB_TOKEN
+      - type: llm-rubric
+        value: >-
+          The answer explains that GitLab is not configured, names GITLAB_URL and GITLAB_TOKEN
+          and how to set them, and reports no velocity numbers, milestones or dates.
+
+  # ---------------------------------------------------------------- behaviour on mocked data
+  # Fixtures: 4 finished sprints (10, 14, 12, 10 points; 5, 7, 6, 5 per week), Sprint 5 current
+  # (5 of 19 points done by the dataset date), Sprint 6 upcoming (8 points). Plane and GitLab hold the same data.
+  - description: Plane report - real numbers from the script (en)
+    providers: [configured]
+    vars: {request: "What is the team velocity of project INV in Plane, and how many points should we plan for the next cycle?"}
+    assert:
+      - type: skill-used
+        value: team-velocity
+      - type: javascript
+        value: |
+          const calls = context.providerResponse?.metadata?.toolCalls || [];
+          const bash = calls.filter(c => c.name === 'Bash').map(c => JSON.stringify(c.input || {}));
+          return bash.some(c => /velocity\.py/.test(c)) && !bash.some(c => /\b(curl|wget)\b/.test(c))
+      - type: javascript
+        value: |
+          const o = String(output);
+          return ['Sprint 1', 'Sprint 4', 'Sprint 6'].every(s => o.includes(s)) && /\b14\b/.test(o) && /\b11\b/.test(o)
+            && !/NOT CONFIGURED|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
+      - type: llm-rubric
+        value: >-
+          The answer reports velocity per cycle of 10, 14, 12 and 10 points for Sprint 1 to Sprint 4
+          (median 11, mean 11.5, about 5.5 per week), recommends planning about 11 points for Sprint 6
+          (conservative 10), and says Sprint 5 is the current cycle with 5 of 19 points done. It does not
+          report other numbers that contradict these, and it does not ask for credentials.
+
+  - description: GitLab report - same numbers through the GraphQL path (pt)
+    providers: [configured]
+    vars: {request: "Qual a velocidade do time no projeto group/inv do GitLab? Quantos pontos planejar no próximo milestone?"}
+    assert:
+      - type: skill-used
+        value: team-velocity
+      - type: javascript
+        value: |
+          const o = String(output);
+          return ['Sprint 1', 'Sprint 4', 'Sprint 6'].every(s => o.includes(s)) && /\b14\b/.test(o) && /\b11\b/.test(o)
+            && !/NOT CONFIGURED|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
+      - type: llm-rubric
+        value: >-
+          The answer (in Portuguese) reports velocity per milestone of 10, 14, 12 and 10 points for Sprint 1
+          to Sprint 4 (median 11), recommends about 11 points for Sprint 6 (conservative 10) and describes
+          Sprint 5 as the current milestone. Extra figures taken from the report (scope, completion, per-person
+          split, pace) are fine; fail only if it names periods other than Sprint 1 to Sprint 6 or contradicts
+          the figures above.
+
+  - description: per-person split comes from the script and is not a ranking
+    providers: [configured]
+    vars: {request: "Show the velocity of project INV in Plane per person."}
+    assert:
+      - type: skill-used
+        value: team-velocity
+      - type: icontains
+        value: alice
+      - type: icontains
+        value: bob
+      - type: llm-rubric
+        value: >-
+          The answer shows how the on-time work was spread between alice (25 points, about 54%),
+          bob (15 points, about 33%) and carol (6 points, about 13%), and frames it as how work was
+          spread rather than as a performance ranking. It names no other people. Other figures from the script's
+          report (velocity per sprint, completion, scope, late or spilled points, the current and next sprint) are
+          fine and must not count against it.
+
+  - description: weekly throughput uses --by week
+    providers: [configured]
+    vars: {request: "I want the weekly throughput of project INV in Plane, week by week."}
+    assert:
+      - type: skill-used
+        value: team-velocity
+      - type: javascript
+        value: |
+          const calls = context.providerResponse?.metadata?.toolCalls || [];
+          return calls.some(c => c.name === 'Bash' && /velocity\.py/.test(JSON.stringify(c.input || {})) && /--by week/.test(JSON.stringify(c.input || {})))
+      - type: javascript
+        value: |
+          // Weekly buckets depend on the weekday of the (shifted) today, so compare the answer
+          // with the table the script actually printed instead of fixed numbers.
+          const o = String(output);
+          const runs = (context.providerResponse?.metadata?.toolCalls || [])
+            .filter(c => c.name === 'Bash' && /velocity\.py/.test(JSON.stringify(c.input || {})) && /--by week/.test(JSON.stringify(c.input || {})));
+          if (!runs.length) return false;
+          const table = String(runs[runs.length - 1].output || '');
+          const rows = table.split('\n').filter(l => /^\|\s*\d{4}-\d{2}-\d{2}/.test(l));
+          if (rows.length < 8) return false;
+          const vel = rows.map(l => l.split('|').map(s => s.trim()).filter(Boolean).pop());
+          return vel.every(v => new RegExp('(^|[^\\d.])' + v.replace('.', '\\.') + '([^\\d.]|$)').test(o))
+            && !/NOT CONFIGURED|\[eval-mock\] MISS|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
+
+  - description: no project given - lists the projects and asks which one
+    providers: [configured]
+    vars: {request: "Qual a velocidade do time no Plane?"}
+    assert:
+      - type: skill-used
+        value: team-velocity
+      - type: icontains
+        value: INV
+      - type: llm-rubric
+        value: >-
+          The answer lists the Plane projects found (Inventory / INV) and asks the user which one to
+          analyze. It reports no velocity numbers yet.

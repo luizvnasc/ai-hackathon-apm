@@ -1,0 +1,38 @@
+[
+ {
+  "id": 11,
+  "username": "alice",
+  "name": "Alice Example",
+  "access_level": 30,
+  "state": "active"
+ },
+ {
+  "id": 12,
+  "username": "bob",
+  "name": "Bob Example",
+  "access_level": 30,
+  "state": "active"
+ },
+ {
+  "id": 13,
+  "username": "carol",
+  "name": "Carol Example",
+  "access_level": 30,
+  "state": "active"
+ },
+ {
+  "id": 14,
+  "username": "dave",
+  "name": "Dave Example",
+  "access_level": 10,
+  "state": "active"
+ },
+ {
+  "id": 99,
+  "username": "ci-bot",
+  "name": "CI bot",
+  "access_level": 30,
+  "state": "active",
+  "bot": true
+ }
+]

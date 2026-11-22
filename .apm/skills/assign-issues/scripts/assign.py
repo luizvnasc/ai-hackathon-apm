@@ -9,7 +9,8 @@ and OpenCode. Every command is read-only except `assign`.
     python3 assign.py scores          --target ... --project P          # area score of every developer
     python3 assign.py suggest-member  --target ... --project P --issue KEY
     python3 assign.py suggest-issue   --target ... --project P --member NAME [--period NAME]
-    python3 assign.py assign          --target ... --project P --issue KEY --member NAME [--replace]
+    python3 assign.py assign          --target ... --project P --issue KEY --member NAME [--replace] [--yes]
+        (assign writes only with --yes, after the user confirmed; without it, or with --dry-run, it prints the plan)
         common options: [--roles developer] [--half-life 180] [--today YYYY-MM-DD] [--format md|json]
                         [--no-comments] (Plane: skip reading comments, much faster)
 
@@ -41,7 +42,7 @@ Score model (the same for both tools):
   * Availability 0-100: 100 minus the share of the busiest developer's load,
     where load = open issues assigned in the issue's own milestone/cycle
     (suggest-member) or in the chosen/current one (suggest-issue) (points
-    when every issue has a points:: label).
+    when every issue has points: GitLab points:: label, Plane Estimate field).
   * suggest-member ranks by 75% fit + 25% availability.
   * suggest-issue ranks the open, unassigned, unblocked issues of the period by
     fit + a priority bonus (urgent 20, high 10, medium 5).
@@ -81,7 +82,11 @@ def http(method, url, headers, body=None):
     req = urllib.request.Request(url, data=data, method=method, headers=h)
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
-            return json.loads(resp.read().decode() or "null"), resp.headers
+            raw = resp.read().decode(errors="replace")
+            try:
+                return json.loads(raw or "null"), resp.headers
+            except ValueError:
+                sys.exit(f"the answer from {url} is not JSON: check the URL (it must point to the API server)")
     except urllib.error.HTTPError as e:
         raise ApiError(e.code, e.read().decode(errors="replace"), method, url) from None
     except urllib.error.URLError as e:
@@ -106,6 +111,15 @@ def scoped(labels, scope):
             if s.strip().lower() == scope:
                 out.append(v.strip().lower())
     return out
+
+
+def estimate(r):
+    """Plane's story points: `estimate_point` expanded to {value: "5", ...}; None when unset or not numeric
+    (category or time estimates). Never from labels. The /estimates/ routes are not used: Plane CE does not
+    register them (makeplane/plane#9933), and expand works with or without that bug."""
+    ep = r.get("estimate_point")
+    value = str(ep.get("value") or "").strip() if isinstance(ep, dict) else ""
+    return float(value) if re.fullmatch(r"\d+(\.\d+)?", value) else None
 
 
 def new_issue(**kw):
@@ -224,7 +238,10 @@ class GitLab:
         return (it["status"] or "").lower() in BLOCKED
 
     def assign(self, it, member, members, replace):
-        ids = [] if replace else [m["id"] for m in members if m["name"] in it["assignees"]]
+        ids = []
+        if not replace:  # the issue's own assignee ids, so people who left the project are kept
+            current = self.rest("GET", f"/projects/{self.pid()}/issues/{it['iid']}") or {}
+            ids = [a["id"] for a in current.get("assignees") or []]
         if member["id"] not in ids:
             ids.append(member["id"])
         self.rest("PUT", f"/projects/{self.pid()}/issues/{it['iid']}", body={"assignee_ids": ids})
@@ -242,7 +259,7 @@ class Plane:
         if not (url and workspace and api_key):
             sys.exit("Plane needs PLANE_URL, PLANE_WORKSPACE and PLANE_API_KEY (or --plane-url/--workspace)")
         self.url, self.ws = url.rstrip("/"), workspace
-        self.base = f"{self.url}/api/v1/workspaces/{workspace}"
+        self.base = f"{self.url}/api/v1/workspaces/{urllib.parse.quote(workspace, safe='')}"
         self.headers = {"X-API-Key": api_key}
         self.min_interval, self.last = 60.0 / max(1, rate_per_min - 2), 0.0
         self.all_projects = self.list("/projects/")
@@ -321,7 +338,7 @@ class Plane:
             for r in self.list(f"/projects/{self.pid}/cycles/{c['id']}/cycle-issues/"):
                 cycle_of[r["id"]] = c["name"]
         out = []
-        for r in self.list(f"/projects/{self.pid}/issues/", {"expand": "state,labels,assignees"}):
+        for r in self.list(f"/projects/{self.pid}/issues/", {"expand": "state,labels,assignees,estimate_point"}):
             if r.get("is_draft"):
                 continue
             state = r.get("state") if isinstance(r.get("state"), dict) else {}
@@ -332,7 +349,6 @@ class Plane:
             for l in labels_raw:
                 scope = self.label_parent(l, parents)
                 labels.append(f"{scope}::{l['name']}" if scope else l["name"])
-            pts = scoped(labels, "points")
             commenters = []
             if comments:
                 for c in self.list(f"/projects/{self.pid}/issues/{r['id']}/comments/"):
@@ -345,7 +361,7 @@ class Plane:
                 open=group not in ("completed", "cancelled"), cancelled=group == "cancelled",
                 status=state.get("name"), labels=labels, areas=scoped(labels, "area"), types=scoped(labels, "type"),
                 priority=None if r.get("priority") in (None, "none") else r["priority"],
-                points=float(pts[0]) if pts and re.fullmatch(r"\d+(\.\d+)?", pts[0]) else None,
+                points=estimate(r),
                 assignees=[a.get("display_name") or a.get("email") for a in r.get("assignees") or [] if isinstance(a, dict)],
                 assignee_ids=[a["id"] for a in r.get("assignees") or [] if isinstance(a, dict)],
                 author=names.get(r.get("created_by")), commenters=commenters,
@@ -656,6 +672,7 @@ def main(argv=None):
     ap.add_argument("--limit", type=int, default=10)
     ap.add_argument("--replace", action="store_true", help="assign: replace the current assignees")
     ap.add_argument("--dry-run", action="store_true", help="assign: print the change, write nothing")
+    ap.add_argument("--yes", action="store_true", help="assign: write the change (only after the user confirmed it)")
     ap.add_argument("--no-comments", action="store_true", help="do not read comments (faster, mostly for Plane)")
     ap.add_argument("--today")
     ap.add_argument("--format", choices=["md", "json"], default="md")
@@ -733,6 +750,9 @@ def main(argv=None):
                 return
             if a.dry_run:
                 print(f"DRY RUN, nothing written: {change}")
+                return
+            if not a.yes:
+                print(f"PLAN, nothing written: {change}\nRe-run with --yes once the user has confirmed this change.")
                 return
             src.assign(it, m, all_members, a.replace)
             print(f"assigned: {change}")

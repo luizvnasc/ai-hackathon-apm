@@ -30,7 +30,7 @@ Definitions:
   * Total delivered: delivered committed + delivered added.
     Delivered vs commitment = total delivered / commitment (can pass 100%).
   * Size: GitLab: the `points::N` label. Plane: the issue's estimate (the
-    Estimates field, when it is numeric), else the `points` label group. Both as
+    Estimates field, when it is numeric), never a label. Both as
     they are today. With --unit auto, points are used when every issue has them,
     otherwise every issue counts as 1.
 """
@@ -103,7 +103,7 @@ def num(values):
 
 def estimate(r):
     """Plane's native estimate: `estimate_point` expanded to {value: "5", ...}; None when unset or not numeric
-    (category or time estimates), so the `points` label is used instead."""
+    (category or time estimates). Labels are never read for points in Plane."""
     ep = r.get("estimate_point")
     value = ep.get("value") if isinstance(ep, dict) else None
     return num([str(value).strip()]) if value not in (None, "") else None
@@ -300,7 +300,7 @@ class Plane:
             url=f"{self.url}/{self.ws}/projects/{self.pid}/issues/{r['id']}",
             created=r.get("created_at"), updated=r.get("updated_at"),
             closed=(r.get("completed_at") or r.get("updated_at")) if group in ("completed", "cancelled") else None,
-            cancelled=group == "cancelled", points=estimate(r) if estimate(r) is not None else num(scoped(labels, "points")),
+            cancelled=group == "cancelled", points=estimate(r),
             assignees=[a.get("display_name") or a.get("email") for a in r.get("assignees") or [] if isinstance(a, dict)],
             period=period, initial=period)
 
@@ -395,8 +395,11 @@ def period_row(p, groups, unit):
             "per_member": per_member,
             "carried_items": [{"key": i["key"], "title": i["title"], "url": i["url"], "size": size(i, unit)}
                               for i in groups["carried"]],
+            # separate lists, so a reader of the JSON cannot take a cancelled issue for a removed one
             "removed_items": [{"key": i["key"], "title": i["title"], "url": i["url"], "size": size(i, unit)}
-                              for i in groups["removed"] + groups["cancelled"]]}
+                              for i in groups["removed"]],
+            "cancelled_items": [{"key": i["key"], "title": i["title"], "url": i["url"], "size": size(i, unit)}
+                                for i in groups["cancelled"]]}
 
 
 def slope(ys):
@@ -409,7 +412,9 @@ def slope(ys):
 
 
 def summarize(rows):
-    sd = [r["say_do"] for r in rows if r["say_do"] is not None]
+    # Periods without a commitment (only added work) have no say/do and stay out of the statistics.
+    rows = [r for r in rows if r["say_do"] is not None]
+    sd = [r["say_do"] for r in rows]
     if not sd:
         return None
     vs = [r["vs_commitment"] for r in rows if r["vs_commitment"] is not None]
@@ -490,12 +495,14 @@ def render(res):
                          [[("@" + m) if not m.startswith("(") else m, f1(c), f1(d), f1(d / c if c else None, True)]
                           for m, (c, d) in res["members"]])] if fin else []
     for r in rows:
-        if r["carried_items"] or r["removed_items"]:
+        if r["carried_items"] or r["removed_items"] or r["cancelled_items"]:
             out += ["", f"### {r['name']} — not delivered from the commitment", ""]
             open_word = "still open" if r["status"] == "current" else "carried over"
             out += [f"- {open_word}: [{i['key']}]({i['url']}) {i['title']} ({f1(i['size'])})" for i in r["carried_items"]]
-            out += [f"- removed/cancelled: [{i['key']}]({i['url']}) {i['title']} ({f1(i['size'])})"
+            out += [f"- removed: [{i['key']}]({i['url']}) {i['title']} ({f1(i['size'])})"
                     for i in r["removed_items"]]
+            out += [f"- cancelled: [{i['key']}]({i['url']}) {i['title']} ({f1(i['size'])})"
+                    for i in r["cancelled_items"]]
     nxt = res.get("next")
     if nxt:
         out += ["", "## Next period", "",
@@ -597,7 +604,8 @@ def analyze(src_name, kind, periods, issues, a, today):
     involved = [i for _, g in groups for i in g["committed"] + g["added"] if not i["cancelled"]]
     unit = choose_unit(involved, a.unit)
     if a.unit == "auto" and unit == "count" and involved:
-        notes.append(f"{sum(1 for i in involved if i['points'] is None)} issue(s) have no points label, "
+        where = "an Estimate" if kind == "cycle" else "a `points::N` label"
+        notes.append(f"{sum(1 for i in involved if i['points'] is None)} issue(s) have no points ({where}), "
                      "so every issue counts as 1. Use --unit points to count only pointed work.")
     rows = [period_row(p, g, unit) for p, g in groups if g["committed"] or g["added"]]
     empty = [p["name"] for p, g in groups if not g["committed"]]

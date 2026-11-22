@@ -1,0 +1,7 @@
+[
+  {"id": 1, "username": "dev-a", "name": "Dev A", "state": "active", "access_level": 30},
+  {"id": 2, "username": "dev-b", "name": "Dev B", "state": "active", "access_level": 30},
+  {"id": 3, "username": "lead", "name": "Lead", "state": "active", "access_level": 40},
+  {"id": 4, "username": "gone", "name": "Gone", "state": "blocked", "access_level": 30},
+  {"id": 5, "username": "ci-bot", "name": "CI", "state": "active", "access_level": 30, "bot": true}
+]

@@ -1,0 +1,22 @@
+[
+ {
+  "id": "pm-alice",
+  "member": "u-alice",
+  "role": 15
+ },
+ {
+  "id": "pm-bob",
+  "member": "u-bob",
+  "role": 15
+ },
+ {
+  "id": "pm-carol",
+  "member": "u-carol",
+  "role": 15
+ },
+ {
+  "id": "pm-dave",
+  "member": "u-dave",
+  "role": 15
+ }
+]

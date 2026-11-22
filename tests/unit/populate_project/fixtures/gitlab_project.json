@@ -1,0 +1,1 @@
+{"id": 42, "name": "Shop", "path_with_namespace": "acme/shop", "web_url": "https://gitlab.example.com/acme/shop", "namespace": {"id": 7, "kind": "group", "full_path": "acme"}}

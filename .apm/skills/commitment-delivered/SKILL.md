@@ -7,7 +7,7 @@ description: Commitment x delivered (say/do ratio) for a GitLab or Plane project
 
 Compare what the team committed to at the start of each milestone (GitLab) or cycle (Plane) with what it delivered by the end.
 
-- **Read-only.** Never change anything in GitLab or Plane.
+- **Read-only.** Never change anything in GitLab or Plane. This holds even when the user asks you to close, move, relabel or fix issues: do not write your own scripts or API calls (curl, Python, an MCP tool) to do it. Say this skill only reports, and list what the user can change by hand.
 - **Data and math come from the bundled script** `scripts/commitment.py`, so every agent gets the same numbers. Never invent periods, points or dates.
 - The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly; no MCP server is needed.
 
@@ -53,7 +53,7 @@ python3 <skill-dir>/scripts/commitment.py report --target <t> --project "<p>" \
 - **Commitment cutoff:** the end of the start day. If the team plans during the first days, pass `--grace-days N` (the user's number; ask only if they mention planning late).
 - **Unit:**
   - `auto` uses points when every issue involved has them. Otherwise it counts issues, and the report says how many have no points.
-  - Points come from the `points::N` label in GitLab. In Plane they come from the issue's **estimate** (Project settings → Estimates, a numeric scale), and from the `points` label group when an issue has no numeric estimate.
+  - Points come from the `points::N` label in GitLab. In Plane they come from the issue's **estimate** (Project settings → Estimates, a numeric scale), never from labels: an issue without a numeric estimate has no points.
   - `--unit points` counts only pointed work.
 - **Time:** the history is read for every issue updated since the first analyzed period began (one request each). In Plane that is about 1 s per issue (60 requests per minute). Tell the user when the project is large.
 - On an API error the script stops with the response. Report it and stop.

@@ -9,7 +9,7 @@ GITLAB_TOKEN with read_api) and writes Plane (REST API, PLANE_API_KEY):
         --plane-url http://localhost:8090 --workspace my-team \
         [--project-name "Inventory Manager"] [--identifier INVM] \
         [--user-map bruno=bruno@acme.io,ana=ana@acme.io] \
-        [--no-comments] [--dry-run] [--report report.json] [--save-export export.json]
+        [--no-comments] [--no-points] [--dry-run] [--report report.json] [--save-export export.json]
 
 --data export.json replaces --gitlab-project to migrate from a saved export,
 which is either a list of work items or
@@ -26,6 +26,7 @@ Mapping (GitLab -> Plane):
   milestone                        -> cycle (same dates), items added to it
   workflow::/status:: label, state -> state (Backlog/Todo/In Progress/In Review/Done/...)
   priority:: label                 -> priority (urgent/high/medium/low)
+  points::/sp::/estimate:: label  -> the work item's Estimate (a "points" estimate on the project)
   other scoped label  scope::value -> label "value" grouped under parent label "scope"
   plain label                      -> label
   assignee                         -> workspace member (by --user-map, email or display name)
@@ -33,6 +34,11 @@ Mapping (GitLab -> Plane):
   issue URL                        -> link on the work item ("GitLab group/project#iid")
   non-system note                  -> comment
   created date                     -> created_at (kept)
+
+Story points need Plane's /estimates/ API. Plane CE does not register those
+documented routes (https://github.com/makeplane/plane/issues/9933), so when
+items have points the script checks them before anything is written and stops
+if they are missing. --no-points migrates without the points.
 
 Re-running is safe: every object carries external_source="gitlab" and an
 external_id, and work items are upserted, so nothing is duplicated.
@@ -49,8 +55,11 @@ import urllib.parse
 import urllib.request
 
 SOURCE = "gitlab"
+NIL_UUID = "00000000-0000-0000-0000-000000000000"
+ESTIMATES_BUG = "https://github.com/makeplane/plane/issues/9933"
 STATE_SCOPES = {"workflow", "status", "state", "stage"}
 PRIORITY_SCOPES = {"priority", "prio"}
+POINT_SCOPES = {"points", "sp", "estimate", "story-points", "storypoints"}  # -> Plane Estimate field
 PRIORITY_MAP = {
     "urgent": "urgent", "critical": "urgent", "blocker": "urgent", "p0": "urgent", "highest": "urgent",
     "high": "high", "p1": "high", "major": "high",
@@ -87,13 +96,26 @@ def split_scope(label):
 
 
 # ------------------------------------------------------------------ markdown
+def point_value(label):
+    """'points::3' -> '3' (story points label), else None. Plane stores them in the Estimate field."""
+    scope, value = split_scope(label)
+    if not scope or scope.lower() not in POINT_SCOPES:
+        return None
+    value = value.strip()
+    if not re.fullmatch(r"\d+(\.\d+)?", value):
+        return None
+    return str(int(float(value))) if float(value).is_integer() else value
+
+
 def md_inline(text):
     text = html.escape(text, quote=False)
     text = re.sub(r"`([^`]+)`", r"<code>\1</code>", text)
     text = re.sub(r"\*\*(.+?)\*\*", r"<strong>\1</strong>", text)
     text = re.sub(r"(?<![\w*])\*(?!\s)(.+?)(?<!\s)\*(?![\w*])", r"<em>\1</em>", text)
     text = re.sub(r"(?<![\w_])_(?!\s)(.+?)(?<!\s)_(?![\w_])", r"<em>\1</em>", text)
-    text = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)", r'<a href="\2">\1</a>', text)
+    # quote=False above keeps the text as is, so quotes are escaped here to stay inside href="..."
+    text = re.sub(r"\[([^\]]+)\]\((https?://[^)\s]+)\)",
+                  lambda m: '<a href="%s">%s</a>' % (m.group(2).replace('"', "&quot;"), m.group(1)), text)
     return text
 
 
@@ -265,8 +287,8 @@ def gitlab_export(url, token, project, comments=True):
                 data = json.loads(resp.read().decode())
         except urllib.error.HTTPError as e:
             sys.exit(f"GitLab API error: HTTP {e.code}: {e.read().decode(errors='replace')[:400]}")
-        except urllib.error.URLError as e:
-            sys.exit(f"cannot reach {endpoint}: {e.reason}")
+        except (urllib.error.URLError, OSError) as e:
+            sys.exit(f"cannot reach {endpoint}: {getattr(e, 'reason', e)}")
         if data.get("errors"):
             sys.exit(f"GitLab API error: {json.dumps(data['errors'])[:400]}")
         return data["data"]
@@ -310,9 +332,22 @@ class PlaneError(Exception):
         self.status, self.body = status, body
 
 
+class EstimatesUnavailable(Exception):
+    """The Plane server does not serve the estimate routes that story points need."""
+
+    def __init__(self, pointed):
+        super().__init__(
+            f"ESTIMATES UNAVAILABLE: {pointed} work item(s) have story points, but this Plane server does not serve "
+            f"the /estimates/ API needed to write them (a Plane bug: {ESTIMATES_BUG}). Nothing was written.\n"
+            "Options:\n"
+            "  - fix or upgrade Plane to a build that registers those routes, then run again; or\n"
+            "  - add --no-points to migrate everything except the story points (they stay in GitLab; running again "
+            "without it, on a fixed Plane, fills them in).")
+
+
 class Plane:
     def __init__(self, base_url, api_key, workspace, rate_per_min=60, dry_run=False):
-        self.base = base_url.rstrip("/") + f"/api/v1/workspaces/{workspace}"
+        self.base = base_url.rstrip("/") + f"/api/v1/workspaces/{urllib.parse.quote(workspace, safe='')}"
         self.key, self.dry_run = api_key, dry_run
         self.min_interval = 60.0 / max(1, rate_per_min - 2)
         self.last = 0.0
@@ -354,6 +389,8 @@ class Plane:
                 err = PlaneError(e.code, text, method, path)
                 err.payload = payload
                 raise err
+            except (urllib.error.URLError, OSError) as e:  # unreachable host, refused connection, timeout
+                raise PlaneError(0, f"cannot reach Plane: {getattr(e, 'reason', e)}", method, path) from None
         raise PlaneError(429, "rate limited too many times", method, path)
 
     def get(self, path, params=None):
@@ -377,7 +414,9 @@ class Plane:
 
     def write(self, method, path, body):
         if self.dry_run:
-            return {"id": f"<new:{path}>", **body}
+            # a distinct fake id per write, so the plan keeps new objects apart (e.g. one cycle per milestone)
+            self._dry_ids = getattr(self, "_dry_ids", 0) + 1
+            return {"id": f"<new:{path}#{self._dry_ids}>", **body}
         return self._request(method, path, body=body)[1]
 
 
@@ -395,6 +434,32 @@ class Migration:
     def count(self, kind, created):
         bucket = self.report["created" if created else "reused"]
         bucket[kind] = bucket.get(kind, 0) + 1
+
+    # -- preflight
+    def pointed(self):
+        """How many work items carry story points."""
+        return sum(1 for it in self.items if any(point_value(l["title"]) for l in it["labels"]))
+
+    def check_estimates(self):
+        """Stop before the first write when story points cannot be written (makeplane/plane#9933).
+        The nil project works before the project exists: a registered route answers it with 403 (or a JSON
+        404 of its own), a missing route with 404 "Page not found."."""
+        pointed = self.pointed()
+        if not pointed:
+            return
+        if self.args.no_points:
+            self.report["warnings"].append(f"--no-points: {pointed} work item(s) are migrated without their "
+                                           "story points")
+            return
+        try:
+            self.p.get(f"/projects/{NIL_UUID}/estimates/")
+        except PlaneError as e:
+            if e.status not in (403, 404):
+                raise
+            if e.status == 404:
+                payload = getattr(e, "payload", None)
+                if not isinstance(payload, dict) or str(payload.get("error", "")).startswith("Page not found"):
+                    raise EstimatesUnavailable(pointed) from None
 
     # -- project
     def project(self):
@@ -468,7 +533,7 @@ class Migration:
         for it in self.items:
             for l in it["labels"]:
                 scope, value = split_scope(l["title"])
-                if scope and scope.lower() in STATE_SCOPES | PRIORITY_SCOPES:
+                if scope and scope.lower() in STATE_SCOPES | PRIORITY_SCOPES | POINT_SCOPES:
                     continue
                 colors[l["title"]] = l.get("color")
                 if scope:
@@ -514,6 +579,56 @@ class Migration:
                 child = full if value_count[v.lower()] > 1 or v.lower() in taken else v
                 ids[full] = ensure(child, colors.get(full), parent=parent, ext=f"label:{full}")
         self.say(f"Labels: {len(ids)} mapped ({len(plain)} plain, {sum(len(v) for v in scoped.values())} scoped in {len(scoped)} groups)")
+        return ids
+
+    # -- estimate (story points)
+    def estimates(self, proj):
+        """Story points go to Plane's Estimate field, never to labels. Makes sure the project has a
+        "points" estimate holding every value used, enables it and returns {value: estimate point id}."""
+        pid = proj["id"]
+        values = sorted({v for it in self.items for v in (point_value(l["title"]) for l in it["labels"]) if v},
+                        key=float)
+        if not values:
+            return {}
+        if str(pid).startswith("<new"):
+            est, points = None, []
+        else:
+            try:
+                est = self.p.get(f"/projects/{pid}/estimates/")
+            except PlaneError as e:
+                if e.status != 404:
+                    raise
+                est = None
+            points = self.p.list(f"/projects/{pid}/estimates/{est['id']}/estimate-points/") if est else []
+        if est is None:
+            est = self.p.write("POST", f"/projects/{pid}/estimates/", {"name": "Story points", "type": "points"})
+            self.count("estimate", True)
+        else:
+            self.count("estimate", False)
+            if est.get("type") != "points":
+                self.report["warnings"].append(f"the project estimate {est.get('name')!r} is of type "
+                                               f"{est.get('type')!r}, not points; values were added to it anyway")
+        ids = {}
+        for p in points:
+            v = point_value(f"points::{p.get('value')}")
+            if v:
+                ids.setdefault(v, p["id"])
+        missing = [v for v in values if v not in ids]
+        if missing:
+            key = max([p.get("key") or 0 for p in points] or [0])
+            body = [{"key": key + n, "value": v} for n, v in enumerate(missing, 1)]
+            if self.p.dry_run or str(est["id"]).startswith("<new"):
+                created = [{"id": f"<new:point:{b['value']}>", **b} for b in body]
+            else:
+                created = self.p._request("POST", f"/projects/{pid}/estimates/{est['id']}/estimate-points/", body=body)[1]
+            for p in created:
+                ids[point_value(f"points::{p['value']}")] = p["id"]
+                self.count("estimate_point", True)
+        if proj.get("estimate") != est["id"]:
+            self.p.write("PATCH", f"/projects/{pid}/", {"estimate": est["id"]})
+            proj["estimate"] = est["id"]
+        self.say(f"Estimate: {est.get('name', 'Story points')} with points {', '.join(values)}"
+                 + (f" ({len(missing)} added)" if missing else ""))
         return ids
 
     # -- members
@@ -590,15 +705,17 @@ class Migration:
         self.p.write("POST", base, {"url": it["url"], "title": f"GitLab {it['ref']}"})
         self.count("link", True)
 
-    def work_items(self, pid, states, labels, members, cycles):
+    def work_items(self, pid, states, labels, members, cycles, points=None):
         cycle_items = {}
         total = len(self.items)
         for n, it in enumerate(sorted(self.items, key=lambda i: int(i["iid"]) if i["iid"].isdigit() else 0), 1):
-            prio = "none"
+            prio, estimate_point = "none", None
             for l in it["labels"]:
                 scope, value = split_scope(l["title"])
                 if scope and scope.lower() in PRIORITY_SCOPES:
                     prio = PRIORITY_MAP.get(value.lower(), "none")
+                if point_value(l["title"]) and points:
+                    estimate_point = points.get(point_value(l["title"]))
             body = {
                 "name": it["title"][:255],
                 "description_html": md_to_html(it["description"]),
@@ -609,6 +726,8 @@ class Migration:
                 "external_source": SOURCE,
                 "external_id": it["ref"],
             }
+            if estimate_point:
+                body["estimate_point"] = estimate_point
             if it["created"]:
                 body["created_at"] = it["created"]
             if it["start_date"]:
@@ -645,7 +764,8 @@ class Migration:
 
     def comments(self, pid, issue_id, it):
         if self.p.dry_run or str(issue_id).startswith("<new"):
-            self.count("comment", True)
+            for _ in it["notes"]:
+                self.count("comment", True)
             return
         existing = {c.get("external_id") for c in self.p.list(f"/projects/{pid}/work-items/{issue_id}/comments/")}
         for note in it["notes"]:
@@ -659,14 +779,16 @@ class Migration:
             self.count("comment", True)
 
     def run(self):
+        self.check_estimates()
         proj = self.project()
         pid = proj["id"]
         self.report["project"] = {"id": pid, "identifier": self.args.identifier, "name": proj.get("name")}
         states = self.states(pid)
         labels = self.labels(pid)
+        points = {} if self.args.no_points else self.estimates(proj)
         members = self.members(pid)
         cycles = self.cycles(pid)
-        self.work_items(pid, states, labels, members, cycles)
+        self.work_items(pid, states, labels, members, cycles, points)
         return self.report
 
 
@@ -743,6 +865,8 @@ def main(argv=None):
     ap.add_argument("--identifier", help="Plane project identifier, e.g. INVM (default: derived from the path)")
     ap.add_argument("--user-map", help="gitlab_user=plane_email pairs, comma separated")
     ap.add_argument("--no-comments", action="store_true", help="do not migrate GitLab comments")
+    ap.add_argument("--no-points", action="store_true",
+                    help="migrate without story points (for a Plane without the /estimates/ API)")
     ap.add_argument("--dry-run", action="store_true", help="read Plane, print the plan, write nothing")
     ap.add_argument("--rate", type=int, default=60, help="API calls per minute allowed for the key (default 60)")
     ap.add_argument("--report", help="write the GitLab -> Plane id mapping and summary to this JSON file")
@@ -765,6 +889,8 @@ def main(argv=None):
                     data, nxt = json.loads(resp.read().decode()), resp.headers.get("X-Next-Page")
             except urllib.error.HTTPError as e:
                 sys.exit(f"GitLab API error: HTTP {e.code}: {e.read().decode(errors='replace')[:300]}")
+            except (urllib.error.URLError, OSError) as e:
+                sys.exit(f"cannot reach GitLab at {a.gitlab_url}: {getattr(e, 'reason', e)}")
             rows += [p for p in data if not p.get("marked_for_deletion_on")]
             if not nxt:
                 break
@@ -793,8 +919,11 @@ def main(argv=None):
             with open(a.save_export, "w", encoding="utf-8") as fh:
                 json.dump(data, fh, indent=1)
     else:
-        with open(a.data, encoding="utf-8") as fh:
-            data = json.load(fh)
+        try:
+            with open(a.data, encoding="utf-8") as fh:
+                data = json.load(fh)
+        except (OSError, ValueError) as e:
+            sys.exit(f"cannot read {a.data}: {e}")
     info = data.get("project", {}) if isinstance(data, dict) else {}
     raw_items = data.get("work_items", []) if isinstance(data, dict) else data
     path = info.get("path") or (raw_items[0].get("reference", "").split("#")[0] if raw_items else "")
@@ -809,6 +938,8 @@ def main(argv=None):
           f"GitLab {path}: {len(items)} work items -> Plane {a.plane_url} workspace '{a.workspace}', project {a.identifier}")
     try:
         report = Migration(plane, a, info, items).run()
+    except EstimatesUnavailable as e:
+        sys.exit(str(e))
     except PlaneError as e:
         sys.exit(f"Plane API error: {e}")
     report["api_calls"] = plane.calls

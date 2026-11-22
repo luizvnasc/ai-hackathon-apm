@@ -1,0 +1,180 @@
+{
+  "results": [
+    {
+      "id": "i-1",
+      "sequence_id": 1,
+      "name": "Checkout flow",
+      "project": "p-1",
+      "state": {
+        "id": "s-blocked",
+        "name": "Blocked",
+        "group": "started"
+      },
+      "labels": [
+        {
+          "id": "l-backend",
+          "name": "backend"
+        }
+      ],
+      "assignees": [
+        {
+          "id": "u-dev-a",
+          "display_name": "dev-a"
+        }
+      ],
+      "priority": "high",
+      "created_at": "2026-02-01T09:00:00Z",
+      "updated_at": "2026-02-25T10:00:00Z",
+      "parent": "i-6",
+      "description_html": "<p>Checkout &amp; payment.</p><p>Blocked by the gateway contract.</p>",
+      "archived_at": null,
+      "is_draft": false
+    },
+    {
+      "id": "i-2",
+      "sequence_id": 2,
+      "name": "Payment API",
+      "project": "p-1",
+      "state": {
+        "id": "s-in-progress",
+        "name": "In Progress",
+        "group": "started"
+      },
+      "labels": [],
+      "assignees": [
+        {
+          "id": "u-dev-b",
+          "display_name": "dev-b"
+        }
+      ],
+      "priority": "medium",
+      "created_at": "2026-02-01T09:00:00Z",
+      "updated_at": "2026-02-25T10:00:00Z",
+      "parent": null,
+      "description_html": "",
+      "archived_at": null,
+      "is_draft": false
+    },
+    {
+      "id": "i-3",
+      "sequence_id": 3,
+      "name": "Old blocked task",
+      "project": "p-1",
+      "state": {
+        "id": "s-todo",
+        "name": "Todo",
+        "group": "unstarted"
+      },
+      "labels": [
+        {
+          "id": "l-blocked",
+          "name": "blocked"
+        }
+      ],
+      "assignees": [
+        {
+          "id": "u-dev-c",
+          "display_name": "dev-c"
+        }
+      ],
+      "priority": "none",
+      "created_at": "2026-02-01T09:00:00Z",
+      "updated_at": "2026-01-02T10:00:00Z",
+      "parent": null,
+      "description_html": "",
+      "archived_at": null,
+      "is_draft": false
+    },
+    {
+      "id": "i-4",
+      "sequence_id": 4,
+      "name": "Shipped thing",
+      "project": "p-1",
+      "state": {
+        "id": "s-done",
+        "name": "Done",
+        "group": "completed"
+      },
+      "labels": [],
+      "assignees": [
+        {
+          "id": "u-dev-b",
+          "display_name": "dev-b"
+        }
+      ],
+      "priority": "none",
+      "created_at": "2026-02-01T09:00:00Z",
+      "updated_at": "2026-02-25T10:00:00Z",
+      "parent": null,
+      "description_html": "",
+      "archived_at": null,
+      "is_draft": false
+    },
+    {
+      "id": "i-6",
+      "sequence_id": 6,
+      "name": "Payments epic",
+      "project": "p-1",
+      "state": {
+        "id": "s-blocked",
+        "name": "Blocked",
+        "group": "started"
+      },
+      "labels": [],
+      "assignees": [
+        {
+          "id": "u-dev-a",
+          "display_name": "dev-a"
+        }
+      ],
+      "priority": "none",
+      "created_at": "2026-02-01T09:00:00Z",
+      "updated_at": "2026-02-25T10:00:00Z",
+      "parent": null,
+      "description_html": "",
+      "archived_at": null,
+      "is_draft": false
+    },
+    {
+      "id": "i-7",
+      "sequence_id": 7,
+      "name": "Report export",
+      "project": "p-1",
+      "state": {
+        "id": "s-todo",
+        "name": "Todo",
+        "group": "unstarted"
+      },
+      "labels": [],
+      "assignees": [],
+      "priority": "none",
+      "created_at": "2026-02-01T09:00:00Z",
+      "updated_at": "2026-02-25T10:00:00Z",
+      "parent": null,
+      "description_html": "",
+      "archived_at": null,
+      "is_draft": false
+    },
+    {
+      "id": "i-8",
+      "sequence_id": 8,
+      "name": "Draft idea",
+      "project": "p-1",
+      "state": {
+        "id": "s-todo",
+        "name": "Todo",
+        "group": "unstarted"
+      },
+      "labels": [],
+      "assignees": [],
+      "priority": "none",
+      "created_at": "2026-02-01T09:00:00Z",
+      "updated_at": "2026-02-25T10:00:00Z",
+      "parent": null,
+      "description_html": "",
+      "archived_at": null,
+      "is_draft": true
+    }
+  ],
+  "next_page_results": false
+}

@@ -1,0 +1,24 @@
+{
+  "data": {
+    "project": {
+      "name": "Demo App",
+      "webUrl": "https://gitlab.example.com/demo/app",
+      "milestones": {
+        "nodes": [
+          {
+            "title": "v0.3",
+            "startDate": "2026-02-16",
+            "dueDate": "2026-03-13",
+            "webPath": "/demo/app/-/milestones/3"
+          },
+          {
+            "title": "v0.4",
+            "startDate": null,
+            "dueDate": null,
+            "webPath": "/demo/app/-/milestones/4"
+          }
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{"data": {"project": {"name": "Demo Project", "milestones": {"nodes": [
+  {"title": "Sprint 5", "startDate": "2026-03-01", "dueDate": "2026-03-14"},
+  {"title": "Sprint 6", "startDate": "2026-03-15", "dueDate": "2026-03-28"},
+  {"title": "Someday", "startDate": null, "dueDate": null}
+]}}}}

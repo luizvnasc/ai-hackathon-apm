@@ -1,0 +1,11 @@
+{"data": {"project": {"workItems": {"pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
+  {"iid": "3", "title": "Fix totals", "state": "OPEN", "webUrl": "https://gitlab.example.com/demo/app/-/issues/3",
+   "closedAt": null, "widgets": [
+     {"type": "LABELS", "labels": {"nodes": [{"title": "sp::1.5"}, {"title": "workflow::in progress"}]}},
+     {"type": "ASSIGNEES", "assignees": {"nodes": [{"username": "dev-c"}]}},
+     {"type": "MILESTONE", "milestone": null}]},
+  {"iid": "4", "title": "Write docs", "state": "CLOSED", "webUrl": "https://gitlab.example.com/demo/app/-/issues/4",
+   "closedAt": "2026-01-15T10:00:00Z", "widgets": [
+     {"type": "LABELS", "labels": {"nodes": [{"title": "points::many"}]}},
+     {"type": "MILESTONE", "milestone": {"title": "v0.2"}}]}
+]}}}}

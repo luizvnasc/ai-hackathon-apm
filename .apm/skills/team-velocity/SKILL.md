@@ -7,8 +7,8 @@ description: Team velocity for a GitLab or Plane project. For the finished miles
 
 Measure how much the team delivers per milestone (GitLab) or cycle (Plane), and turn it into a planning number.
 
-- **Read-only.** Never change anything in GitLab or Plane.
-- **Data and math come from the bundled script** `scripts/velocity.py`, so every agent gets the same numbers. Never invent periods, points or dates.
+- **Read-only.** Never change anything in GitLab or Plane. This holds even when the user asks you to close, move, relabel or fix issues: do not write your own scripts or API calls (curl, Python, an MCP tool) to do it. Say this skill only reports, and list what the user can change by hand.
+- **Data and math come from the bundled script** `scripts/velocity.py`, so every agent gets the same numbers. Never invent periods, points or dates. Do not derive new figures in your own words either (ranges, averages or totals over some sprints): quote the numbers the script printed.
 - The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly; no MCP server is needed.
 
 ## 1. Target and project
@@ -52,7 +52,7 @@ python3 <skill-dir>/scripts/velocity.py report --target <t> --project "<p>" \
 - **History:** the last `--last` finished periods (default 6). Use the user's number if they give one.
 - **Unit:**
   - `auto` uses points when every issue in those periods has them. Otherwise it counts issues, and the report says how many issues have no points.
-  - Points come from the `points::N` label in GitLab. In Plane they come from the issue's **estimate** (Project settings → Estimates, a numeric scale), and from the `points` label group when an issue has no numeric estimate.
+  - Points come from the `points::N` label in GitLab. In Plane they come from the issue's **estimate** (Project settings → Estimates, a numeric scale), never from labels: an issue without a numeric estimate has no points.
   - `--unit points` counts only pointed work.
 - **No finished milestones or cycles, or the user asks per week:** `--by week` gives weekly throughput over the last `--weeks` full weeks. The script also falls back to it on its own.
 - On an API error the script stops with the response. Report it and stop.

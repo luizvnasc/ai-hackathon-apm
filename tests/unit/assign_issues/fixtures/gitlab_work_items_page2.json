@@ -1,0 +1,15 @@
+{"data": {"project": {"workItems": {"pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
+  {"iid": "3", "title": "Fix stock rounding", "state": "OPEN", "webUrl": "https://gitlab.example.com/demo/app/-/issues/3",
+   "createdAt": "2026-02-01T10:00:00Z", "updatedAt": "2026-02-20T10:00:00Z", "closedAt": null,
+   "author": {"username": "dev-c"},
+   "widgets": [
+     {"type": "LABELS", "labels": {"nodes": [{"title": "area::backend"}, {"title": "type::bug"}, {"title": "sp::1.5"},
+                                             {"title": "workflow::blocked"}]}},
+     {"type": "ASSIGNEES", "assignees": {"nodes": [{"username": "dev-b"}]}},
+     {"type": "MILESTONE", "milestone": null}]},
+  {"iid": "4", "title": "Polish header", "state": "OPEN", "webUrl": "https://gitlab.example.com/demo/app/-/issues/4",
+   "createdAt": "2026-02-02T10:00:00Z", "updatedAt": "2026-02-21T10:00:00Z", "closedAt": null,
+   "author": null,
+   "widgets": [
+     {"type": "LABELS", "labels": {"nodes": [{"title": "points::L"}, {"title": "frontend"}]}}]}
+]}}}}

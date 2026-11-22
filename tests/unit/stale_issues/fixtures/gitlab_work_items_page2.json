@@ -1,0 +1,11 @@
+{"data": {"project": {"name": "Demo Project", "workItems": {"pageInfo": {"hasNextPage": false, "endCursor": null}, "nodes": [
+  {"iid": "3", "title": "Old spike", "webUrl": "https://gitlab.example.com/demo/app/-/issues/3",
+   "createdAt": "2025-12-01T09:00:00Z", "updatedAt": "2026-03-10T08:00:00Z", "widgets": [
+     {"type": "LABELS", "labels": {"nodes": [{"title": "stale"}, {"title": "workflow::to-do"}]}},
+     {"type": "MILESTONE", "milestone": null}]},
+  {"iid": "4", "title": "Write docs", "webUrl": "https://gitlab.example.com/demo/app/-/issues/4",
+   "createdAt": "2026-02-01T09:00:00Z", "updatedAt": "2026-03-05T00:00:00Z", "widgets": [
+     {"type": "LABELS", "labels": {"nodes": [{"title": "Blocked"}, {"title": "status::review"}, {"title": "estimate::XL"}, {"title": "priority::low"}]}},
+     {"type": "ASSIGNEES", "assignees": {"nodes": []}},
+     {"type": "MILESTONE", "milestone": {"title": "Sprint 5"}}]}
+]}}}}
