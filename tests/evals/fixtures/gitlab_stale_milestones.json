@@ -1,0 +1,24 @@
+{
+ "data": {
+  "project": {
+   "name": "Inventory",
+   "milestones": {
+    "nodes": [
+     {
+      "title": "Sprint 5",
+      "state": "active",
+      "startDate": "2026-11-09",
+      "dueDate": "2026-11-22"
+     },
+     {
+      "title": "Sprint 6",
+      "state": "active",
+      "startDate": "2026-11-23",
+      "dueDate": "2026-12-06"
+     }
+    ]
+   },
+   "webUrl": "http://gitlab.mock/group/inv"
+  }
+ }
+}

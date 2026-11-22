@@ -1,0 +1,69 @@
+{
+ "results": [
+  {
+   "id": "iss-10",
+   "sequence_id": 10,
+   "name": "Inventory task 10",
+   "estimate_point": "ep-5",
+   "state": {
+    "id": "s-done",
+    "name": "Done",
+    "group": "completed"
+   },
+   "completed_at": "2026-10-16T12:00:00Z",
+   "updated_at": "2026-10-16T12:00:00Z",
+   "labels": [],
+   "assignees": [
+    {
+     "id": "u-bob",
+     "display_name": "bob",
+     "email": "bob@example.invalid"
+    }
+   ]
+  },
+  {
+   "id": "iss-11",
+   "sequence_id": 11,
+   "name": "Inventory task 11",
+   "estimate_point": "ep-5",
+   "state": {
+    "id": "s-done",
+    "name": "Done",
+    "group": "completed"
+   },
+   "completed_at": "2026-10-20T12:00:00Z",
+   "updated_at": "2026-10-20T12:00:00Z",
+   "labels": [],
+   "assignees": [
+    {
+     "id": "u-carol",
+     "display_name": "carol",
+     "email": "carol@example.invalid"
+    }
+   ]
+  },
+  {
+   "id": "iss-12",
+   "sequence_id": 12,
+   "name": "Inventory task 12",
+   "estimate_point": "ep-2",
+   "state": {
+    "id": "s-done",
+    "name": "Done",
+    "group": "completed"
+   },
+   "completed_at": "2026-10-23T12:00:00Z",
+   "updated_at": "2026-10-23T12:00:00Z",
+   "labels": [],
+   "assignees": [
+    {
+     "id": "u-alice",
+     "display_name": "alice",
+     "email": "alice@example.invalid"
+    }
+   ]
+  }
+ ],
+ "next_page_results": false,
+ "next_cursor": null
+}

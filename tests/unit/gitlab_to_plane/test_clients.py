@@ -137,8 +137,12 @@ class PlaneListWriteTest(unittest.TestCase):
         p = plane(dry_run=True)
         with mock.patch.object(p, "_request") as req:
             out = p.write("POST", "/projects/", {"name": "X"})
+            other = p.write("POST", "/projects/", {"name": "Y"})
         req.assert_not_called()
-        self.assertEqual(out, {"id": "<new:/projects/>", "name": "X"})
+        self.assertEqual(out, {"id": "<new:/projects/#1>", "name": "X"})
+        # every new object gets its own fake id, so the plan keeps them apart (one cycle per milestone)
+        self.assertNotEqual(out["id"], other["id"])
+        self.assertTrue(other["id"].startswith("<new"))
 
     def test_write_returns_the_body(self):
         p = plane()

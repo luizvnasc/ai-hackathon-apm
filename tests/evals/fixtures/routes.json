@@ -1,0 +1,411 @@
+[
+ {
+  "method": "POST",
+  "path": "/api/graphql",
+  "graphql": {
+   "contains": [
+    "workItems",
+    "first: 20",
+    "fullPath"
+   ],
+   "variables": {
+    "p": "group/inv",
+    "after": null
+   }
+  },
+  "file": "gitlab_migrate_items.json"
+ },
+ {
+  "method": "POST",
+  "path": "/api/graphql",
+  "graphql": {
+   "contains": [
+    "workItems",
+    "author { username }"
+   ],
+   "variables": {
+    "p": "group/inv",
+    "after": null
+   }
+  },
+  "file": "gitlab_assign_items.json"
+ },
+ {
+  "method": "POST",
+  "path": "/api/graphql",
+  "graphql": {
+   "contains": [
+    "workItems",
+    "first: 50",
+    "WorkItemWidgetLinkedItems"
+   ],
+   "variables": {
+    "p": "group/inv",
+    "after": null,
+    "ms": null
+   }
+  },
+  "file": "gitlab_blocked_all.json"
+ },
+ {
+  "method": "POST",
+  "path": "/api/graphql",
+  "graphql": {
+   "contains": [
+    "workItems",
+    "first: 50",
+    "WorkItemWidgetLinkedItems"
+   ],
+   "variables": {
+    "p": "group/inv",
+    "after": null,
+    "ms": [
+     "Sprint 5"
+    ]
+   }
+  },
+  "file": "gitlab_blocked_sprint5.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/",
+  "file": "plane_projects.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/cycles/",
+  "file": "plane_cycles.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/labels/",
+  "file": "plane_labels.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/estimates/",
+  "file": "plane_estimate.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/estimates/est-1/estimate-points/",
+  "file": "plane_estimate_points.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/cycles/cyc-1/cycle-issues/",
+  "file": "plane_cycle_issues_c1.json",
+  "expand": {"estimate_point": "plane_estimate_points.json"}
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/cycles/cyc-2/cycle-issues/",
+  "file": "plane_cycle_issues_c2.json",
+  "expand": {"estimate_point": "plane_estimate_points.json"}
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/cycles/cyc-3/cycle-issues/",
+  "file": "plane_cycle_issues_c3.json",
+  "expand": {"estimate_point": "plane_estimate_points.json"}
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/cycles/cyc-4/cycle-issues/",
+  "file": "plane_cycle_issues_c4.json",
+  "expand": {"estimate_point": "plane_estimate_points.json"}
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/cycles/cyc-5/cycle-issues/",
+  "file": "plane_cycle_issues_c5.json",
+  "expand": {"estimate_point": "plane_estimate_points.json"}
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/cycles/cyc-6/cycle-issues/",
+  "file": "plane_cycle_issues_c6.json",
+  "expand": {"estimate_point": "plane_estimate_points.json"}
+ },
+ {
+  "path": "/api/v4/projects",
+  "query": {
+   "membership": "true"
+  },
+  "file": "gitlab_projects.json"
+ },
+ {
+  "method": "POST",
+  "path": "/api/graphql",
+  "graphql": {
+   "contains": [
+    "milestones",
+    "state: active"
+   ],
+   "variables": {
+    "p": "group/inv"
+   }
+  },
+  "file": "gitlab_stale_milestones.json"
+ },
+ {
+  "method": "POST",
+  "path": "/api/graphql",
+  "graphql": {
+   "contains": [
+    "workItems",
+    "milestoneTitle",
+    "first: 100"
+   ],
+   "variables": {
+    "p": "group/inv",
+    "after": null,
+    "ms": null
+   }
+  },
+  "file": "gitlab_stale_all.json"
+ },
+ {
+  "method": "POST",
+  "path": "/api/graphql",
+  "graphql": {
+   "contains": [
+    "workItems",
+    "milestoneTitle",
+    "first: 100"
+   ],
+   "variables": {
+    "p": "group/inv",
+    "after": null,
+    "ms": [
+     "Sprint 5"
+    ]
+   }
+  },
+  "file": "gitlab_stale_sprint5.json"
+ },
+ {
+  "method": "POST",
+  "path": "/api/graphql",
+  "graphql": {
+   "contains": [
+    "workItems",
+    "milestoneTitle",
+    "first: 100"
+   ],
+   "variables": {
+    "p": "group/inv",
+    "after": null
+   }
+  },
+  "file": "gitlab_stale_none.json"
+ },
+ {
+  "method": "POST",
+  "path": "/api/graphql",
+  "graphql": {
+   "contains": [
+    "milestones"
+   ],
+   "variables": {
+    "p": "group/inv"
+   }
+  },
+  "file": "gitlab_milestones.json"
+ },
+ {
+  "method": "POST",
+  "path": "/api/graphql",
+  "graphql": {
+   "contains": [
+    "workItems"
+   ],
+   "variables": {
+    "after": null,
+    "p": "group/inv"
+   }
+  },
+  "file": "gitlab_work_items_page1.json"
+ },
+ {
+  "method": "POST",
+  "path": "/api/graphql",
+  "graphql": {
+   "contains": [
+    "workItems"
+   ],
+   "variables": {
+    "after": "CUR1",
+    "p": "group/inv"
+   }
+  },
+  "file": "gitlab_work_items_page2.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/issues/",
+  "file": "plane_issues.json",
+  "expand": {"estimate_point": "plane_estimate_points.json"}
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/issues/iss-3/activities/",
+  "file": "plane_activities_i3.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/issues/iss-6/activities/",
+  "file": "plane_activities_i6.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/issues/iss-9/activities/",
+  "file": "plane_activities_i9.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/issues/iss-10/activities/",
+  "file": "plane_activities_i10.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/issues/iss-11/activities/",
+  "file": "plane_activities_i11.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/issues/iss-12/activities/",
+  "file": "plane_activities_i12.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/issues/iss-13/activities/",
+  "file": "plane_activities_i13.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/issues/iss-14/activities/",
+  "file": "plane_activities_i14.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/issues/iss-18/activities/",
+  "file": "plane_activities_i18.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/issues/iss-17/activities/",
+  "file": "plane_activities_i17.json"
+ },
+ {
+  "path_regex": "^/api/v1/workspaces/eval/projects/proj-inv/issues/iss-\\d+/activities/$",
+  "file": "plane_activities_empty.json"
+ },
+ {
+  "path": "/api/v4/projects/group%2Finv/issues/3/resource_milestone_events",
+  "file": "gitlab_milestone_events_i3.json"
+ },
+ {
+  "path": "/api/v4/projects/group%2Finv/issues/6/resource_milestone_events",
+  "file": "gitlab_milestone_events_i6.json"
+ },
+ {
+  "path": "/api/v4/projects/group%2Finv/issues/9/resource_milestone_events",
+  "file": "gitlab_milestone_events_i9.json"
+ },
+ {
+  "path": "/api/v4/projects/group%2Finv/issues/10/resource_milestone_events",
+  "file": "gitlab_milestone_events_i10.json"
+ },
+ {
+  "path": "/api/v4/projects/group%2Finv/issues/11/resource_milestone_events",
+  "file": "gitlab_milestone_events_i11.json"
+ },
+ {
+  "path": "/api/v4/projects/group%2Finv/issues/12/resource_milestone_events",
+  "file": "gitlab_milestone_events_i12.json"
+ },
+ {
+  "path": "/api/v4/projects/group%2Finv/issues/13/resource_milestone_events",
+  "file": "gitlab_milestone_events_i13.json"
+ },
+ {
+  "path": "/api/v4/projects/group%2Finv/issues/14/resource_milestone_events",
+  "file": "gitlab_milestone_events_i14.json"
+ },
+ {
+  "path": "/api/v4/projects/group%2Finv/issues/18/resource_milestone_events",
+  "file": "gitlab_milestone_events_i18.json"
+ },
+ {
+  "path_regex": "^/api/v4/projects/group%2Finv/issues/\\d+/resource_milestone_events$",
+  "file": "gitlab_milestone_events_empty.json"
+ },
+ {
+  "path": "/api/v4/projects/group%2Finv",
+  "file": "gitlab_project.json"
+ },
+ {
+  "path": "/api/v4/projects/42/issues/17/links",
+  "file": "gitlab_links_i17.json"
+ },
+ {
+  "path": "/api/v4/projects/42/issues/16/links",
+  "file": "gitlab_links_i16.json"
+ },
+ {
+  "path_regex": "^/api/v4/projects/42/issues/1[67]/links/7$",
+  "file": "gitlab_link_7.json"
+ },
+ {
+  "path": "/api/v4/projects/42/issues/17/notes",
+  "file": "gitlab_notes_i17.json"
+ },
+ {
+  "path_regex": "^/api/v4/projects/42/issues/\\d+/notes$",
+  "file": "empty_list.json"
+ },
+ {
+  "path": "/api/v4/projects/42/issues/17/resource_label_events",
+  "file": "gitlab_label_events_i17.json"
+ },
+ {
+  "path_regex": "^/api/v4/projects/42/issues/\\d+/resource_label_events$",
+  "file": "empty_list.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/members/",
+  "file": "plane_members.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/work-items/iss-17/relations/",
+  "file": "plane_relations_i17.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/work-items/iss-16/relations/",
+  "file": "plane_relations_i16.json"
+ },
+ {
+  "path_regex": "^/api/v1/workspaces/eval/projects/proj-inv/work-items/iss-\\d+/relations/$",
+  "file": "plane_relations_empty.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/issues/iss-17/comments/",
+  "file": "plane_comments_i17.json"
+ },
+ {
+  "path_regex": "^/api/v1/workspaces/eval/projects/proj-inv/issues/iss-\\d+/comments/$",
+  "file": "plane_comments_empty.json"
+ },
+ {
+  "path": "/api/v4/projects/group%2Finv/members/all",
+  "file": "gitlab_members_all.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/members/",
+  "file": "plane_project_members.json"
+ },
+ {
+  "path_regex": "^/api/v4/projects/group%2Finv/issues/\\d+$",
+  "file": "gitlab_issue_unassigned.json"
+ },
+ {
+  "path": "/api/v4/projects/42/labels",
+  "file": "gitlab_labels.json"
+ },
+ {
+  "path": "/api/v4/projects/42/boards",
+  "file": "empty_list.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/states/",
+  "file": "plane_states.json"
+ },
+ {
+  "path_regex": "^/api/v4/projects/[^/]+$",
+  "status": 404,
+  "file": "gitlab_404_project.json"
+ },
+ {
+  "path": "/api/v1/workspaces/eval/projects/proj-inv/project-members/",
+  "file": "plane_project_members_ids.json"
+ }
+]

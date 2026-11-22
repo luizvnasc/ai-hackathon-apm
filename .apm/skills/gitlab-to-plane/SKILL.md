@@ -38,6 +38,7 @@ Use `python3` (or `python` if `python3` is missing). `<skill-dir>` is the direct
    - **GitLab project not found or token refused:** report the error and stop. Do not try similar names.
    - Show the user the plan and **get confirmation** before writing.
    - Always start with the dry run, even when the user asks to skip it or says the migration is already confirmed: a confirmation counts only after the user has seen the plan.
+   - After the dry run, **end your turn** and wait for the user's reply. Never run the writing command in the same turn as the dry run, not even when the request said "just do it", "já está confirmado" or "don't ask me".
 2. **Migrate.** Run the same command without `--dry-run`, adding `--report <tmp>/report.json` in a temporary directory, never inside the user's repository.
    - The Plane API key allows 60 requests per minute, so the script paces itself. Expect about 1 second per request, roughly 2–3 requests per work item.
    - On an error it stops with the API response. Fix the cause and re-run: finished objects are reused.

@@ -1,8 +1,17 @@
 # yaml-language-server: $schema=https://promptfoo.dev/config-schema.json
 description: commitment-delivered skill evals
+# Two providers share one agent setup and differ only in the environment:
+#   unconfigured - credentials blank: routing tests and the NOT CONFIGURED path.
+#   configured   - fake credentials; the scripts' HTTP layer is mocked by ../mock/sitecustomize.py
+#                  and answers from the shared fixtures/, so reports have known numbers.
+#                  EVAL_DATASET_DATE is the date the dataset was written for; the mock shifts every
+#                  fixture date so that date becomes the real today (the agent and the script then
+#                  agree on "today" and the numbers never drift). Nothing reaches a network and
+#                  the mock refuses every write. See tests/README.md.
 providers:
   - id: anthropic:claude-agent-sdk
-    config:
+    label: unconfigured
+    config: &agent
       working_dir: ../.workspace
       setting_sources: ['project']
       skills: 'all'
@@ -18,6 +27,20 @@ providers:
         PLANE_URL: ''
         PLANE_WORKSPACE: ''
         PLANE_API_KEY: ''
+  - id: anthropic:claude-agent-sdk
+    label: configured
+    config:
+      <<: *agent
+      env:
+        GITLAB_URL: http://gitlab.mock
+        GITLAB_TOKEN: glpat-eval-fake
+        PLANE_URL: http://plane.mock
+        PLANE_WORKSPACE: eval
+        PLANE_API_KEY: plane-eval-fake
+        PYTHONPATH: '{{ env.PWD }}/.workspace/mock'
+        EVAL_FIXTURES: '{{ env.PWD }}/.workspace/fixtures'
+        EVAL_DATASET_DATE: '2026-11-12'
+
 prompts:
   - '{{request}}'
 
@@ -34,33 +57,67 @@ defaultTest:
         max_budget_usd: 0.1
 
 tests:
-  # ---------------------------------------------------------------- positive triggers
+  # Fixtures (shared dataset, Plane INV and GitLab group/inv hold the same data; dataset date 2026-11-12, shifted to the real today; dates below are as written):
+  #   Sprint 1..4 finished, Sprint 5 current, Sprint 6 upcoming (8 points).
+  #   Committed / delivered / say-do: S1 16/8/50%, S2 10/6/60%, S3 4/2/50%, S4 2/2/100%.
+  #   Median say/do 55%, mean 65%, trend rising, reliability "overcommits" (no recent drop), pooled 56%.
+  #   Removed: S1 2, S2 2, S3 2. Cancelled: S1 3 (INV-4). Carried over: S1 3 (INV-5), S2 2 (INV-9).
+  #   Added and delivered: S1 2, S2 8, S3 10, S4 8 (total delivered 10, 14, 12, 10).
+  #   Sprint 5 (current): committed 16, delivered 5 (31%), still open 11, added 3.
+  #   Next period Sprint 6 holds 8 points = 200% of the median delivered commitment (4).
+  #   Per person (finished): bob 19 committed / 10 delivered, alice 9 / 7, carol 4 / 1.
+  # ---------------------------------------------------------------- positive triggers (real numbers)
   - description: triggers on say/do ratio (en)
-    vars: {request: "Did the team deliver what it committed to in the last milestones of acme/inventory-manager in GitLab? I want the say/do ratio."}
+    providers: [configured]
+    vars: {request: "Did the team deliver what it committed to in the last milestones of group/inv in GitLab? I want the say/do ratio."}
     assert:
       - type: skill-used
         value: commitment-delivered
+      - type: javascript
+        value: |
+          const o = String(output);
+          return /\b55\s?%/.test(o) && /Sprint 4/.test(o) && /\b100\s?%/.test(o)
+            && !/NOT CONFIGURED|\[eval-mock\] MISS|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
 
   - description: triggers on predictability and overcommitment (en)
+    providers: [configured]
     vars: {request: "How predictable are our cycle commitments in Plane project INV? Do we overcommit?"}
     assert:
       - type: skill-used
         value: commitment-delivered
+      - type: javascript
+        value: |
+          const o = String(output);
+          return /\b55\s?%/.test(o) && /overcommit/i.test(o) && /Sprint 4/.test(o)
+            && !/NOT CONFIGURED|\[eval-mock\] MISS|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
 
   - description: triggers on comprometido x entregue (pt)
+    providers: [configured]
     vars: {request: "Comprometido x entregue no projeto INV do Plane: o time entrega o que promete?"}
     assert:
       - type: skill-used
         value: commitment-delivered
+      - type: javascript
+        value: |
+          const o = String(output);
+          return /\b55\s?%/.test(o) && /\b50\s?%/.test(o) && /Sprint 1/.test(o)
+            && !/NOT CONFIGURED|\[eval-mock\] MISS|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
 
   - description: triggers on planned vs done and scope creep (pt)
-    vars: {request: "Quanto do planejado foi feito nos últimos milestones do acme/inventory-manager no GitLab, e quanto escopo entrou no meio do milestone?"}
+    providers: [configured]
+    vars: {request: "Quanto do planejado foi feito nos últimos milestones do group/inv no GitLab, e quanto escopo entrou no meio do milestone?"}
     assert:
       - type: skill-used
         value: commitment-delivered
+      - type: javascript
+        value: |
+          const o = String(output);
+          return /\b60\s?%/.test(o) && /Sprint 2/.test(o) && /(60|130|200|400)\s?%/.test(o)
+            && !/NOT CONFIGURED|\[eval-mock\] MISS|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
 
   # ---------------------------------------------------------------- near misses
   - description: velocity goes to team-velocity (pt)
+    providers: [configured]
     vars: {request: "Qual a velocidade do time no projeto INV do Plane?"}
     assert:
       - type: not-skill-used
@@ -69,7 +126,8 @@ tests:
         value: team-velocity
 
   - description: points to plan goes to team-velocity (en)
-    vars: {request: "How many story points should we plan for the next milestone of acme/inventory-manager in GitLab?"}
+    providers: [configured]
+    vars: {request: "How many story points should we plan for the next milestone of group/inv in GitLab?"}
     assert:
       - type: not-skill-used
         value: commitment-delivered
@@ -77,7 +135,8 @@ tests:
         value: team-velocity
 
   - description: stale tickets go to stale-issues (pt)
-    vars: {request: "Quais tickets estão parados há mais de duas semanas no milestone v0.3 do acme/inventory-manager no GitLab?"}
+    providers: [configured]
+    vars: {request: "Quais tickets estão parados há mais de duas semanas no milestone Sprint 5 do group/inv no GitLab?"}
     assert:
       - type: not-skill-used
         value: commitment-delivered
@@ -85,6 +144,7 @@ tests:
         value: stale-issues
 
   - description: blocked issues go to blocked-issues (en)
+    providers: [configured]
     vars: {request: "Which issues are blocked in the current cycle of project INV in Plane?"}
     assert:
       - type: not-skill-used
@@ -93,6 +153,7 @@ tests:
         value: blocked-issues
 
   - description: a general agile question uses no skill
+    providers: [configured]
     vars: {request: "In general terms, what does the say/do ratio mean in Scrum? No need to look at any project."}
     assert:
       - type: not-skill-used
@@ -100,6 +161,7 @@ tests:
 
   # ---------------------------------------------------------------- missing configuration
   - description: Plane credentials missing - relays NOT CONFIGURED and invents no numbers
+    providers: [unconfigured]
     vars: {request: "What is the say/do ratio of the last cycles of project INV in Plane?"}
     assert:
       - type: skill-used
@@ -122,7 +184,8 @@ tests:
           other metrics, and it does not ask the user to paste a token or API key into the chat.
 
   - description: GitLab credentials missing - relays NOT CONFIGURED in Portuguese
-    vars: {request: "Comprometido x entregue nos últimos milestones do projeto acme/inventory-manager no GitLab?"}
+    providers: [unconfigured]
+    vars: {request: "Comprometido x entregue nos últimos milestones do projeto group/inv no GitLab?"}
     assert:
       - type: skill-used
         value: commitment-delivered
@@ -138,3 +201,91 @@ tests:
         value: >-
           The answer explains that GitLab is not configured, names GITLAB_URL and GITLAB_TOKEN
           and how to set them, and reports no say/do ratio, commitment numbers, milestones or dates.
+
+  # ---------------------------------------------------------------- behaviour on mocked data
+  - description: Plane report - real numbers from the script (en)
+    providers: [configured]
+    vars: {request: "Show the commitment x delivered of project INV in Plane: say/do per cycle, what was carried over and whether the next cycle is overcommitted."}
+    assert:
+      - type: skill-used
+        value: commitment-delivered
+      - type: javascript
+        value: |
+          const calls = context.providerResponse?.metadata?.toolCalls || [];
+          const bash = calls.filter(c => c.name === 'Bash').map(c => JSON.stringify(c.input || {}));
+          return bash.some(c => /commitment\.py/.test(c)) && !bash.some(c => /\b(curl|wget)\b/.test(c))
+      - type: javascript
+        value: |
+          const o = String(output);
+          return ['Sprint 1', 'Sprint 4', 'Sprint 5', 'Sprint 6'].every(s => o.includes(s)) && /\b55\s?%/.test(o) && /INV-5/.test(o)
+            && !/NOT CONFIGURED|\[eval-mock\] MISS|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
+      - type: llm-rubric
+        value: >-
+          The answer reports say/do per cycle of 50%, 60%, 50% and 100% for Sprint 1 to Sprint 4
+          (median 55%, mean 65%), reliability "overcommits" with a rising trend, lists INV-5 (Sprint 1)
+          and INV-9 (Sprint 2) among the carried-over work, says Sprint 5 is current (5 of 16 committed
+          points delivered so far) and that Sprint 6 holds 8 points, about twice the median of 4 points
+          the team delivers from its commitment. Extra figures taken from the report are fine; fail only
+          if it contradicts these or names periods other than Sprint 1 to Sprint 6.
+
+  - description: GitLab report - same numbers through the milestone events (pt)
+    providers: [configured]
+    vars: {request: "Comprometido x entregue por milestone no projeto group/inv do GitLab: quanto foi removido, cancelado e quanto entrou no meio?"}
+    assert:
+      - type: skill-used
+        value: commitment-delivered
+      - type: javascript
+        value: |
+          const o = String(output);
+          return ['Sprint 1', 'Sprint 3', 'Sprint 4'].every(s => o.includes(s)) && /\b55\s?%/.test(o) && /#4\b/.test(o)
+            && !/NOT CONFIGURED|\[eval-mock\] MISS|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
+      - type: llm-rubric
+        value: >-
+          The answer (in Portuguese) shows, per milestone, committed 16, 10, 4 and 2 points for Sprint 1
+          to Sprint 4, delivered 8, 6, 2 and 2, removed 2, 2, 2 and 0, cancelled 3 in Sprint 1 (issue #4),
+          and unplanned work added of 2, 8, 10 and 8 points. Median say/do 55%. Extra figures are fine;
+          fail only if it contradicts these or names milestones other than Sprint 1 to Sprint 6.
+
+  - description: per-person split comes from the script and is not a ranking
+    providers: [configured]
+    vars: {request: "Show the commitment x delivered of project INV in Plane per person."}
+    assert:
+      - type: skill-used
+        value: commitment-delivered
+      - type: icontains
+        value: alice
+      - type: icontains
+        value: bob
+      - type: llm-rubric
+        value: >-
+          The answer shows how the commitment was spread between bob (19 points committed, 10 delivered),
+          alice (9 committed, 7 delivered) and carol (4 committed, 1 delivered), and frames it as how the
+          commitment was spread rather than as a performance ranking. No other people are invented.
+
+  - description: a single named period uses --period
+    providers: [configured]
+    vars: {request: "Only Sprint 2 of project INV in Plane: how much of what we committed was delivered?"}
+    assert:
+      - type: skill-used
+        value: commitment-delivered
+      - type: javascript
+        value: |
+          const calls = context.providerResponse?.metadata?.toolCalls || [];
+          return calls.some(c => c.name === 'Bash' && /commitment\.py/.test(JSON.stringify(c.input || {})) && /--period/.test(JSON.stringify(c.input || {})))
+      - type: javascript
+        value: |
+          const o = String(output);
+          return /\b60\s?%/.test(o) && !/NOT CONFIGURED|\[eval-mock\] MISS|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
+
+  - description: no project given - lists the projects and asks which one
+    providers: [configured]
+    vars: {request: "Comprometido x entregue no Plane: o time entrega o que promete?"}
+    assert:
+      - type: skill-used
+        value: commitment-delivered
+      - type: icontains
+        value: INV
+      - type: llm-rubric
+        value: >-
+          The answer lists the Plane projects found (Inventory / INV) and asks the user which one to
+          analyze. It reports no say/do numbers yet.

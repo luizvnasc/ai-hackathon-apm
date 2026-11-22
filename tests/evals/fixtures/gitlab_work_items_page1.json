@@ -1,0 +1,464 @@
+{
+ "data": {
+  "project": {
+   "workItems": {
+    "pageInfo": {
+     "hasNextPage": true,
+     "endCursor": "CUR1"
+    },
+    "nodes": [
+     {
+      "iid": "1",
+      "title": "Inventory task 1",
+      "state": "CLOSED",
+      "webUrl": "http://gitlab.mock/group/inv/-/issues/1",
+      "closedAt": "2026-09-18T12:00:00Z",
+      "widgets": [
+       {
+        "type": "LABELS",
+        "labels": {
+         "nodes": [
+          {
+           "title": "points::5"
+          }
+         ]
+        }
+       },
+       {
+        "type": "ASSIGNEES",
+        "assignees": {
+         "nodes": [
+          {
+           "username": "alice"
+          }
+         ]
+        }
+       },
+       {
+        "type": "MILESTONE",
+        "milestone": {
+         "title": "Sprint 1"
+        }
+       }
+      ],
+      "createdAt": "2026-09-10T09:00:00Z",
+      "updatedAt": "2026-09-18T12:00:00Z"
+     },
+     {
+      "iid": "2",
+      "title": "Inventory task 2",
+      "state": "CLOSED",
+      "webUrl": "http://gitlab.mock/group/inv/-/issues/2",
+      "closedAt": "2026-09-22T12:00:00Z",
+      "widgets": [
+       {
+        "type": "LABELS",
+        "labels": {
+         "nodes": [
+          {
+           "title": "points::3"
+          }
+         ]
+        }
+       },
+       {
+        "type": "ASSIGNEES",
+        "assignees": {
+         "nodes": [
+          {
+           "username": "bob"
+          }
+         ]
+        }
+       },
+       {
+        "type": "MILESTONE",
+        "milestone": {
+         "title": "Sprint 1"
+        }
+       }
+      ],
+      "createdAt": "2026-09-10T09:00:00Z",
+      "updatedAt": "2026-09-22T12:00:00Z"
+     },
+     {
+      "iid": "3",
+      "title": "Inventory task 3",
+      "state": "CLOSED",
+      "webUrl": "http://gitlab.mock/group/inv/-/issues/3",
+      "closedAt": "2026-09-25T12:00:00Z",
+      "widgets": [
+       {
+        "type": "LABELS",
+        "labels": {
+         "nodes": [
+          {
+           "title": "points::2"
+          }
+         ]
+        }
+       },
+       {
+        "type": "ASSIGNEES",
+        "assignees": {
+         "nodes": [
+          {
+           "username": "alice"
+          }
+         ]
+        }
+       },
+       {
+        "type": "MILESTONE",
+        "milestone": {
+         "title": "Sprint 1"
+        }
+       }
+      ],
+      "createdAt": "2026-09-11T09:00:00Z",
+      "updatedAt": "2026-09-25T12:00:00Z"
+     },
+     {
+      "iid": "4",
+      "title": "Inventory task 4",
+      "state": "CLOSED",
+      "webUrl": "http://gitlab.mock/group/inv/-/issues/4",
+      "closedAt": "2026-09-14T12:00:00Z",
+      "widgets": [
+       {
+        "type": "LABELS",
+        "labels": {
+         "nodes": [
+          {
+           "title": "points::3"
+          },
+          {
+           "title": "workflow::cancelled"
+          }
+         ]
+        }
+       },
+       {
+        "type": "ASSIGNEES",
+        "assignees": {
+         "nodes": [
+          {
+           "username": "bob"
+          }
+         ]
+        }
+       },
+       {
+        "type": "MILESTONE",
+        "milestone": {
+         "title": "Sprint 1"
+        }
+       }
+      ],
+      "createdAt": "2026-09-10T09:00:00Z",
+      "updatedAt": "2026-09-14T12:00:00Z"
+     },
+     {
+      "iid": "5",
+      "title": "Inventory task 5",
+      "state": "CLOSED",
+      "webUrl": "http://gitlab.mock/group/inv/-/issues/5",
+      "closedAt": "2026-10-01T12:00:00Z",
+      "widgets": [
+       {
+        "type": "LABELS",
+        "labels": {
+         "nodes": [
+          {
+           "title": "points::3"
+          }
+         ]
+        }
+       },
+       {
+        "type": "ASSIGNEES",
+        "assignees": {
+         "nodes": [
+          {
+           "username": "carol"
+          }
+         ]
+        }
+       },
+       {
+        "type": "MILESTONE",
+        "milestone": {
+         "title": "Sprint 1"
+        }
+       }
+      ],
+      "createdAt": "2026-09-10T09:00:00Z",
+      "updatedAt": "2026-10-01T12:00:00Z"
+     },
+     {
+      "iid": "6",
+      "title": "Inventory task 6",
+      "state": "CLOSED",
+      "webUrl": "http://gitlab.mock/group/inv/-/issues/6",
+      "closedAt": "2026-10-06T12:00:00Z",
+      "widgets": [
+       {
+        "type": "LABELS",
+        "labels": {
+         "nodes": [
+          {
+           "title": "points::8"
+          }
+         ]
+        }
+       },
+       {
+        "type": "ASSIGNEES",
+        "assignees": {
+         "nodes": [
+          {
+           "username": "alice"
+          }
+         ]
+        }
+       },
+       {
+        "type": "MILESTONE",
+        "milestone": {
+         "title": "Sprint 2"
+        }
+       }
+      ],
+      "createdAt": "2026-09-25T09:00:00Z",
+      "updatedAt": "2026-10-06T12:00:00Z"
+     },
+     {
+      "iid": "7",
+      "title": "Inventory task 7",
+      "state": "CLOSED",
+      "webUrl": "http://gitlab.mock/group/inv/-/issues/7",
+      "closedAt": "2026-10-08T12:00:00Z",
+      "widgets": [
+       {
+        "type": "LABELS",
+        "labels": {
+         "nodes": [
+          {
+           "title": "points::5"
+          }
+         ]
+        }
+       },
+       {
+        "type": "ASSIGNEES",
+        "assignees": {
+         "nodes": [
+          {
+           "username": "bob"
+          }
+         ]
+        }
+       },
+       {
+        "type": "MILESTONE",
+        "milestone": {
+         "title": "Sprint 2"
+        }
+       }
+      ],
+      "createdAt": "2026-09-20T09:00:00Z",
+      "updatedAt": "2026-10-08T12:00:00Z"
+     },
+     {
+      "iid": "8",
+      "title": "Inventory task 8",
+      "state": "CLOSED",
+      "webUrl": "http://gitlab.mock/group/inv/-/issues/8",
+      "closedAt": "2026-10-09T12:00:00Z",
+      "widgets": [
+       {
+        "type": "LABELS",
+        "labels": {
+         "nodes": [
+          {
+           "title": "points::1"
+          }
+         ]
+        }
+       },
+       {
+        "type": "ASSIGNEES",
+        "assignees": {
+         "nodes": [
+          {
+           "username": "carol"
+          }
+         ]
+        }
+       },
+       {
+        "type": "MILESTONE",
+        "milestone": {
+         "title": "Sprint 2"
+        }
+       }
+      ],
+      "createdAt": "2026-09-20T09:00:00Z",
+      "updatedAt": "2026-10-09T12:00:00Z"
+     },
+     {
+      "iid": "9",
+      "title": "Inventory task 9",
+      "state": "OPEN",
+      "webUrl": "http://gitlab.mock/group/inv/-/issues/9",
+      "closedAt": null,
+      "widgets": [
+       {
+        "type": "LABELS",
+        "labels": {
+         "nodes": [
+          {
+           "title": "points::2"
+          },
+          {
+           "title": "workflow::in-progress"
+          }
+         ]
+        }
+       },
+       {
+        "type": "ASSIGNEES",
+        "assignees": {
+         "nodes": [
+          {
+           "username": "bob"
+          }
+         ]
+        }
+       },
+       {
+        "type": "MILESTONE",
+        "milestone": {
+         "title": "Sprint 2"
+        }
+       }
+      ],
+      "createdAt": "2026-09-12T09:00:00Z",
+      "updatedAt": "2026-09-20T10:00:00Z"
+     },
+     {
+      "iid": "10",
+      "title": "Inventory task 10",
+      "state": "CLOSED",
+      "webUrl": "http://gitlab.mock/group/inv/-/issues/10",
+      "closedAt": "2026-10-16T12:00:00Z",
+      "widgets": [
+       {
+        "type": "LABELS",
+        "labels": {
+         "nodes": [
+          {
+           "title": "points::5"
+          }
+         ]
+        }
+       },
+       {
+        "type": "ASSIGNEES",
+        "assignees": {
+         "nodes": [
+          {
+           "username": "bob"
+          }
+         ]
+        }
+       },
+       {
+        "type": "MILESTONE",
+        "milestone": {
+         "title": "Sprint 3"
+        }
+       }
+      ],
+      "createdAt": "2026-10-02T09:00:00Z",
+      "updatedAt": "2026-10-16T12:00:00Z"
+     },
+     {
+      "iid": "11",
+      "title": "Inventory task 11",
+      "state": "CLOSED",
+      "webUrl": "http://gitlab.mock/group/inv/-/issues/11",
+      "closedAt": "2026-10-20T12:00:00Z",
+      "widgets": [
+       {
+        "type": "LABELS",
+        "labels": {
+         "nodes": [
+          {
+           "title": "points::5"
+          }
+         ]
+        }
+       },
+       {
+        "type": "ASSIGNEES",
+        "assignees": {
+         "nodes": [
+          {
+           "username": "carol"
+          }
+         ]
+        }
+       },
+       {
+        "type": "MILESTONE",
+        "milestone": {
+         "title": "Sprint 3"
+        }
+       }
+      ],
+      "createdAt": "2026-10-02T09:00:00Z",
+      "updatedAt": "2026-10-20T12:00:00Z"
+     },
+     {
+      "iid": "12",
+      "title": "Inventory task 12",
+      "state": "CLOSED",
+      "webUrl": "http://gitlab.mock/group/inv/-/issues/12",
+      "closedAt": "2026-10-23T12:00:00Z",
+      "widgets": [
+       {
+        "type": "LABELS",
+        "labels": {
+         "nodes": [
+          {
+           "title": "points::2"
+          }
+         ]
+        }
+       },
+       {
+        "type": "ASSIGNEES",
+        "assignees": {
+         "nodes": [
+          {
+           "username": "alice"
+          }
+         ]
+        }
+       },
+       {
+        "type": "MILESTONE",
+        "milestone": {
+         "title": "Sprint 3"
+        }
+       }
+      ],
+      "createdAt": "2026-09-22T09:00:00Z",
+      "updatedAt": "2026-10-23T12:00:00Z"
+     }
+    ]
+   }
+  }
+ }
+}

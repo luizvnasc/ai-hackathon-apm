@@ -394,7 +394,9 @@ class Plane:
 
     def write(self, method, path, body):
         if self.dry_run:
-            return {"id": f"<new:{path}>", **body}
+            # a distinct fake id per write, so the plan keeps new objects apart (e.g. one cycle per milestone)
+            self._dry_ids = getattr(self, "_dry_ids", 0) + 1
+            return {"id": f"<new:{path}#{self._dry_ids}>", **body}
         return self._request(method, path, body=body)[1]
 
 

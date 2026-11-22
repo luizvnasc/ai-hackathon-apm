@@ -1,0 +1,10 @@
+[
+ {
+  "id": 100,
+  "created_at": "2026-10-14T09:00:00Z",
+  "action": "add",
+  "milestone": {
+   "title": "Sprint 3"
+  }
+ }
+]

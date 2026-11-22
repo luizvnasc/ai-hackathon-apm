@@ -1,0 +1,11 @@
+{
+ "blocked_by": [
+  {
+   "id": "iss-16",
+   "project_id": "proj-inv"
+  }
+ ],
+ "blocking": [],
+ "relates_to": [],
+ "duplicate": []
+}

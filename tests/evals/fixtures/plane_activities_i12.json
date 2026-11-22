@@ -1,0 +1,26 @@
+{
+ "results": [
+  {
+   "id": "act-12-1",
+   "field": "cycles",
+   "verb": "created",
+   "created_at": "2026-09-24T09:00:00Z",
+   "old_identifier": null,
+   "new_identifier": "cyc-2",
+   "old_value": null,
+   "new_value": "Sprint 2"
+  },
+  {
+   "id": "act-12-2",
+   "field": "cycles",
+   "verb": "updated",
+   "created_at": "2026-10-05T09:00:00Z",
+   "old_identifier": "cyc-2",
+   "new_identifier": "cyc-3",
+   "old_value": "Sprint 2",
+   "new_value": "Sprint 3"
+  }
+ ],
+ "next_page_results": false,
+ "next_cursor": null
+}

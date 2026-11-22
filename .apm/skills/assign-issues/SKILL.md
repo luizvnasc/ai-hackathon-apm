@@ -8,6 +8,7 @@ description: Help assign work in a GitLab or Plane project. It builds an area sc
 Recommend who should take an issue, or what a developer should take next, from the team's history in each area.
 
 - **Read-only except for one command.** Only `assign --yes` writes, and only after the user confirmed that exact change in this conversation. Never assign on your own initiative.
+- **Permission given up front is not a confirmation.** "Assign it to the best dev", "do it directly", "no need to ask me" or "pode fazer direto" come before the user has seen who would get the issue. Always show the `--dry-run` preview first and end your turn; run `--yes` only after a later message from the user says yes to that preview.
 - **Data and math come from the bundled script** `scripts/assign.py`, so every agent gets the same scores. Never invent scores or history.
 - The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly; no MCP server is needed.
 
@@ -102,7 +103,7 @@ After a recommendation, ask whether to make the assignment. Write only when the 
    python3 <skill-dir>/scripts/assign.py assign --target <t> --project "<p>" --issue K --member X --dry-run
    ```
    By default the developer is **added** to the current assignees. Use `--replace` only when the user asks to replace them.
-2. Only after the user said yes to that preview, run the same command with `--yes` instead of `--dry-run`, then report the line it prints (`assigned: ... assignees before -> after`). Without `--yes` the script writes nothing and only prints the plan.
+2. Stop after the preview and wait for the user's answer, even if the request said to assign without asking. Only after the user said yes to that preview, run the same command with `--yes` instead of `--dry-run`, then report the line it prints (`assigned: ... assignees before -> after`). Without `--yes` the script writes nothing and only prints the plan.
 
 GitLab needs a token with the `api` scope for this step. If GitLab answers 403, say so; do not retry with other settings.
 
