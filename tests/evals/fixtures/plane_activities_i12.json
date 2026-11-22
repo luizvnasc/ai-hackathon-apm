@@ -19,6 +19,46 @@
    "new_identifier": "cyc-3",
    "old_value": "Sprint 2",
    "new_value": "Sprint 3"
+  },
+  {
+   "id": "act-12-fix-1",
+   "field": "labels",
+   "verb": "updated",
+   "created_at": "2026-10-03T10:00:00Z",
+   "old_identifier": null,
+   "new_identifier": "lab-to-fix",
+   "old_value": "",
+   "new_value": "to-fix"
+  },
+  {
+   "id": "act-12-fix-1b",
+   "field": "labels",
+   "verb": "updated",
+   "created_at": "2026-10-03T16:00:00Z",
+   "old_identifier": "lab-to-fix",
+   "new_identifier": null,
+   "old_value": "to-fix",
+   "new_value": ""
+  },
+  {
+   "id": "act-12-fix-2",
+   "field": "state",
+   "verb": "updated",
+   "created_at": "2026-10-21T10:00:00Z",
+   "old_identifier": "s-review",
+   "new_identifier": "s-tofix",
+   "old_value": "In Review",
+   "new_value": "To Fix"
+  },
+  {
+   "id": "act-12-fix-2b",
+   "field": "state",
+   "verb": "updated",
+   "created_at": "2026-10-21T16:00:00Z",
+   "old_identifier": "s-tofix",
+   "new_identifier": "s-prog",
+   "old_value": "To Fix",
+   "new_value": "In Progress"
   }
  ],
  "next_page_results": false,

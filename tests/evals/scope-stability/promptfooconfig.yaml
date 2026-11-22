@@ -73,7 +73,9 @@ tests:
       - type: javascript
         value: |
           const o = String(output);
-          return /\b69\s?%/.test(o) && /unstable/i.test(o)
+          const rounds = (text, n, percent) => [...text.matchAll(percent ? /(\d+(?:[.,]\d+)?)\s?%/g : /(?<![\d.,])(\d+(?:[.,]\d+)?)/g)]
+            .some(m => Math.round(Number(m[1].replace(',', '.'))) === n);  // 90,6 says 91: the agent may quote the JSON
+          return rounds(o, 69, true) && /unstable/i.test(o)
             && !/NOT CONFIGURED|\[eval-mock\] (MISS|WRITE REFUSED)|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
 
   - description: triggers on how much the cycle changed (en)
@@ -85,7 +87,9 @@ tests:
       - type: javascript
         value: |
           const o = String(output);
-          return /\b81\s?%/.test(o) && /Sprint 5/.test(o)
+          const rounds = (text, n, percent) => [...text.matchAll(percent ? /(\d+(?:[.,]\d+)?)\s?%/g : /(?<![\d.,])(\d+(?:[.,]\d+)?)/g)]
+            .some(m => Math.round(Number(m[1].replace(',', '.'))) === n);  // 90,6 says 91: the agent may quote the JSON
+          return rounds(o, 81, true) && /Sprint 5/.test(o)
             && !/NOT CONFIGURED|\[eval-mock\] (MISS|WRITE REFUSED)|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
       - type: llm-rubric
         value: >-
@@ -100,7 +104,9 @@ tests:
       - type: javascript
         value: |
           const o = String(output);
-          return /\b69\s?%/.test(o) && /inst[áa]vel|unstable/i.test(o)
+          const rounds = (text, n, percent) => [...text.matchAll(percent ? /(\d+(?:[.,]\d+)?)\s?%/g : /(?<![\d.,])(\d+(?:[.,]\d+)?)/g)]
+            .some(m => Math.round(Number(m[1].replace(',', '.'))) === n);  // 90,6 says 91: the agent may quote the JSON
+          return rounds(o, 69, true) && /inst[áa]vel|unstable/i.test(o)
             && !/NOT CONFIGURED|\[eval-mock\] (MISS|WRITE REFUSED)|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
 
   - description: triggers on what entered and left (pt)
@@ -150,7 +156,9 @@ tests:
       - type: javascript
         value: |
           const o = String(output);
-          return /\b69\s?%/.test(o)
+          const rounds = (text, n, percent) => [...text.matchAll(percent ? /(\d+(?:[.,]\d+)?)\s?%/g : /(?<![\d.,])(\d+(?:[.,]\d+)?)/g)]
+            .some(m => Math.round(Number(m[1].replace(',', '.'))) === n);  // 90,6 says 91: the agent may quote the JSON
+          return rounds(o, 69, true)
             && !/NOT CONFIGURED|\[eval-mock\] (MISS|WRITE REFUSED)|no fixture|glpat-eval-fake|plane-eval-fake/i.test(o);
       - type: llm-rubric
         value: >-

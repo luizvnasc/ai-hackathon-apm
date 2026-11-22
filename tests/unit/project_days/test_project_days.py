@@ -12,6 +12,7 @@ from tests.unit._load import load
 from tests.unit.project_days.fakes import UTC, World, moment
 
 SKILLS = {"assign-issues": "assign.py", "blocked-issues": "blocked.py", "commitment-delivered": "commitment.py",
+          "delivery-quality": "quality.py",
           "scope-stability": "stability.py", "stale-issues": "stale.py", "team-velocity": "velocity.py"}
 PROJECT_ZONES = ("-03:00", "+00:00", "+05:30", "+09:00")
 KEY_OWNER_ZONES = ("+00:00", "-03:00", "+09:00")

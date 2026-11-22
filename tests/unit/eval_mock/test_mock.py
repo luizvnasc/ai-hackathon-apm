@@ -23,6 +23,7 @@ POPULATE_LABELS = ROOT / ".apm" / "skills" / "populate-project" / "labels.defaul
 BLOCKED = ROOT / ".apm" / "skills" / "blocked-issues" / "scripts" / "blocked.py"
 STALE = ROOT / ".apm" / "skills" / "stale-issues" / "scripts" / "stale.py"
 VELOCITY = ROOT / ".apm" / "skills" / "team-velocity" / "scripts" / "velocity.py"
+QUALITY = ROOT / ".apm" / "skills" / "delivery-quality" / "scripts" / "quality.py"
 
 NO_PACING = ("--rate", "6000")  # the mock has no rate limit: waiting for Plane's 60 requests/minute only slows the tests
 
@@ -349,6 +350,65 @@ class CommitmentEndToEndTest(unittest.TestCase):
         out = self.run_report("projects", "--target", "gitlab")
         self.assertEqual([p["path"] for p in json.loads(out.stdout)], ["group/inv"])
         self.assertNotIn("[eval-mock]", out.stderr)
+
+
+class QualityEndToEndTest(unittest.TestCase):
+    """quality.py in a subprocess against the same fixtures: passes through to fix are only in the history, so the
+    other skills see the same data as before."""
+
+    def run_report(self, *args):
+        env = {k: v for k, v in os.environ.items() if not k.startswith(("GITLAB_", "PLANE_"))}
+        env.update(PYTHONPATH=str(MOCK_DIR), EVAL_FIXTURES=str(FIXTURES), EVAL_TODAY="2026-11-12",
+                   GITLAB_URL="http://gitlab.mock", GITLAB_TOKEN="glpat-eval-fake",
+                   PLANE_URL="http://plane.mock", PLANE_WORKSPACE="eval", PLANE_API_KEY="plane-eval-fake")
+        with tempfile.TemporaryDirectory() as cwd:  # no .env
+            return subprocess.run([sys.executable, str(QUALITY), *args, *NO_PACING, "--format", "json"], env=env,
+                                  cwd=cwd, capture_output=True, text=True, timeout=120)
+
+    def check_report(self, res):
+        rows = {r["name"]: r for r in res["rows"]}
+        keys = ("delivered", "went_to_fix", "passes", "rating")
+        expected = {"Sprint 1": (4, 1, 1, "attention"), "Sprint 2": (3, 1, 2, "poor"), "Sprint 3": (3, 1, 1, "poor"),
+                    "Sprint 4": (2, 0, 0, "good"), "Sprint 5": (1, 0, 0, "good")}
+        self.assertEqual({name: tuple(rows[name][k] for k in keys) for name in rows}, expected)
+        # #12 went to fix in Sprint 2 too, and #10 before it joined Sprint 3: only the Sprint 3 pass of #12 counts
+        self.assertEqual([(i["key"][-2:], i["passes"]) for i in rows["Sprint 3"]["returned"]], [("12", ["2026-10-21"])])
+        self.assertEqual([i["key"][-2:] for i in rows["Sprint 5"]["still_open"]], ["17"])
+        summary = res["summary"]
+        self.assertEqual((summary["n"], summary["rating"], summary["trend_word"]), (4, "poor", "improving"))
+        self.assertAlmostEqual(summary["median"], 17 / 24)
+
+    def test_the_current_period_alone_shows_the_open_issue(self):
+        # Only issues updated since the period began are read: a pass is a change, so it updates the issue
+        out = self.run_report("report", "--target", "plane", "--project", "INV", "--period", "Sprint 5")
+        self.assertEqual(out.returncode, 0, out.stderr)
+        rows = json.loads(out.stdout)["rows"]
+        self.assertEqual([i["key"] for i in rows[0]["still_open"]], ["INV-17"])
+
+    def test_no_pass_is_later_than_the_issues_last_update(self):
+        plane = {i["id"]: i["updated_at"] for i in json.loads((FIXTURES / "plane_issues.json").read_text())["results"]}
+        gitlab = {}
+        for page in ("gitlab_work_items_page1.json", "gitlab_work_items_page2.json"):
+            for node in json.loads((FIXTURES / page).read_text())["data"]["project"]["workItems"]["nodes"]:
+                gitlab[node["iid"]] = node["updatedAt"]
+        for path in FIXTURES.glob("plane_activities_i*.json"):
+            issue = "iss-" + path.stem.rsplit("_i", 1)[1]
+            for activity in json.loads(path.read_text())["results"]:
+                if "fix" in str(activity.get("new_value")).lower() or "fix" in str(activity.get("old_value")).lower():
+                    self.assertLessEqual(activity["created_at"], plane[issue], path.name)
+        for path in FIXTURES.glob("gitlab_label_events_i*.json"):
+            iid = path.stem.rsplit("_i", 1)[1]
+            for event in json.loads(path.read_text()):
+                if "fix" in (event.get("label") or {}).get("name", ""):
+                    self.assertLessEqual(event["created_at"], gitlab[iid], path.name)
+
+    def test_plane_and_gitlab_report_numbers(self):
+        for target, project in (("plane", "INV"), ("gitlab", "group/inv")):
+            with self.subTest(target=target):
+                out = self.run_report("report", "--target", target, "--project", project)
+                self.assertEqual(out.returncode, 0, out.stderr)
+                self.assertNotIn("[eval-mock]", out.stderr)
+                self.check_report(json.loads(out.stdout))
 
 
 class StaleEndToEndTest(unittest.TestCase):
