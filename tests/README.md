@@ -32,7 +32,7 @@ from tests.unit._load import load
 vel = load("team-velocity", "velocity.py")
 ```
 
-Every `load` call executes the script again and returns a fresh module, so patches in one test module never leak into another.
+Every `load` call executes the script again, with that skill's own copy of `hackathon_shared`, and returns a fresh module, so patches in one test module never leak into another. Patch a shared function on the script's module when the script calls it.
 
 Patterns used in `team_velocity/` that other skills can copy:
 - API clients without a network: `Cls.__new__(Cls)` and set the attributes, then patch `req`/`list`/`gql` (or the module's `http`) with `unittest.mock`. Patch `module.time.sleep` when retries are involved.

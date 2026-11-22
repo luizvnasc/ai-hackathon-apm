@@ -34,7 +34,6 @@ a diagnosis and a next step.
 import argparse
 import datetime as dt
 import html
-import io
 import json
 import os
 import re
@@ -43,6 +42,12 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+
+# APM installs each skill by itself: hackathon_shared/ is generated from the package's shared/.
+sys.dont_write_bytecode = True  # never write into an installed skill
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))  # python3 -I leaves it out
+from hackathon_shared.config import load_dotenv, require_config  # noqa: E402
+from hackathon_shared.net import workspace_segment  # noqa: E402
 
 UA = "blocked-issues-skill/1.0"
 BLOCK_WORDS = re.compile(
@@ -57,38 +62,6 @@ class ApiError(Exception):
     def __init__(self, status, body, method, url):
         super().__init__(f"{method} {url} -> HTTP {status}: {body[:400]}")
         self.status = status
-
-
-def workspace_segment(slug):
-    """The workspace slug as one path segment, so it cannot change the API route."""
-    if slug in (".", ".."):
-        sys.exit(f"invalid Plane workspace {slug!r}")
-    return urllib.parse.quote(slug, safe="")
-
-
-def safe_redirect(source, target):
-    """Whether a redirect may carry the token: same origin, or http -> https on the same host (default ports)."""
-    def origin(url):
-        u = urllib.parse.urlsplit(url)
-        return u.scheme, u.hostname, u.port or {"http": 80, "https": 443}.get(u.scheme)
-    try:
-        old, new = origin(source), origin(target)
-    except ValueError:
-        return False
-    return old == new or (old[1] == new[1] and old[0] == "http" and old[2] == 80 and new[0] == "https" and new[2] == 443)
-
-
-class SameOriginRedirects(urllib.request.HTTPRedirectHandler):
-    """urllib resends every header, tokens included, to wherever a redirect points: refuse other origins."""
-
-    def redirect_request(self, req, fp, code, msg, headers, newurl):
-        if not safe_redirect(req.full_url, newurl):
-            why = b"redirect to another origin refused, so the token is not sent there: check the configured URL"
-            raise urllib.error.HTTPError(req.full_url, code, "redirect refused", headers, io.BytesIO(why))
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
-
-
-urllib.request.install_opener(urllib.request.build_opener(SameOriginRedirects))
 
 
 def http(method, url, headers, body=None):
@@ -852,68 +825,6 @@ def render_projects_md(target, rows):
     if not rows:
         out += ["", "You are not a member of any project."]
     return "\n".join(out)
-
-
-def require_config(gitlab=False, plane=False, gitlab_url=None, plane_url=None, workspace=None, scope="read_api"):
-    """Stop with setup instructions (Linux/macOS and Windows) when a required variable is missing."""
-    missing = []
-    if gitlab:
-        if not gitlab_url:
-            missing.append(("GITLAB_URL", "https://gitlab.example.com"))
-        if not os.environ.get("GITLAB_TOKEN"):
-            missing.append(("GITLAB_TOKEN", f"<personal access token, scope {scope}: GitLab > User settings > Access tokens>"))
-    if plane:
-        if not plane_url:
-            missing.append(("PLANE_URL", "https://plane.example.com"))
-        if not workspace:
-            missing.append(("PLANE_WORKSPACE", "<workspace slug, as in the Plane URL /<slug>/projects>"))
-        if not os.environ.get("PLANE_API_KEY"):
-            missing.append(("PLANE_API_KEY", "<API key: Plane > Workspace settings > API tokens>"))
-    if not missing:
-        return
-    key, example = missing[0]
-    lines = [f"NOT CONFIGURED: missing {', '.join(k for k, _ in missing)}.", "",
-             "Set them as environment variables, or add them to a .env file in the project root",
-             "(one KEY=value per line; keep .env out of git):", ""]
-    lines += [f"  {k}={v}" for k, v in missing]
-    lines += ["", "How to set an environment variable:",
-              f'  Linux/macOS (bash/zsh):  export {key}="{example}"',
-              f'  Windows PowerShell:      $env:{key} = "{example}"',
-              f'                           persistent: setx {key} "{example}"  (then open a new terminal)',
-              f"  Windows cmd:             set {key}={example}",
-              "", "Restart the agent after changing environment variables (.env is read on every run), then try again."]
-    print("\n".join(lines), file=sys.stderr)
-    sys.exit(2)
-
-def load_dotenv(path=".env"):
-    """Fill unset GITLAB_*/PLANE_* variables from the project's .env; the environment always wins.
-
-    The .env of the current directory may come with a cloned repository, so its URL is used only with the
-    token of that same file: it can never choose the server that receives a token from the environment.
-    """
-    try:
-        with open(path, encoding="utf-8") as fh:
-            lines = fh.read().splitlines()
-    except OSError:
-        return
-    found = {}
-    for line in lines:
-        m = re.match(r"\s*(?:export\s+)?((?:GITLAB|PLANE)_[A-Z0-9_]+)\s*=\s*(.*)$", line)
-        if not m:
-            continue
-        key, value = m.group(1), m.group(2).strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
-            value = value[1:-1]
-        if value:
-            found.setdefault(key, value)
-    for url_key, token_key in (("GITLAB_URL", "GITLAB_TOKEN"), ("PLANE_URL", "PLANE_API_KEY")):
-        if url_key in found and not os.environ.get(url_key) and (os.environ.get(token_key) or token_key not in found):
-            del found[url_key]
-            print(f"IGNORED {url_key} from .env: a .env URL is only used with the {token_key} of the same file, "
-                  f"never with one from the environment. Set {url_key} in the environment.", file=sys.stderr)
-    for key, value in found.items():
-        if not os.environ.get(key):
-            os.environ[key] = value
 
 
 def main(argv=None):

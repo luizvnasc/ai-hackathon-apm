@@ -51,6 +51,8 @@ How the numbers were measured:
 ```
 .
   apm.yml                        # package manifest
+  shared/                        # common code of the scripts: edit here, never in a generated copy
+  tools/sync_shared.py           # writes the copies: scripts/hackathon_shared/ of each skill
   .apm/
     skills/
       populate-project/          # SKILL.md + labels.default.json + scripts/populate.py
@@ -66,6 +68,14 @@ How the numbers were measured:
 ```
 
 See [tests/README.md](tests/README.md) for how to run them.
+
+### Shared code
+
+APM installs each skill folder by itself, so code used by several skills is generated into each one.
+
+1. Edit `shared/<module>.py` (`config`, `net`, `report`, `stats`), never `scripts/hackathon_shared/`.
+2. In a script, import it with `from hackathon_shared.<module> import <name>`, after the bootstrap lines the other scripts have.
+3. Run `python3 tools/sync_shared.py` and commit the copies. `tests/unit/shared_modules` fails when one differs.
 
 ## Install in your project
 
