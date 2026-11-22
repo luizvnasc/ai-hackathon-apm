@@ -2,6 +2,9 @@
 
 Black box: every script runs as a real process against real HTTP servers on 127.0.0.1, with no mock.
 `trusted` is the server the user configured, `other` is one that must never see a token.
+
+Each rule runs on one script (REFERENCE), because the copies of shared/ are identical (checked in
+tests/unit/shared_modules). WiringTest then checks that every script really uses them.
 """
 import ast
 import http.server
@@ -16,6 +19,7 @@ import unittest
 
 SKILLS = pathlib.Path(__file__).resolve().parents[3] / ".apm" / "skills"
 SCRIPTS = sorted(SKILLS.glob("*/scripts/*.py"))
+REFERENCE = SKILLS / "team-velocity" / "scripts" / "velocity.py"
 TOKENS = {"gitlab": ("GITLAB_URL", "GITLAB_TOKEN", "glpat-secret-123"),
           "plane": ("PLANE_URL", "PLANE_API_KEY", "plane-secret-456")}
 CALL_HTTP = """
@@ -109,12 +113,12 @@ class Case(unittest.TestCase):
 
 
 
-def for_each(*targets):
+def for_each(*targets, scripts=(REFERENCE,)):
     """Runs the test once per script and target, each as its own subTest."""
     def decorate(body):
         def test(self):
-            self.assertTrue(SCRIPTS)
-            for script in SCRIPTS:
+            self.assertTrue(scripts)
+            for script in scripts:
                 for target in targets:
                     with self.subTest(skill=script.parent.parent.name, target=target):
                         self.reset()
@@ -184,10 +188,6 @@ class ServerFromDotenvTest(Case):
         self.assertEqual(self.other.seen, [])
         self.assertIn(token, self.trusted.seen[0][2])
 
-    @for_each("gitlab", "plane")
-    def test_the_url_option_still_works(self, script, target):
-        self.cli(script, target, f"--{target}-url", self.trusted.url, env=self.env(target, url=False))
-        self.assertTrue(self.trusted.seen)
 
 
 class RedirectTest(Case):
@@ -263,6 +263,37 @@ class WorkspaceTest(Case):
             out = self.cli(script, target, env={**self.env(target), "PLANE_WORKSPACE": slug})
             self.assertEqual(self.trusted.seen, [])
             self.assertIn("invalid Plane workspace", out.stderr)
+
+
+class WiringTest(Case):
+    """Every script, not only REFERENCE: a skill that stops using a shared guard fails here."""
+
+    @for_each("gitlab", "plane", scripts=SCRIPTS)
+    def test_reads_the_dotenv_and_escapes_the_workspace(self, script, target):
+        url_key, token_key, token = TOKENS[target]
+        dotenv = f"{url_key}={self.trusted.url}\n{token_key}={token}\nPLANE_WORKSPACE=../x\n"
+        self.cli(script, target, files={".env": dotenv})
+        _, path, headers = self.trusted.seen[0]
+        self.assertIn(token, headers)
+        if target == "plane":
+            self.assertTrue(path.startswith("/api/v1/workspaces/..%2Fx/"), path)
+
+    @for_each("gitlab", "plane", scripts=SCRIPTS)
+    def test_stops_when_only_untrusted_files_give_the_url(self, script, target):
+        url_key, _, _ = TOKENS[target]
+        planted = {".env": f"{url_key}={self.other.url}\n",
+                   ".mcp.json": json.dumps({"mcpServers": {"gitlab": {"url": self.other.url}}})}
+        out = self.cli(script, target, env=self.env(target, url=False), files=planted)
+        self.assertEqual(self.other.seen, [])
+        self.assertEqual(out.returncode, 2, out.stderr)
+        self.assertIn(f"NOT CONFIGURED: missing {url_key}.", out.stderr)
+
+    @for_each("gitlab", "plane", scripts=SCRIPTS)
+    def test_honours_the_url_option_and_refuses_a_redirect(self, script, target):
+        self.trusted.redirects = {"/": (302, self.other.url + "/steal")}
+        self.cli(script, target, f"--{target}-url", self.trusted.url, env=self.env(target, url=False))
+        self.assertTrue(self.trusted.seen)
+        self.assertEqual(self.other.seen, [])
 
 
 class GuardsTest(unittest.TestCase):

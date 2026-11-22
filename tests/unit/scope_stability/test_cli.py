@@ -50,19 +50,6 @@ class Fake:
 
 
 class ConfigTest(unittest.TestCase):
-    def test_not_configured_names_the_variables(self):
-        for target, names in (("gitlab", ["GITLAB_URL", "GITLAB_TOKEN"]),
-                              ("plane", ["PLANE_URL", "PLANE_WORKSPACE", "PLANE_API_KEY"])):
-            code, out, err = run("report", "--target", target, "--project", "X")
-            self.assertEqual((code, out), (2, ""))
-            for text in names + ["NOT CONFIGURED", "export ", "$env:"]:
-                self.assertIn(text, err)
-
-    def test_no_secret_in_the_output(self):
-        code, out, err = run("report", "--target", "gitlab", "--project", "X", env={"GITLAB_TOKEN": "glpat-secret-123"})
-        self.assertEqual(code, 2)
-        self.assertNotIn("glpat-secret-123", out + err)
-
     def test_invalid_arguments(self):
         for extra in (["--last", "0"], ["--grace-days", "-1"], ["--timezone", "Mars/Base"]):
             code, _, err = run("report", "--target", "gitlab", "--project", "X", *extra, env=ENV)

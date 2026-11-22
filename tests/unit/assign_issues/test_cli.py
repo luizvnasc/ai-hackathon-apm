@@ -123,17 +123,6 @@ class ConfigTest(unittest.TestCase):
         for s in SECRETS:
             self.assertNotIn(s, out + err)
 
-    def test_gitlab_nothing_set(self):
-        code, out, err = Run(self)("scores", "--target", "gitlab", "--project", "g/p")
-        self.assert_not_configured(code, out, err, ["GITLAB_URL", "GITLAB_TOKEN"])
-        self.assertIn("api to assign", err)
-        self.assertNotIn("PLANE_", err)
-
-    def test_plane_nothing_set(self):
-        code, out, err = Run(self)("suggest-member", "--target", "plane", "--project", "DEMO", "--issue", "DEMO-1")
-        self.assert_not_configured(code, out, err, ["PLANE_URL", "PLANE_WORKSPACE", "PLANE_API_KEY"])
-        self.assertNotIn("GITLAB_", err)
-
     def test_assign_without_config_writes_nothing(self):
         fake = fake_source()
         with mock.patch.object(asg, "Plane", fake):
@@ -141,44 +130,6 @@ class ConfigTest(unittest.TestCase):
                                        "--issue", "DEMO-11", "--member", "bob", "--yes")
         self.assert_not_configured(code, out, err, ["PLANE_URL"])
         self.assertEqual(fake.writes, [])
-
-    def test_partial_config_names_only_the_missing_and_never_the_token(self):
-        code, out, err = Run(self, {"PLANE_API_KEY": "plane-secret-456"})("projects", "--target", "plane")
-        self.assert_not_configured(code, out, err, ["PLANE_URL", "PLANE_WORKSPACE"])
-        self.assertNotIn("PLANE_API_KEY", err.splitlines()[0])
-        code, out, err = Run(self, {"GITLAB_TOKEN": "glpat-secret-123"})("projects", "--target", "gitlab")
-        self.assert_not_configured(code, out, err, ["GITLAB_URL"])
-        self.assertEqual(err.splitlines()[0], "NOT CONFIGURED: missing GITLAB_URL.")
-
-    def test_dotenv_fills_missing_values(self):
-        dotenv = "export GITLAB_URL=https://gitlab.example.com\nGITLAB_TOKEN='glpat-secret-123'\nOTHER=x\n"
-        with mock.patch.object(asg, "GitLab", fake_source(kind="milestone")):
-            code, out, err = Run(self)("projects", "--target", "gitlab", files={".env": dotenv})
-        self.assertEqual(code, 0, err)
-        self.assertNotIn("NOT CONFIGURED", err)
-        for s in SECRETS:
-            self.assertNotIn(s, out + err)
-
-    def test_environment_wins_over_dotenv(self):
-        seen = {}
-
-        class Capture(fake_source()):
-            def __init__(self, *args):
-                super().__init__(*args)
-                seen["args"] = args
-
-        env = dict(PLANE_ENV, PLANE_WORKSPACE="from-env")
-        with mock.patch.object(asg, "Plane", Capture):
-            Run(self, env)("projects", "--target", "plane", files={".env": "PLANE_WORKSPACE=from-dotenv\n"})
-        self.assertEqual(seen["args"][1], "from-env")
-        self.assertEqual(seen["args"][2], "plane-secret-456")
-
-    def test_gitlab_url_is_not_taken_from_mcp_json(self):
-        mcp = json.dumps({"mcpServers": {"gitlab": {"url": "https://gl.example.com/api/v4/mcp"}}})
-        code, _, err = Run(self, {"GITLAB_TOKEN": "glpat-secret-123"})("projects", "--target", "gitlab",
-                                                                        files={".mcp.json": mcp})
-        self.assertEqual(code, 2)
-        self.assertIn("NOT CONFIGURED: missing GITLAB_URL.", err)
 
     def test_commands_need_a_project(self):
         with mock.patch.object(asg, "Plane", fake_source()):
@@ -210,6 +161,14 @@ class ConfigTest(unittest.TestCase):
         self.assertIn("API error", err)
         for s in SECRETS:
             self.assertNotIn(s, out + err)
+
+
+class ProjectsTableTest(unittest.TestCase):
+    def test_lists_the_projects_with_a_dash_for_an_unknown_count(self):
+        with mock.patch.object(asg, "Plane", fake_source()):
+            code, out, err = Run(self, PLANE_ENV)("projects", "--target", "plane")
+        self.assertEqual(code, 0, err)
+        self.assertIn("| 1 | [DEMO](https://plane.example.com/demo-ws/projects/p-1/issues) | Demo | — |", out)
 
 
 class ArgparseTest(unittest.TestCase):

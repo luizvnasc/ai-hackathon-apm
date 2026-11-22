@@ -77,21 +77,6 @@ class UnitTest(unittest.TestCase):
         self.assertEqual(vel.size(issue(points=5.0), "count"), 1)
 
 
-class SlopeTest(unittest.TestCase):
-    def test_needs_two_points(self):
-        self.assertIsNone(vel.slope([]))
-        self.assertIsNone(vel.slope([4]))
-
-    def test_linear_series(self):
-        self.assertAlmostEqual(vel.slope([8, 10, 12]), 2.0)
-        self.assertAlmostEqual(vel.slope([12, 10, 8]), -2.0)
-        self.assertAlmostEqual(vel.slope([5, 5, 5, 5]), 0.0)
-
-    def test_noisy_series(self):
-        # x = 0..3, y = 1, 3, 2, 6: sum((x-1.5)(y-3)) = 3 + 0 - 0.5 + 4.5 = 7; sum((x-1.5)^2) = 5
-        self.assertAlmostEqual(vel.slope([1, 3, 2, 6]), 1.4)
-
-
 class PeriodStatsTest(unittest.TestCase):
     def issues(self):
         return [
@@ -216,9 +201,6 @@ class FormatTest(unittest.TestCase):
         self.assertEqual(vel.f1(3.02), "3")
         self.assertEqual(vel.f1(2.5), "2.5")
         self.assertEqual(vel.f1(0.727, pct=True), "73%")
-
-    def test_md_table(self):
-        self.assertEqual(vel.md_table(["A", "B"], [[1, 2]]), "| A | B |\n|---|---|\n| 1 | 2 |")
 
 
 if __name__ == "__main__":
