@@ -1,9 +1,16 @@
-"""Keeps a token on the server and route the user configured. Importing it installs the redirect guard."""
+"""API errors, and the guards that keep a token on the configured server. Importing it installs the redirect guard."""
 import io
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
+
+
+class ApiError(Exception):
+    def __init__(self, status, body, method, url, shown=400):
+        """`shown` is how much of the answer goes into the message."""
+        super().__init__(f"{method} {url} -> HTTP {status}: {body[:shown]}")
+        self.status, self.body = status, body
 
 
 def workspace_segment(slug):

@@ -73,9 +73,22 @@ See [tests/README.md](tests/README.md) for how to run them.
 
 APM installs each skill folder by itself, so code used by several skills is generated into each one.
 
-1. Edit `shared/<module>.py` (`config`, `net`, `report`, `stats`), never `scripts/hackathon_shared/`.
+| Module | What it has |
+|---|---|
+| `config` | credentials: environment, `.env`, the NOT CONFIGURED help |
+| `net` | `ApiError`, the redirect guard, the workspace as one path segment |
+| `gitlab` | `GitLabClient`: GraphQL, REST, pages, the user's projects |
+| `plane` | `PlaneClient`: rate limit, retries, pages, projects, estimates |
+| `dates` | parse dates and times |
+| `labels` | `scope::value`, points, cancelled, blocked and stale |
+| `report` | Markdown tables |
+| `stats` | trend |
+
+Each skill's `GitLab` and `Plane` classes extend the shared clients and provide `send()`, which calls the skill's own `http()`. The few methods and functions a skill still defines differently are listed in `VARIANTS` in `tests/unit/shared_modules`: a new copy fails there.
+
+1. Edit `shared/<module>.py`, never `scripts/hackathon_shared/`.
 2. In a script, import it with `from hackathon_shared.<module> import <name>`, after the bootstrap lines the other scripts have.
-3. Run `python3 tools/sync_shared.py` and commit the copies. `tests/unit/shared_modules` fails when one differs.
+3. Run `python3 tools/sync_shared.py` and commit the copies (a module brings the ones it imports with `from .<module> import ...`). `tests/unit/shared_modules` fails when one differs.
 
 ## Install in your project
 

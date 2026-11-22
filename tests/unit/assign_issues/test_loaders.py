@@ -28,19 +28,19 @@ def plane():
     p.url, p.ws = "https://plane.example.com", "demo-ws"
     p.base = "https://plane.example.com/api/v1/workspaces/demo-ws"
     p.headers = {"X-API-Key": API_KEY}
-    p.min_interval, p.last = 0.0, 0.0
+    p.min_interval, p.last_request = 0.0, 0.0
     p.pid, p.ident, p.project = "p-1", "DEMO", "Demo (DEMO)"
     return p
 
 
 class PlaneRouter:
-    """Fake Plane.req(method, path, params, body): answers GETs by path from fixtures.
+    """Fake Plane.request: answers GETs by path from fixtures.
     A 404 entry raises ApiError(404); a callable entry gets the params (for cursors)."""
 
     def __init__(self, routes):
         self.routes, self.calls = routes, []
 
-    def __call__(self, method, path, params=None, body=None):
+    def __call__(self, path, params=None, *, method="GET", body=None):
         self.calls.append((method, path, dict(params or {}), body))
         if method != "GET":
             return {}
@@ -79,7 +79,7 @@ def plane_routes(comments=True):
 class GitLabLoaderTest(unittest.TestCase):
     def issues(self, comments=True):
         pages = [fixture("gitlab_work_items_page1.json")["data"], fixture("gitlab_work_items_page2.json")["data"]]
-        with mock.patch.object(asg.GitLab, "gql", side_effect=pages) as gql:
+        with mock.patch.object(asg.GitLab, "graphql", side_effect=pages) as gql:
             issues = gitlab().issues(comments=comments)
         return {i["key"]: i for i in issues}, gql
 
@@ -119,14 +119,14 @@ class GitLabLoaderTest(unittest.TestCase):
         self.assertIn("WorkItemWidgetNotes", gql.call_args_list[0].args[0])
 
     def test_periods(self):
-        with mock.patch.object(asg.GitLab, "gql", return_value=fixture("gitlab_milestones.json")["data"]):
+        with mock.patch.object(asg.GitLab, "graphql", return_value=fixture("gitlab_milestones.json")["data"]):
             periods = gitlab().periods()
         self.assertEqual(periods, [{"name": "v0.2", "start": "2026-02-16", "end": "2026-03-08"},
                                    {"name": "Backlog", "start": None, "end": None}])
 
     def test_missing_project_exits_with_a_message(self):
         for call in ("periods", "issues"):
-            with mock.patch.object(asg.GitLab, "gql", return_value={"project": None}):
+            with mock.patch.object(asg.GitLab, "graphql", return_value={"project": None}):
                 with self.assertRaises(SystemExit) as cm:
                     getattr(gitlab(), call)()
             self.assertIn("not found", str(cm.exception.code))
@@ -165,11 +165,6 @@ class GitLabLoaderTest(unittest.TestCase):
             self.assertEqual(gl.normalize_key(key), "#45", key)
         self.assertEqual(gl.normalize_key("abc"), "abc")
 
-    def test_graphql_errors_raise_api_error(self):
-        with mock.patch.object(asg, "http", return_value=({"errors": [{"message": "boom"}]}, {})):
-            with self.assertRaises(asg.ApiError):
-                gitlab().gql("query { x }")
-
 
 class GitLabAssignTest(unittest.TestCase):
     MEMBERS = [{"id": 1, "name": "dev-a"}, {"id": 2, "name": "dev-b"}]
@@ -177,7 +172,7 @@ class GitLabAssignTest(unittest.TestCase):
     def run_assign(self, it, member, replace, current=None):
         calls = []
 
-        def rest(method, path, params=None, body=None):
+        def rest(path, params=None, *, method="GET", body=None):
             calls.append((method, path, body))
             return current if method == "GET" else {}
 
@@ -248,7 +243,7 @@ class PlaneLoaderTest(unittest.TestCase):
     def load(self, routes, comments=True):
         p = plane()
         router = PlaneRouter(routes)
-        with mock.patch.object(asg.Plane, "req", side_effect=router):
+        with mock.patch.object(asg.Plane, "request", side_effect=router):
             members = p.members()
             periods = p.periods()
             issues = p.issues(comments=comments)
@@ -264,7 +259,7 @@ class PlaneLoaderTest(unittest.TestCase):
 
     def test_developers_are_members_role_by_default(self):
         p, _, _, _, _ = self.load(plane_routes())
-        with mock.patch.object(asg.Plane, "req", side_effect=PlaneRouter(plane_routes())):
+        with mock.patch.object(asg.Plane, "request", side_effect=PlaneRouter(plane_routes())):
             self.assertEqual([m["name"] for m in asg.developers(p, "plane", ["developer"])], ["dev-a", "b@example.com"])
             self.assertEqual([m["name"] for m in asg.developers(p, "plane", ["member", "admin"])],
                              ["dev-a", "b@example.com", "owner"])
@@ -344,7 +339,7 @@ class PlaneLoaderTest(unittest.TestCase):
 
     def test_issues_load_members_when_needed(self):
         p = plane()
-        with mock.patch.object(asg.Plane, "req", side_effect=PlaneRouter(plane_routes())):
+        with mock.patch.object(asg.Plane, "request", side_effect=PlaneRouter(plane_routes())):
             issues = p.issues()
         self.assertEqual(len(issues), 4)
         self.assertEqual(issues[0]["author"], "b@example.com")
@@ -367,20 +362,6 @@ class PlaneClientTest(unittest.TestCase):
                 p = asg.Plane("https://plane.example.com/", "demo-ws", API_KEY, project)
             self.assertEqual((p.pid, p.ident, p.project), ("p-1", "DEMO", "Demo (DEMO)"))
 
-    def test_unknown_project_lists_the_projects(self):
-        with mock.patch.object(asg.Plane, "list", return_value=fixture("plane_projects.json")["results"]):
-            with self.assertRaises(SystemExit) as cm:
-                asg.Plane("https://plane.example.com", "demo-ws", API_KEY, "NOPE")
-        self.assertIn("not found", str(cm.exception.code))
-        self.assertIn("Demo (DEMO)", str(cm.exception.code))
-        self.assertNotIn(API_KEY, str(cm.exception.code))
-
-    def test_workspace_is_url_encoded(self):
-        # Regression: the workspace slug went into the base URL as typed.
-        with mock.patch.object(asg.Plane, "list", return_value=[]):
-            p = asg.Plane("https://plane.example.com", "my ws/../x?y", API_KEY, None)
-        self.assertEqual(p.base, "https://plane.example.com/api/v1/workspaces/my%20ws%2F..%2Fx%3Fy")
-
     def test_my_projects_skip_archived_and_non_member(self):
         with mock.patch.object(asg.Plane, "list", return_value=fixture("plane_projects.json")["results"]):
             p = asg.Plane("https://plane.example.com", "demo-ws", API_KEY, None)
@@ -388,65 +369,12 @@ class PlaneClientTest(unittest.TestCase):
         self.assertEqual([r["path"] for r in rows], ["DEMO"])
         self.assertEqual(rows[0]["url"], "https://plane.example.com/demo-ws/projects/p-1/issues")
 
-    def test_list_follows_cursor_until_the_last_page(self):
-        p = plane()
-        pages = [{"results": [1, 2], "next_page_results": True, "next_cursor": "c2"},
-                 {"results": [3], "next_page_results": True, "next_cursor": None}]
-        with mock.patch.object(asg.Plane, "req", side_effect=pages) as req:
-            self.assertEqual(p.list("/x/"), [1, 2, 3])
-        self.assertEqual(req.call_args_list[1].args[2]["cursor"], "c2")
-        with mock.patch.object(asg.Plane, "req", return_value=[4, 5]):
-            self.assertEqual(p.list("/x/"), [4, 5])
-
-    def test_req_retries_429_then_succeeds(self):
-        p = plane()
-        side = [asg.ApiError(429, "slow down", "GET", "u"), ({"ok": 1}, {})]
-        with mock.patch.object(asg, "http", side_effect=side) as http, mock.patch.object(asg.time, "sleep") as sleep:
-            self.assertEqual(p.req("GET", "/x/"), {"ok": 1})
-        self.assertEqual(http.call_count, 2)
-        sleep.assert_any_call(10)
-
-    def test_req_429_retries_are_bounded(self):
-        p = plane()
-        with mock.patch.object(asg, "http", side_effect=asg.ApiError(429, "slow", "GET", "u")) as http, \
-                mock.patch.object(asg.time, "sleep"):
-            with self.assertRaises(asg.ApiError) as cm:
-                p.req("GET", "/x/")
-        self.assertEqual(cm.exception.status, 429)
-        self.assertEqual(http.call_count, 8)
-
-    def test_req_5xx_retries_three_times_then_raises(self):
-        p = plane()
-        with mock.patch.object(asg, "http", side_effect=asg.ApiError(502, "bad gateway", "GET", "u")) as http, \
-                mock.patch.object(asg.time, "sleep"):
-            with self.assertRaises(asg.ApiError) as cm:
-                p.req("GET", "/x/")
-        self.assertEqual(cm.exception.status, 502)
-        self.assertEqual(http.call_count, 4)
-
-    def test_req_4xx_is_not_retried(self):
-        p = plane()
-        with mock.patch.object(asg, "http", side_effect=asg.ApiError(401, "no", "GET", "u")) as http, \
-                mock.patch.object(asg.time, "sleep"):
-            with self.assertRaises(asg.ApiError):
-                p.req("GET", "/x/")
-        self.assertEqual(http.call_count, 1)
-
-    def test_req_sends_the_key_only_as_a_header(self):
-        p = plane()
-        with mock.patch.object(asg, "http", return_value=({}, {})) as http:
-            p.req("GET", "/projects/", {"per_page": 100})
-        url, headers = http.call_args.args[1], http.call_args.args[2]
-        self.assertEqual(url, "https://plane.example.com/api/v1/workspaces/demo-ws/projects/?per_page=100")
-        self.assertNotIn(API_KEY, url)
-        self.assertEqual(headers, {"X-API-Key": API_KEY})
-
 
 class PlaneAssignTest(unittest.TestCase):
     def run_assign(self, it, replace):
         p = plane()
         router = PlaneRouter({})
-        with mock.patch.object(asg.Plane, "req", side_effect=router):
+        with mock.patch.object(asg.Plane, "request", side_effect=router):
             p.assign(it, {"id": "u-b", "name": "b@example.com"}, [], replace)
         return router.calls
 

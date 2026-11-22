@@ -5,6 +5,7 @@ import json
 import os
 import tempfile
 import unittest
+import urllib.error
 from unittest import mock
 
 from tests.unit._load import SKILLS, load
@@ -36,7 +37,7 @@ class Run:
                 with open(os.path.join(tmp, name), "w", encoding="utf-8") as fh:
                     fh.write(text)
             os.chdir(tmp)
-            patches = [mock.patch.object(pop.time, "sleep")]
+            patches = [mock.patch("time.sleep")]
             if self.server is not None:
                 patches.append(mock.patch.object(pop, "http", self.server))
             try:
@@ -167,6 +168,15 @@ class EndToEndTest(unittest.TestCase):
         self.assertIn("(choose the Board layout, grouped by state)", out)
         for s in SECRETS:
             self.assertNotIn(s, out + err + run.files["r.json"])
+
+
+class ErrorTextTest(unittest.TestCase):
+    def test_shows_500_characters_of_the_api_answer(self):
+        refused = urllib.error.HTTPError("u", 400, "bad", {}, io.BytesIO(b"x" * 900))
+        with mock.patch.object(pop.urllib.request, "urlopen", side_effect=refused):
+            with self.assertRaises(pop.ApiError) as caught:
+                pop.http("GET", "https://gitlab.example.com/api", {})
+        self.assertTrue(str(caught.exception).endswith("HTTP 400: " + "x" * 500))
 
 
 if __name__ == "__main__":

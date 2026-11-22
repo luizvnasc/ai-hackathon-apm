@@ -133,7 +133,7 @@ class ConfigTest(unittest.TestCase):
             raise cd.ApiError(401, '{"detail": "invalid token"}', "GET",
                               "https://plane.example.com/api/v1/workspaces/demo-ws/projects/?per_page=100")
 
-        with mock.patch.object(cd, "http", side_effect=boom), mock.patch.object(cd.time, "sleep"):
+        with mock.patch.object(cd, "http", side_effect=boom), mock.patch("time.sleep"):
             code, out, err = Run(self, PLANE_ENV)("report", "--target", "plane", "--project", "DEMO")
         self.assertNotEqual(code, 0)
         self.assertIn("API error", err)

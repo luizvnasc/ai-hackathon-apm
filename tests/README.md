@@ -32,7 +32,7 @@ from tests.unit._load import load
 vel = load("team-velocity", "velocity.py")
 ```
 
-Every `load` call executes the script again, with that skill's own copy of `hackathon_shared`, and returns a fresh module, so patches in one test module never leak into another. Patch a shared function on the script's module when the script calls it.
+Every `load` call executes the script again, with that skill's own copy of `hackathon_shared`, and returns a fresh module, so patches in one test module never leak into another. Patch a shared function on the script's module when the script calls it. For the clients, patch the script's `http`, or a method of its `GitLab`/`Plane` class (`graphql`, `rest`, `rest_pages`, `request`, `list`); `time.sleep` is patched as `mock.patch("time.sleep")`.
 
 Where a test goes:
 
@@ -87,7 +87,7 @@ python3 sandbox/run.py assign-issues --repeat 3 --filter-pattern "direct assign"
 - `llm-rubric` asserts are graded by a tool-less Claude Agent SDK provider set in `defaultTest.options.provider` (also `apiKeyRequired: false`). Copy that block into new configs.
 - Copy `team-velocity/promptfooconfig.yaml` as the template for a new skill.
 
-Cost: every test is a real agent run of a few turns. Both providers use `model: haiku` to keep runs cheap; with the local Claude Code login, runs spend the user's subscription quota. Keep `max_turns` and `max_budget_usd` in the provider config (0.5 USD is the cap per test, a typical test costs far less). Run only the configs you changed, and use `--repeat 3` only for flaky triggers. The sandbox always runs with `--no-cache`.
+Cost: every test is a real agent run of a few turns. Both providers use `model: haiku` to keep runs cheap; with a token from `claude setup-token`, runs spend the user's subscription quota. Keep `max_turns` and `max_budget_usd` in the provider config (0.5 USD is the cap per test, a typical test costs far less). Run only the configs you changed, and use `--repeat 3` only for flaky triggers. The sandbox always runs with `--no-cache`.
 
 ### Offline GitLab and Plane for behaviour evals
 

@@ -301,11 +301,12 @@ class GuardsTest(unittest.TestCase):
 
     def test_every_script_imports_the_guards(self):
         for script in SCRIPTS:
-            names = {(n.module, a.name) for n in ast.parse(script.read_text()).body
-                     if isinstance(n, ast.ImportFrom) for a in n.names}
-            # importing hackathon_shared.net is what installs the redirect guard
-            for wanted in (("hackathon_shared.config", "load_dotenv"), ("hackathon_shared.net", "workspace_segment")):
-                self.assertIn(wanted, names, script.name)
+            imports = [n for n in ast.parse(script.read_text()).body if isinstance(n, ast.ImportFrom)]
+            names = {(n.module, a.name) for n in imports for a in n.names}
+            self.assertIn(("hackathon_shared.config", "load_dotenv"), names, script.name)
+            # importing net installs the redirect guard, and PlaneClient escapes the workspace
+            self.assertIn("hackathon_shared.net", {n.module for n in imports}, script.name)
+            self.assertIn(("hackathon_shared.plane", "PlaneClient"), names, script.name)
 
 
 if __name__ == "__main__":

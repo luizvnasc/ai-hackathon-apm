@@ -1,0 +1,22 @@
+"""Dates and times as GitLab and Plane write them."""
+import datetime as dt
+
+UTC = dt.timezone.utc
+DATE_ONLY_LENGTH = len("2026-01-31")
+
+
+def parse_dt(value):
+    """An aware datetime. A date alone is midnight UTC, and a time without offset is UTC."""
+    if not value:
+        return None
+    text = str(value).replace("Z", "+00:00")  # fromisoformat does not accept Z before Python 3.11
+    if len(text) == DATE_ONLY_LENGTH:
+        text += "T00:00:00+00:00"
+    moment = dt.datetime.fromisoformat(text)
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
+
+
+def to_date(value):
+    """The day, in the offset the value was written in."""
+    moment = parse_dt(value)
+    return moment.date() if moment else None

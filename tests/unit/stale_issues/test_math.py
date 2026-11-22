@@ -267,19 +267,5 @@ class RenderTest(unittest.TestCase):
         self.assertIn("| — | whole project |  |  | 9 | 3 |", out)
 
 
-class HelpersTest(unittest.TestCase):
-    def test_scoped_and_label_value(self):
-        labels = ["workflow::In Progress", "priority::high", "Blocked", "a::b::c"]
-        self.assertEqual(st.scoped(labels, "workflow"), ["in progress"])
-        self.assertEqual(st.scoped(labels, "a::b"), ["c"])
-        self.assertEqual(st.label_value("Blocked"), "blocked")
-        self.assertEqual(st.label_value(None), "")
-
-    def test_num(self):
-        self.assertEqual(st.num(["x", "2.5", "3"]), 2.5)
-        self.assertIsNone(st.num(["XL", "-1"]))
-        self.assertIsNone(st.num([]))
-
-
 if __name__ == "__main__":
     unittest.main()

@@ -42,7 +42,6 @@ import json
 import os
 import re
 import sys
-import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -51,9 +50,12 @@ import urllib.request
 sys.dont_write_bytecode = True  # never write into an installed skill
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))  # python3 -I leaves it out
 from hackathon_shared.config import load_dotenv, require_config  # noqa: E402
-from hackathon_shared.net import workspace_segment  # noqa: E402
+from hackathon_shared.gitlab import GitLabClient  # noqa: E402
+from hackathon_shared.net import ApiError  # noqa: E402
+from hackathon_shared.plane import PlaneClient  # noqa: E402
 
 UA = "populate-project-skill"
+ERROR_CHARS = 500  # of an API answer shown to the user
 WORKFLOW_SCOPES = {"workflow", "status", "state", "stage"}
 PRIORITY_SCOPES = {"priority", "prio"}
 # normalized workflow value -> (Plane state name, Plane state group).
@@ -130,12 +132,6 @@ def is_priority(l):
     return (l["scope"] or "").lower() in PRIORITY_SCOPES
 
 
-class ApiError(Exception):
-    def __init__(self, status, body, method, url):
-        super().__init__(f"{method} {url} -> HTTP {status}: {body[:500]}")
-        self.status, self.body = status, body
-
-
 def http(method, url, headers, body=None):
     data = json.dumps(body).encode() if body is not None else None
     h = {"Content-Type": "application/json", "Accept": "application/json", "User-Agent": UA, **headers}
@@ -145,7 +141,7 @@ def http(method, url, headers, body=None):
             raw = resp.read().decode() or "null"
             return resp.status, json.loads(raw), resp.headers
     except urllib.error.HTTPError as e:
-        raise ApiError(e.code, e.read().decode(errors="replace"), method, url) from None
+        raise ApiError(e.code, e.read().decode(errors="replace"), method, url, shown=ERROR_CHARS) from None
     except urllib.error.URLError as e:
         sys.exit(f"cannot reach {url}: {e.reason}")
 
@@ -171,26 +167,12 @@ class Plan:
 
 
 # ------------------------------------------------------------------ GitLab
-class GitLab:
-    def __init__(self, url, token):
-        self.base = url.rstrip("/") + "/api/v4"
-        self.headers = {"PRIVATE-TOKEN": token}
+class GitLab(GitLabClient):
+    empty_page_is_ok = True
 
-    def req(self, method, path, body=None, params=None):
-        url = self.base + path + ("?" + urllib.parse.urlencode(params) if params else "")
-        return http(method, url, self.headers, body)[1]
-
-    def pages(self, path, params=None):
-        params, items, page = dict(params or {}), [], 1
-        while True:
-            params.update(per_page=100, page=page)
-            url = self.base + path + "?" + urllib.parse.urlencode(params)
-            _, data, headers = http("GET", url, self.headers)
-            items += data or []
-            nxt = headers.get("X-Next-Page")
-            if not nxt:
-                return items
-            page = int(nxt)
+    def send(self, method, url, body=None):
+        _, data, headers = http(method, url, self.headers, body)
+        return data, headers
 
 
 def populate_gitlab(args, labels, plan):
@@ -202,7 +184,7 @@ def populate_gitlab(args, labels, plan):
     gl = GitLab(args.gitlab_url, token)
     ref = args.project if args.project.isdigit() else urllib.parse.quote(args.project, safe="")
     try:
-        proj = gl.req("GET", f"/projects/{ref}")
+        proj = gl.rest(f"/projects/{ref}")
     except ApiError as e:
         if e.status in (401, 403):
             sys.exit(f"GitLab refused the token (HTTP {e.status}); it needs the 'api' scope and access to {args.project}")
@@ -213,7 +195,7 @@ def populate_gitlab(args, labels, plan):
     print(f"GitLab project: {proj['path_with_namespace']} (id {pid}) {proj.get('web_url', '')}")
 
     print("Labels:")
-    existing = {l["name"].lower(): l for l in gl.pages(f"/projects/{pid}/labels", {"include_ancestor_groups": "true"})}
+    existing = {l["name"].lower(): l for l in gl.rest_pages(f"/projects/{pid}/labels", {"include_ancestor_groups": "true"})}
     ids = {}
     for l in labels:
         cur = existing.get(l["name"].lower())
@@ -228,7 +210,7 @@ def populate_gitlab(args, labels, plan):
             body = {"name": l["name"], "color": l["color"]}
             if l["description"]:
                 body["description"] = l["description"]
-            ids[l["name"]] = gl.req("POST", f"/projects/{pid}/labels", body)["id"]
+            ids[l["name"]] = gl.rest(f"/projects/{pid}/labels", method="POST", body=body)["id"]
         plan.create("label", l["name"])  # only after the write succeeded
 
     workflow = [l for l in labels if is_workflow(l)]
@@ -236,14 +218,14 @@ def populate_gitlab(args, labels, plan):
     if not workflow:
         plan.note("no workflow labels in the set, so no board columns were created")
         return {"target": "gitlab", "project": proj["path_with_namespace"], "url": proj.get("web_url")}
-    boards = gl.pages(f"/projects/{pid}/boards")
+    boards = gl.rest_pages(f"/projects/{pid}/boards")
     board = next((b for b in boards if (b.get("name") or "").lower() == args.board_name.lower()), None)
     if board:
         plan.reuse("board", board["name"])
     else:
         if not args.dry_run:
             try:
-                board = gl.req("POST", f"/projects/{pid}/boards", {"name": args.board_name})
+                board = gl.rest(f"/projects/{pid}/boards", method="POST", body={"name": args.board_name})
             except ApiError as e:
                 sys.exit(f"GitLab did not allow creating the board {args.board_name!r} "
                          f"(HTTP {e.status}: {e.body[:300]}). The labels were created; no board lists were added.")
@@ -254,7 +236,7 @@ def populate_gitlab(args, labels, plan):
             plan.reuse("board list", l["name"])
             continue
         if not args.dry_run:
-            gl.req("POST", f"/projects/{pid}/boards/{board['id']}/lists", {"label_id": ids[l["name"]]})
+            gl.rest(f"/projects/{pid}/boards/{board['id']}/lists", method="POST", body={"label_id": ids[l["name"]]})
         plan.create("board list", l["name"])
     board_url = proj.get("web_url", "") + "/-/boards" + (f"/{board['id']}" if board and board.get("id") else "")
     print(f"Board URL: {board_url}")
@@ -263,49 +245,19 @@ def populate_gitlab(args, labels, plan):
 
 
 # ------------------------------------------------------------------ Plane
-class Plane:
+class Plane(PlaneClient):
     def __init__(self, base_url, api_key, workspace, rate_per_min=60, dry_run=False):
-        self.base = base_url.rstrip("/") + "/api/v1/workspaces/" + workspace_segment(workspace)
-        self.headers = {"X-API-Key": api_key}
+        super().__init__(base_url, workspace, api_key, rate_per_min)
         self.dry_run = dry_run
-        self.min_interval = 60.0 / max(1, rate_per_min - 2)
-        self.last = 0.0
 
-    def req(self, method, path, body=None, params=None):
-        url = self.base + path + ("?" + urllib.parse.urlencode(params) if params else "")
-        for attempt in range(8):
-            wait = self.min_interval - (time.monotonic() - self.last)
-            if wait > 0:
-                time.sleep(wait)
-            self.last = time.monotonic()
-            try:
-                return http(method, url, self.headers, body)[1]
-            except ApiError as e:
-                if e.status == 429:
-                    time.sleep(10)
-                    continue
-                if e.status >= 500 and attempt < 3:
-                    time.sleep(2 ** attempt)
-                    continue
-                raise
-        raise ApiError(429, "rate limited too many times", method, url)
-
-    def list(self, path):
-        params, items = {"per_page": 100}, []
-        while True:
-            data = self.req("GET", path, params=params)
-            if isinstance(data, list):
-                return items + data
-            items += data.get("results") or []
-            if data.get("next_page_results") and data.get("next_cursor"):
-                params["cursor"] = data["next_cursor"]
-            else:
-                return items
+    def send(self, method, url, body=None):
+        _, data, headers = http(method, url, self.headers, body)
+        return data, headers
 
     def write(self, method, path, body):
         if self.dry_run:
             return {"id": f"<new:{path}>", **body}
-        return self.req(method, path, body)
+        return self.request(path, method=method, body=body)
 
 
 def default_identifier(name):

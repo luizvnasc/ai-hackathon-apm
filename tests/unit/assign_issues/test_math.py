@@ -224,18 +224,5 @@ class FindMemberTest(unittest.TestCase):
         self.assertIsNone(asg.find_member([], self.ALL, "ali"))  # alice and alicia
 
 
-class HelpersTest(unittest.TestCase):
-    def test_scoped_is_case_insensitive_and_uses_the_last_separator(self):
-        labels = ["Area::Backend", "area :: Front End ", "type::bug", "x::area::ops", "area"]
-        self.assertEqual(asg.scoped(labels, "area"), ["backend", "front end"])
-        self.assertEqual(asg.scoped(labels, "x::area"), ["ops"])
-
-    def test_parse_dt(self):
-        self.assertIsNone(asg.parse_dt(None))
-        self.assertEqual(asg.parse_dt("2026-03-01"), dt.datetime(2026, 3, 1, tzinfo=dt.timezone.utc))
-        self.assertEqual(asg.parse_dt("2026-03-01T10:00:00"), dt.datetime(2026, 3, 1, 10, tzinfo=dt.timezone.utc))
-        self.assertEqual(asg.parse_dt("2026-03-01T10:00:00Z").utcoffset(), dt.timedelta(0))
-
-
 if __name__ == "__main__":
     unittest.main()
