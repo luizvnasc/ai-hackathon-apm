@@ -5,7 +5,7 @@ Two layers:
 | Layer | What it proves | Tooling | Network |
 |---|---|---|---|
 | `unit/` | The bundled scripts: math, loaders, API clients, config handling, CLI | Python 3.8+ stdlib `unittest` | none |
-| `evals/` | The skills as an agent sees them: picked for the right requests, ignored for the wrong ones, following their instructions | [promptfoo](https://promptfoo.dev) + Claude Agent SDK | **not isolated**: whatever the host can reach |
+| `evals/` | The skills as an agent sees them: picked for the right requests, ignored for the wrong ones, following their instructions | [promptfoo](https://promptfoo.dev) + Claude Agent SDK | Anthropic Messages API only, through the sandbox proxy |
 
 ## Unit tests
 
@@ -42,30 +42,41 @@ Patterns used in `team_velocity/` that other skills can copy:
 
 ## Skill evals (promptfoo)
 
-> **Warning: do not run the evals on a machine with real credentials or reachable GitLab/Plane servers.**
-> The agent under test has an unrestricted Bash. The fake credentials and the mock below only redirect the
-> bundled scripts: the agent can still read the host's files (shell profiles, `.env`, git history), use curl,
-> or start Python with `-I`, and so reach real tokens and servers. Copying or cloning the repo to another
-> directory is not isolation. Until the evals have a sandbox, run them only in a disposable environment.
-> Do not add evals that ask for something no skill can do: the agent improvises.
-
-Prerequisites: Node.js 18+ and either `ANTHROPIC_API_KEY` or a logged-in local Claude Code (`claude auth status` shows `loggedIn: true`). The configs set `apiKeyRequired: false`, so the local login is used when no key is set; with a key set, the key is used.
+The agent under test has an unrestricted Bash, so the evals run **only inside `evals/sandbox`**. They need
+Docker (Linux, macOS or WSL) and a credential of their own:
 
 ```bash
 cd apm/tests/evals
-npm install                        # first time
-./sync-skills.sh                   # fresh copy of ../../.apm/skills into .workspace/.claude/skills (no .env)
-PROMPTFOO_DISABLE_TELEMETRY=1 npx promptfoo eval -c <skill-name>/promptfooconfig.yaml --no-share
-npx promptfoo view                 # optional: browse the results locally
+python3 sandbox/run.py --selftest        # containment proof: no credential, no API call
+
+export CLAUDE_CODE_OAUTH_TOKEN=...       # from `claude setup-token`, or export ANTHROPIC_API_KEY
+python3 sandbox/run.py team-velocity     # only the skills you changed; results in output/<skill>.json
+python3 sandbox/run.py assign-issues --repeat 3 --filter-pattern "direct assign"
 ```
 
-- Evals run against the source skills, never the installed `.claude/skills/` copy. Re-run `./sync-skills.sh` after every skill change.
+| | Agent container | Proxy container |
+|---|---|---|
+| Network | none | the proxy only calls `api.anthropic.com` |
+| Host files | none: the skills and evals are streamed in as a tar (no `.env`, no symlinks, nothing git ignores) | none |
+| Credential | a placeholder | the real one, received on stdin |
+| Privileges | not root, no capabilities, read-only root | the same |
+
+- The proxy forwards only Haiku Messages API requests, without server tools, MCP servers or URL/file sources.
+- The local Claude Code login is never read or mounted.
+- `promptfoo eval` outside the sandbox fails before starting an agent: the configs' `working_dir` exists only in the
+  container. Do not change it to make a host run work. A copy or clone of the repo is not isolation.
+- Run `--selftest` after changing anything in `sandbox/` or upgrading the packages.
+- Limits: Docker shares the host's kernel. The agent can read the skills, configs and expected answers, and could
+  tamper with the results of its own run, so read the outputs and treat them as untrusted.
+- Do not add evals that ask for something no skill can do: the agent improvises.
+
+- Evals run against the source skills, never the installed `.claude/skills/` copy. The sandbox copies them again on every run.
 - Every config loads all skills (`skills: 'all'`), so routing between neighbouring skills is tested too. When you change a `description`, re-run the evals of the neighbouring skills.
 - Configs have two providers with the same agent setup: `unconfigured` (blank `GITLAB_*`/`PLANE_*`: routing tests and the `NOT CONFIGURED` path) and `configured` (fake credentials plus the offline mock below). Each test names its provider with `providers: [unconfigured]` or `providers: [configured]`. Never put real tokens in a config and never point one at a real GitLab or Plane.
 - `llm-rubric` asserts are graded by a tool-less Claude Agent SDK provider set in `defaultTest.options.provider` (also `apiKeyRequired: false`). Copy that block into new configs.
 - Copy `team-velocity/promptfooconfig.yaml` as the template for a new skill.
 
-Cost: every test is a real agent run of a few turns. Both providers use `model: haiku` to keep runs cheap; with the local Claude Code login, runs spend the user's subscription quota. Keep `max_turns` and `max_budget_usd` in the provider config (0.5 USD is the cap per test, a typical test costs far less). Run only the configs you changed, and use `--repeat 3` only for flaky triggers. Add `--no-cache` when you need a fresh run after changing a skill; promptfoo otherwise caches identical requests.
+Cost: every test is a real agent run of a few turns. Both providers use `model: haiku` to keep runs cheap; with the local Claude Code login, runs spend the user's subscription quota. Keep `max_turns` and `max_budget_usd` in the provider config (0.5 USD is the cap per test, a typical test costs far less). Run only the configs you changed, and use `--repeat 3` only for flaky triggers. The sandbox always runs with `--no-cache`.
 
 ### Offline GitLab and Plane for behaviour evals
 
@@ -75,7 +86,7 @@ The scripts all call `urllib.request.urlopen`. `evals/mock/sitecustomize.py` rep
 |---|---|
 | `GITLAB_URL`, `GITLAB_TOKEN` | `http://gitlab.mock`, `glpat-eval-fake` |
 | `PLANE_URL`, `PLANE_WORKSPACE`, `PLANE_API_KEY` | `http://plane.mock`, `eval`, `plane-eval-fake` |
-| `PYTHONPATH` | `{{ env.PWD }}/.workspace/mock` (Python then imports the mock at startup; run promptfoo from `tests/evals`) |
+| `PYTHONPATH` | `{{ env.PWD }}/.workspace/mock` (Python then imports the mock at startup) |
 | `EVAL_FIXTURES` | `{{ env.PWD }}/.workspace/fixtures` (the same for every skill) |
 | `EVAL_DATASET_DATE` | `2026-11-12`, the date the dataset was written for. The mock shifts every fixture date by (today − this date), so the dataset always ends on the real today: the agent and the script agree on "today" and the numbers never drift. Weekly buckets (Monday–Sunday) still move with the weekday, so eval asserts compare weekly numbers with the script's own output; unit tests pin them with `EVAL_TODAY` (freezes `date.today()`). |
 
