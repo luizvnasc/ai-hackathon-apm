@@ -296,6 +296,14 @@
   "file": "gitlab_milestone_events_empty.json"
  },
  {
+  "path": "/api/v4/projects/group%2Finv/issues/18/resource_label_events",
+  "file": "gitlab_label_events_i18.json"
+ },
+ {
+  "path_regex": "^/api/v4/projects/group%2Finv/issues/\\d+/resource_label_events$",
+  "file": "empty_list.json"
+ },
+ {
   "path": "/api/v4/projects/group%2Finv",
   "file": "gitlab_project.json"
  },
