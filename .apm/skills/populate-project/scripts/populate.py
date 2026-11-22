@@ -38,6 +38,7 @@ Re-running is safe: whatever already exists is reused, so nothing is duplicated.
 --dry-run reads the target and prints the plan without writing anything.
 """
 import argparse
+import io
 import json
 import os
 import re
@@ -128,6 +129,38 @@ class ApiError(Exception):
     def __init__(self, status, body, method, url):
         super().__init__(f"{method} {url} -> HTTP {status}: {body[:500]}")
         self.status, self.body = status, body
+
+
+def workspace_segment(slug):
+    """The workspace slug as one path segment, so it cannot change the API route."""
+    if slug in (".", ".."):
+        sys.exit(f"invalid Plane workspace {slug!r}")
+    return urllib.parse.quote(slug, safe="")
+
+
+def safe_redirect(source, target):
+    """Whether a redirect may carry the token: same origin, or http -> https on the same host (default ports)."""
+    def origin(url):
+        u = urllib.parse.urlsplit(url)
+        return u.scheme, u.hostname, u.port or {"http": 80, "https": 443}.get(u.scheme)
+    try:
+        old, new = origin(source), origin(target)
+    except ValueError:
+        return False
+    return old == new or (old[1] == new[1] and old[0] == "http" and old[2] == 80 and new[0] == "https" and new[2] == 443)
+
+
+class SameOriginRedirects(urllib.request.HTTPRedirectHandler):
+    """urllib resends every header, tokens included, to wherever a redirect points: refuse other origins."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if not safe_redirect(req.full_url, newurl):
+            why = b"redirect to another origin refused, so the token is not sent there: check the configured URL"
+            raise urllib.error.HTTPError(req.full_url, code, "redirect refused", headers, io.BytesIO(why))
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
+urllib.request.install_opener(urllib.request.build_opener(SameOriginRedirects))
 
 
 def http(method, url, headers, body=None):
@@ -259,7 +292,7 @@ def populate_gitlab(args, labels, plan):
 # ------------------------------------------------------------------ Plane
 class Plane:
     def __init__(self, base_url, api_key, workspace, rate_per_min=60, dry_run=False):
-        self.base = base_url.rstrip("/") + "/api/v1/workspaces/" + urllib.parse.quote(workspace, safe="")
+        self.base = base_url.rstrip("/") + "/api/v1/workspaces/" + workspace_segment(workspace)
         self.headers = {"X-API-Key": api_key}
         self.dry_run = dry_run
         self.min_interval = 60.0 / max(1, rate_per_min - 2)
@@ -439,17 +472,6 @@ def populate_plane(args, labels, plan):
     return {"target": "plane", "project": f"{proj.get('name')} ({proj.get('identifier')})", "url": url}
 
 
-def gitlab_url_from_mcp():
-    """Derive the GitLab base URL from a gitlab MCP entry in .mcp.json, if any."""
-    try:
-        with open(".mcp.json", encoding="utf-8") as f:
-            url = json.load(f)["mcpServers"]["gitlab"]["url"]
-        return re.sub(r"/api/v4/mcp/?$", "", url)
-    except (OSError, ValueError, KeyError, TypeError):
-        return None
-
-
-
 def require_config(gitlab=False, plane=False, gitlab_url=None, plane_url=None, workspace=None, scope="read_api"):
     """Stop with setup instructions (Linux/macOS and Windows) when a required variable is missing."""
     missing = []
@@ -482,12 +504,17 @@ def require_config(gitlab=False, plane=False, gitlab_url=None, plane_url=None, w
     sys.exit(2)
 
 def load_dotenv(path=".env"):
-    """Fill unset GITLAB_*/PLANE_* variables from the project's .env; the environment always wins."""
+    """Fill unset GITLAB_*/PLANE_* variables from the project's .env; the environment always wins.
+
+    The .env of the current directory may come with a cloned repository, so its URL is used only with the
+    token of that same file: it can never choose the server that receives a token from the environment.
+    """
     try:
         with open(path, encoding="utf-8") as fh:
             lines = fh.read().splitlines()
     except OSError:
         return
+    found = {}
     for line in lines:
         m = re.match(r"\s*(?:export\s+)?((?:GITLAB|PLANE)_[A-Z0-9_]+)\s*=\s*(.*)$", line)
         if not m:
@@ -495,8 +522,17 @@ def load_dotenv(path=".env"):
         key, value = m.group(1), m.group(2).strip()
         if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
             value = value[1:-1]
-        if value and not os.environ.get(key):
+        if value:
+            found.setdefault(key, value)
+    for url_key, token_key in (("GITLAB_URL", "GITLAB_TOKEN"), ("PLANE_URL", "PLANE_API_KEY")):
+        if url_key in found and not os.environ.get(url_key) and (os.environ.get(token_key) or token_key not in found):
+            del found[url_key]
+            print(f"IGNORED {url_key} from .env: a .env URL is only used with the {token_key} of the same file, "
+                  f"never with one from the environment. Set {url_key} in the environment.", file=sys.stderr)
+    for key, value in found.items():
+        if not os.environ.get(key):
             os.environ[key] = value
+
 
 def main(argv=None):
     load_dotenv()
@@ -505,8 +541,8 @@ def main(argv=None):
     ap.add_argument("--project", required=True,
                     help="GitLab: group/project or numeric id. Plane: project name or identifier")
     ap.add_argument("--labels", required=True, help="JSON file with the label set")
-    ap.add_argument("--gitlab-url", default=os.environ.get("GITLAB_URL") or gitlab_url_from_mcp(),
-                    help="GitLab base URL (or GITLAB_URL; default: derived from .mcp.json)")
+    ap.add_argument("--gitlab-url", default=os.environ.get("GITLAB_URL"),
+                    help="GitLab base URL (or GITLAB_URL)")
     ap.add_argument("--board-name", default="Kanban", help="GitLab board name (default Kanban)")
     ap.add_argument("--plane-url", default=os.environ.get("PLANE_URL"), help="Plane base URL (or PLANE_URL)")
     ap.add_argument("--workspace", default=os.environ.get("PLANE_WORKSPACE"), help="Plane workspace slug (or PLANE_WORKSPACE)")

@@ -107,7 +107,7 @@ The skills call the GitLab and Plane APIs. Their scripts read these variables fr
 
 Set only what your team uses (GitLab, Plane or both). Pick one way:
 
-- **`.env` file** in the project root. It works the same on Linux, macOS and Windows. Add `.env` to your `.gitignore`.
+- **`.env` file** in the project root. It works the same on Linux, macOS and Windows. Add `.env` to your `.gitignore`. Its `GITLAB_URL` / `PLANE_URL` is only used with the token in that same file: a `.env` that came with a cloned repository cannot choose the server that receives a token from your environment. Keep URL and token together, both in `.env` or both in the environment.
   ```
   GITLAB_URL=https://gitlab.acme.io
   GITLAB_TOKEN=glpat-...
