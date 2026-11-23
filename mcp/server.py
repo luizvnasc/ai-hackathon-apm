@@ -48,6 +48,14 @@ WRITE_RULES = {
                          "approved it. The populate-project skill has the details."),
 }
 
+# For the tool that writes one report file in the project folder, and never writes to GitLab or Plane
+FILE_RULES = {
+    "kpi_report": ("How to report this: answer in the user's language. Give the file's path and quote the summary as "
+                   "printed; do not compute new numbers and do not paste the charts. This tool only reads GitLab and "
+                   "Plane and writes that one file: never change issues yourself and do not offer another way to "
+                   "change them. The kpi-report skill has the details."),
+}
+
 ASK_USER = "ASK THE USER:"  # a tool that needs an answer only the user has (the Plane workspace, a GitLab group)
 REPORT_COMMANDS = ["projects", "periods", "report"]
 COMMON = {
@@ -117,6 +125,14 @@ TOOLS = {
                     "dry_run": {"type": "boolean"}, "no_comments": {"type": "boolean"},
                     "yes": {"type": "boolean", "description": "write the change; only after the user confirmed it"}},
     },
+    "kpi_report": {
+        "skill": "kpi-report", "key": "9a0497", "module": "kpis", "commands": ["projects", "report"],
+        "summary": ("KPI report of a GitLab or Plane project: velocity, commitment x delivered, scope stability, "
+                    "delivery quality, stale and blocked issues, with Mermaid charts, in one .md file."),
+        "options": {"last": LAST, "stale_days": STALE_DAYS,
+                    "output": {"type": "string", "description": "relative .md path inside the project folder, only "
+                               "when the user names one; default reports/kpi-report-<project>-<today>.md"}},
+    },
     "populate_project": {
         "skill": "populate-project", "key": "9a261d", "module": "populate", "commands": None,
         "summary": ("Populate a GitLab or Plane project with a label set and a Kanban board. It writes unless "
@@ -132,7 +148,11 @@ TOOLS = {
 
 def tool_schema(name):
     tool = TOOLS[name]
-    reads_only = "" if name in WRITE_RULES else " Read-only."
+    reads_only = " Read-only."
+    if name in WRITE_RULES:
+        reads_only = ""
+    if name in FILE_RULES:
+        reads_only = " Reads GitLab/Plane only; writes one .md file in the project folder."
     description = (f"{tool['summary']}{reads_only} Load the {tool['skill']} skill first: it says which command and "
                    "options to use and how to report the result.")
     properties = {"skill_read": {"type": "string", "description": f"the value given in the {tool['skill']} skill"}}
@@ -244,7 +264,7 @@ def rules_for(name, failed, text=""):
         return ASK_RULES.format(skill=TOOLS[name]["skill"])
     if failed:
         return ERROR_RULES.format(skill=TOOLS[name]["skill"])
-    return WRITE_RULES.get(name) or REPORT_RULES.format(skill=TOOLS[name]["skill"])
+    return WRITE_RULES.get(name) or FILE_RULES.get(name) or REPORT_RULES.format(skill=TOOLS[name]["skill"])
 
 
 def result(message, value):
