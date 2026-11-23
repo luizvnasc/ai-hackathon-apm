@@ -11,6 +11,10 @@ Find the open issues of a milestone (GitLab) or cycle (Plane) that nobody has to
 - **Data and classification come from the bundled script** `scripts/stale.py`, so every agent gets the same result. Never invent issues, dates or owners.
 - The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly.
 
+## Tool or script
+
+**Use the `stale_issues` tool when you have it** (MCP server `hackathon-metrics`) for every command below, with `skill_read: "618fef"` in every call. Its fields are the script's options without the dashes: `command` (`projects`, `periods` or `report`), `--all` → `all: true`, `--stale-days` → `stale_days`. It returns what the script prints, so everything below applies to it. **Otherwise, run the script as written.**
+
 ## 1. Target and project
 
 Take both from the user's words. Never guess them.
@@ -43,7 +47,7 @@ Use `python3` (or `python`). `<skill-dir>` is the directory of this `SKILL.md`.
 
 ## 3. Scope: milestone, cycle or whole project
 
-If the user named a milestone or cycle, use it ("the current one": the open one whose dates contain today). If they said "the whole project", use `--all`. Otherwise list the open ones and ask:
+If the user named a milestone or cycle, use it ("the current one": the open one whose dates contain today). If they said "the whole project", use `--all`. Naming only the project ("no projeto INV", "in project X") is not the whole project. Otherwise list the open ones and ask:
 
 ```bash
 python3 <skill-dir>/scripts/stale.py periods --target <gitlab|plane> --project "<p>" [--stale-days 14]

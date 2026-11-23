@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The skills' scripts as tools of a stdio MCP server (stdlib only, Python 3.8+). Being migrated skill by skill.
+"""The skills' scripts as tools of a stdio MCP server (stdlib only, Python 3.8+).
 
 Started by the agent from the project folder, as declared in apm.yml:
     python3 apm_modules/luizvnasc/ai-hackathon-apm/mcp/server.py
@@ -22,7 +22,7 @@ import types
 sys.dont_write_bytecode = True
 PACKAGE = pathlib.Path(__file__).resolve().parents[1]
 PROTOCOL_VERSION = "2025-06-18"
-SERVER = {"name": "hackathon-metrics", "version": "0.0.2"}
+SERVER = {"name": "hackathon-metrics", "version": "0.1.0"}
 
 # The agent may call a tool without opening its skill, so the rules that matter most travel with every result
 REPORT_RULES = ("How to report this: answer in the user's language. Quote the numbers as printed and do not compute new "
@@ -32,43 +32,112 @@ REPORT_RULES = ("How to report this: answer in the user's language. Quote the nu
 ERROR_RULES = ("How to report this: show the message as it is and stop. Do not try other values or look for credentials "
                "elsewhere, and never ask for a token's value in the chat. The {skill} skill has the details.")
 
+# For the two tools that can write: the report rules, with the confirmation rule instead of "only reads"
+WRITE_RULES = {
+    "assign_issues": ("How to report this: answer in the user's language and quote the numbers as printed. Scores are "
+                      "relative to the team: never rank or blame people. Write only with yes: true, and only after the "
+                      "user confirmed that exact change in this conversation; before that, show the dry_run plan. The "
+                      "assign-issues skill has the details."),
+    "populate_project": ("How to report this: answer in the user's language. Every call writes unless dry_run is true: "
+                         "run with dry_run: true first, show the plan, and write only in a later turn, after the user "
+                         "approved it. The populate-project skill has the details."),
+}
+
+REPORT_COMMANDS = ["projects", "periods", "report"]
 COMMON = {
-    "command": {"type": "string", "enum": ["projects", "periods", "report"]},
     "target": {"type": "string", "enum": ["gitlab", "plane"]},
     "project": {"type": "string", "description": "GitLab group/project or Plane identifier"},
     "timezone": {"type": "string", "description": "IANA name or +HH:MM, only when the user gives one"},
-    "today": {"type": "string", "description": "YYYY-MM-DD, only when the user gives a date"},
     "format": {"type": "string", "enum": ["md", "json"]},
 }
-LAST = {"type": "integer", "minimum": 1, "description": "finished periods to analyze (default 6)"}
+LAST = {"type": "integer", "minimum": 1, "description": "finished periods to analyze (default 6); only when the user "
+        "gives a number"}
 UNIT = {"type": "string", "enum": ["auto", "points", "count"]}
+PERIODS = {"type": "array", "items": {"type": "string"}, "description": "only these milestones/cycles"}
+GRACE_DAYS = {"type": "integer", "minimum": 0, "description": "days after the start day that still count, only when "
+              "the user says the team plans late"}
+ONE_PERIOD = {"type": "string", "description": "milestone title (GitLab) or cycle name (Plane)"}
+WHOLE_PROJECT = {"type": "boolean", "description": "the whole project instead of one milestone/cycle"}
+STALE_DAYS = {"type": "number", "minimum": 0}
 
+# "commands" are the script's first argument; None for a script without one. "key" is written only in the
+# skill's SKILL.md: a call must pass it as skill_read, so the agent reads the skill before using the tool.
 TOOLS = {
     "team_velocity": {
-        "skill": "team-velocity", "script": "velocity.py",
+        "skill": "team-velocity", "key": "dacb2b", "script": "velocity.py", "commands": REPORT_COMMANDS,
         "summary": "Team velocity of a GitLab or Plane project, from its finished milestones or cycles.",
         "options": {"last": LAST, "unit": UNIT, "by": {"type": "string", "enum": ["period", "week"]},
                     "weeks": {"type": "integer", "minimum": 1}},
     },
     "commitment_delivered": {
-        "skill": "commitment-delivered", "script": "commitment.py",
+        "skill": "commitment-delivered", "key": "0139f6", "script": "commitment.py", "commands": REPORT_COMMANDS,
         "summary": "Commitment x delivered (say/do) per milestone or cycle of a GitLab or Plane project.",
-        "options": {"last": LAST, "unit": UNIT,
-                    "period": {"type": "array", "items": {"type": "string"}, "description": "only these milestones/cycles"},
-                    "grace_days": {"type": "integer", "minimum": 0, "description": "days after the start day that are "
-                                   "still commitment, only when the user says the team plans late"}},
+        "options": {"last": LAST, "unit": UNIT, "period": PERIODS, "grace_days": GRACE_DAYS},
+    },
+    "scope_stability": {
+        "skill": "scope-stability", "key": "be7a6d", "script": "stability.py", "commands": REPORT_COMMANDS,
+        "summary": "Scope stability: how much a GitLab milestone or Plane cycle changed while it ran.",
+        "options": {"last": LAST, "unit": UNIT, "period": PERIODS, "grace_days": GRACE_DAYS},
+    },
+    "delivery_quality": {
+        "skill": "delivery-quality", "key": "e38097", "script": "quality.py", "commands": REPORT_COMMANDS,
+        "summary": "Delivery quality: how many delivered issues of a milestone or cycle went back to to fix.",
+        "options": {"last": LAST, "period": PERIODS,
+                    "fix_names": {"type": "string", "description": "the team's names for the to fix step, comma "
+                                  "separated; replaces the default, only when the user names it"}},
+    },
+    "stale_issues": {
+        "skill": "stale-issues", "key": "618fef", "script": "stale.py", "commands": REPORT_COMMANDS,
+        "summary": "Stale issues of a GitLab milestone, Plane cycle or whole project.",
+        "options": {"period": ONE_PERIOD, "all": WHOLE_PROJECT, "stale_days": STALE_DAYS},
+    },
+    "blocked_issues": {
+        "skill": "blocked-issues", "key": "cd2ab2", "script": "blocked.py", "commands": REPORT_COMMANDS,
+        "summary": "Blocked issues of a GitLab milestone, Plane cycle or whole project, with cause and next step.",
+        "options": {"period": ONE_PERIOD, "all": WHOLE_PROJECT, "stale_days": STALE_DAYS,
+                    "deep": {"type": "boolean", "description": "also read every open issue's relations (slow in Plane)"}},
+    },
+    "assign_issues": {
+        "skill": "assign-issues", "key": "6eb483", "script": "assign.py",
+        "commands": ["projects", "periods", "scores", "suggest-member", "suggest-issue", "assign"],
+        "summary": ("Area scores of a team and who should take an issue, or which issue fits a developer; assign "
+                    "writes only with yes after the user's confirmation."),
+        "options": {"issue": {"type": "string"}, "member": {"type": "string"}, "period": ONE_PERIOD, "all": WHOLE_PROJECT,
+                    "roles": {"type": "string", "description": "comma list (default developer)"},
+                    "half_life": {"type": "number", "minimum": 0}, "include_assigned": {"type": "boolean"},
+                    "limit": {"type": "integer", "minimum": 1}, "replace": {"type": "boolean"},
+                    "dry_run": {"type": "boolean"}, "no_comments": {"type": "boolean"},
+                    "yes": {"type": "boolean", "description": "write the change; only after the user confirmed it"}},
+    },
+    "populate_project": {
+        "skill": "populate-project", "key": "9a261d", "script": "populate.py", "commands": None,
+        "summary": ("Populate a GitLab or Plane project with a label set and a Kanban board. It writes unless "
+                    "dry_run is true."),
+        "options": {"labels": {"type": "string", "description": "path of the approved label set (JSON); default: "
+                               "the skill's labels.default.json"},
+                    "board_name": {"type": "string"}, "create_project": {"type": "boolean"},
+                    "identifier": {"type": "string"}, "priority_labels": {"type": "boolean"},
+                    "dry_run": {"type": "boolean", "description": "read and print the plan, write nothing"}},
     },
 }
 
 
 def tool_schema(name):
     tool = TOOLS[name]
-    description = (f"{tool['summary']} command projects lists the user's projects, periods lists the milestones/cycles, "
-                   f"report computes it. Read-only. Load the {tool['skill']} skill first: it says which options to use "
-                   "and how to report the result.")
-    properties = {**COMMON, **tool["options"]}
+    reads_only = "" if name in WRITE_RULES else " Read-only."
+    description = (f"{tool['summary']}{reads_only} Load the {tool['skill']} skill first: it says which command and "
+                   "options to use and how to report the result.")
+    properties = {"skill_read": {"type": "string", "description": f"the value given in the {tool['skill']} skill"}}
+    properties.update(COMMON)
+    required = ["skill_read", "target"]
+    if tool["commands"]:
+        properties["command"] = {"type": "string", "enum": tool["commands"]}
+        required.insert(0, "command")
+    else:
+        required.append("project")
+    properties.update(tool["options"])
     return {"name": name, "description": description,
-            "inputSchema": {"type": "object", "properties": properties, "required": ["command", "target"],
+            "inputSchema": {"type": "object", "properties": properties, "required": required,
                             "additionalProperties": False}}
 
 
@@ -93,19 +162,33 @@ def load_script(name):
 def cli_argv(name, arguments):
     """The CLI arguments of a tool call. Every option is passed as --name=value, so a value that starts with
     a dash is a value, never another option."""
-    options = TOOLS[name]["options"].keys() | (COMMON.keys() - {"command", "target"})
+    tool = TOOLS[name]
+    options = tool["options"].keys() | (COMMON.keys() - {"target"})
     unknown = set(arguments) - options - {"command", "target"}
     if unknown:
         raise ValueError(f"unknown argument(s): {', '.join(sorted(unknown))}")
-    argv = [str(arguments["command"]), f"--target={arguments['target']}"]
+    argv = [str(arguments["command"])] if tool["commands"] else []
+    argv.append(f"--target={arguments['target']}")
     for option in sorted(options):
-        value = arguments.get(option)
-        if value is None:
-            continue
-        flag = "--" + option.replace("_", "-")
-        values = value if isinstance(value, list) else [value]
-        argv += [f"{flag}={item}" for item in values]
+        argv += option_flags(option, arguments.get(option))
+    if name == "populate_project" and not arguments.get("labels"):
+        argv.append(f"--labels={default_labels()}")
     return argv
+
+
+def option_flags(option, value):
+    """--name=value for each value; a true boolean is the bare flag, a false or missing one adds nothing."""
+    flag = "--" + option.replace("_", "-")
+    if value is None or value is False:
+        return []
+    if value is True:
+        return [flag]
+    values = value if isinstance(value, list) else [value]
+    return [f"{flag}={item}" for item in values]
+
+
+def default_labels():
+    return PACKAGE / ".apm" / "skills" / "populate-project" / "labels.default.json"
 
 
 def run_script(script, argv):
@@ -144,12 +227,27 @@ def call_tool(message, params, load):
     name = params.get("name")
     if name not in TOOLS:
         return error(message, -32602, "unknown tool")
+    arguments = dict(params.get("arguments") or {})
+    if arguments.pop("skill_read", None) != TOOLS[name]["key"]:
+        return result(message, {"content": [{"type": "text", "text": skill_first(name)}], "isError": True})
     try:
-        text, failed = run_script(load(name), cli_argv(name, params.get("arguments") or {}))
+        text, failed = run_script(load(name), cli_argv(name, arguments))
     except (ValueError, KeyError) as problem:
         text, failed = f"invalid arguments: {problem}", True
-    rules = (ERROR_RULES if failed else REPORT_RULES).format(skill=TOOLS[name]["skill"])
+    rules = rules_for(name, failed)
     return result(message, {"content": [{"type": "text", "text": text}, {"type": "text", "text": rules}], "isError": failed})
+
+
+def skill_first(name):
+    skill = TOOLS[name]["skill"]
+    return (f"Nothing was run: load the {skill} skill first (it gives the skill_read value), follow it, then call "
+            "this tool again.")
+
+
+def rules_for(name, failed):
+    if failed:
+        return ERROR_RULES.format(skill=TOOLS[name]["skill"])
+    return WRITE_RULES.get(name) or REPORT_RULES.format(skill=TOOLS[name]["skill"])
 
 
 def result(message, value):

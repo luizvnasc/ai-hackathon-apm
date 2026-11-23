@@ -16,7 +16,14 @@ providers:
       working_dir: /sandbox/tests/evals/.workspace   # exists only in sandbox/run.py's container
       setting_sources: ['project']
       skills: 'all'
-      append_allowed_tools: ['Read', 'Bash']
+      append_allowed_tools: ['Read', 'Bash', 'mcp__hackathon-metrics__team_velocity', 'mcp__hackathon-metrics__commitment_delivered', 'mcp__hackathon-metrics__scope_stability', 'mcp__hackathon-metrics__delivery_quality', 'mcp__hackathon-metrics__stale_issues', 'mcp__hackathon-metrics__blocked_issues', 'mcp__hackathon-metrics__assign_issues', 'mcp__hackathon-metrics__populate_project']
+      # The package's MCP server, from the same place as in a user's project (see sync-skills.sh)
+      mcp:
+        enabled: true
+        servers:
+          - name: hackathon-metrics
+            command: python3
+            args: ['apm_modules/luizvnasc/ai-hackathon-apm/mcp/server.py']
       disallowed_tools: ['Write', 'Edit', 'WebFetch', 'WebSearch']
       max_turns: 8
       max_budget_usd: 0.5
@@ -75,6 +82,20 @@ tests:
         value: populate-project
       - type: javascript
         value: |
+          // A call of an MCP tool counts as a run of its skill's script: mcp/server.py runs the same command line
+          // (a call refused for a missing skill_read ran nothing, so it stays as it is)
+          const SCRIPTS = { team_velocity: 'velocity.py', commitment_delivered: 'commitment.py', scope_stability: 'stability.py',
+            delivery_quality: 'quality.py', stale_issues: 'stale.py', blocked_issues: 'blocked.py', assign_issues: 'assign.py',
+            populate_project: 'populate.py' };
+          const asFlags = ([key, value]) => { const flag = '--' + key.replace(/_/g, '-');
+            return value === true ? [flag] : value === false || value == null ? [] : [].concat(value).flatMap(item => [flag, item]); };
+          const asScriptRun = c => { const tool = String(c.name || '').split('__').pop(), input = c.input || {};
+            if (/Nothing was run: load the/.test(JSON.stringify(c.output || ''))) return c;
+            if (!SCRIPTS[tool]) return c;
+            const flags = Object.entries(input).filter(([key]) => key !== 'command' && key !== 'skill_read').flatMap(asFlags);
+            return { ...c, name: 'Bash', input: { command: ['python3', SCRIPTS[tool], input.command || '', ...flags].join(' ') } }; };
+          context = { ...context, providerResponse: { ...context.providerResponse, metadata: { ...(context.providerResponse?.metadata || {}),
+            toolCalls: (context.providerResponse?.metadata?.toolCalls || []).map(asScriptRun) } } };
           const calls = context.providerResponse?.metadata?.toolCalls || [];
           // only executions of the script count, not reading it (cat/grep/sed)
           const runs = calls.filter(c => c.name === 'Bash' && /python[0-9.]*\s+[^|;&]*populate\.py/.test(JSON.stringify(c.input || {})));
@@ -99,6 +120,20 @@ tests:
         value: populate-project
       - type: javascript
         value: |
+          // A call of an MCP tool counts as a run of its skill's script: mcp/server.py runs the same command line
+          // (a call refused for a missing skill_read ran nothing, so it stays as it is)
+          const SCRIPTS = { team_velocity: 'velocity.py', commitment_delivered: 'commitment.py', scope_stability: 'stability.py',
+            delivery_quality: 'quality.py', stale_issues: 'stale.py', blocked_issues: 'blocked.py', assign_issues: 'assign.py',
+            populate_project: 'populate.py' };
+          const asFlags = ([key, value]) => { const flag = '--' + key.replace(/_/g, '-');
+            return value === true ? [flag] : value === false || value == null ? [] : [].concat(value).flatMap(item => [flag, item]); };
+          const asScriptRun = c => { const tool = String(c.name || '').split('__').pop(), input = c.input || {};
+            if (/Nothing was run: load the/.test(JSON.stringify(c.output || ''))) return c;
+            if (!SCRIPTS[tool]) return c;
+            const flags = Object.entries(input).filter(([key]) => key !== 'command' && key !== 'skill_read').flatMap(asFlags);
+            return { ...c, name: 'Bash', input: { command: ['python3', SCRIPTS[tool], input.command || '', ...flags].join(' ') } }; };
+          context = { ...context, providerResponse: { ...context.providerResponse, metadata: { ...(context.providerResponse?.metadata || {}),
+            toolCalls: (context.providerResponse?.metadata?.toolCalls || []).map(asScriptRun) } } };
           const calls = context.providerResponse?.metadata?.toolCalls || [];
           // only executions of the script count, not reading it (cat/grep/sed)
           const runs = calls.filter(c => c.name === 'Bash' && /python[0-9.]*\s+[^|;&]*populate\.py/.test(JSON.stringify(c.input || {})));
@@ -122,6 +157,20 @@ tests:
         value: populate-project
       - type: javascript
         value: |
+          // A call of an MCP tool counts as a run of its skill's script: mcp/server.py runs the same command line
+          // (a call refused for a missing skill_read ran nothing, so it stays as it is)
+          const SCRIPTS = { team_velocity: 'velocity.py', commitment_delivered: 'commitment.py', scope_stability: 'stability.py',
+            delivery_quality: 'quality.py', stale_issues: 'stale.py', blocked_issues: 'blocked.py', assign_issues: 'assign.py',
+            populate_project: 'populate.py' };
+          const asFlags = ([key, value]) => { const flag = '--' + key.replace(/_/g, '-');
+            return value === true ? [flag] : value === false || value == null ? [] : [].concat(value).flatMap(item => [flag, item]); };
+          const asScriptRun = c => { const tool = String(c.name || '').split('__').pop(), input = c.input || {};
+            if (/Nothing was run: load the/.test(JSON.stringify(c.output || ''))) return c;
+            if (!SCRIPTS[tool]) return c;
+            const flags = Object.entries(input).filter(([key]) => key !== 'command' && key !== 'skill_read').flatMap(asFlags);
+            return { ...c, name: 'Bash', input: { command: ['python3', SCRIPTS[tool], input.command || '', ...flags].join(' ') } }; };
+          context = { ...context, providerResponse: { ...context.providerResponse, metadata: { ...(context.providerResponse?.metadata || {}),
+            toolCalls: (context.providerResponse?.metadata?.toolCalls || []).map(asScriptRun) } } };
           const calls = context.providerResponse?.metadata?.toolCalls || [];
           // only executions of the script count, not reading it (cat/grep/sed)
           const runs = calls.filter(c => c.name === 'Bash' && /python[0-9.]*\s+[^|;&]*populate\.py/.test(JSON.stringify(c.input || {})));
@@ -140,6 +189,20 @@ tests:
         value: populate-project
       - type: javascript
         value: |
+          // A call of an MCP tool counts as a run of its skill's script: mcp/server.py runs the same command line
+          // (a call refused for a missing skill_read ran nothing, so it stays as it is)
+          const SCRIPTS = { team_velocity: 'velocity.py', commitment_delivered: 'commitment.py', scope_stability: 'stability.py',
+            delivery_quality: 'quality.py', stale_issues: 'stale.py', blocked_issues: 'blocked.py', assign_issues: 'assign.py',
+            populate_project: 'populate.py' };
+          const asFlags = ([key, value]) => { const flag = '--' + key.replace(/_/g, '-');
+            return value === true ? [flag] : value === false || value == null ? [] : [].concat(value).flatMap(item => [flag, item]); };
+          const asScriptRun = c => { const tool = String(c.name || '').split('__').pop(), input = c.input || {};
+            if (/Nothing was run: load the/.test(JSON.stringify(c.output || ''))) return c;
+            if (!SCRIPTS[tool]) return c;
+            const flags = Object.entries(input).filter(([key]) => key !== 'command' && key !== 'skill_read').flatMap(asFlags);
+            return { ...c, name: 'Bash', input: { command: ['python3', SCRIPTS[tool], input.command || '', ...flags].join(' ') } }; };
+          context = { ...context, providerResponse: { ...context.providerResponse, metadata: { ...(context.providerResponse?.metadata || {}),
+            toolCalls: (context.providerResponse?.metadata?.toolCalls || []).map(asScriptRun) } } };
           const calls = context.providerResponse?.metadata?.toolCalls || [];
           // only executions of the script count, not reading it (cat/grep/sed)
           const runs = calls.filter(c => c.name === 'Bash' && /python[0-9.]*\s+[^|;&]*populate\.py/.test(JSON.stringify(c.input || {})));
@@ -158,6 +221,20 @@ tests:
         value: populate-project
       - type: javascript
         value: |
+          // A call of an MCP tool counts as a run of its skill's script: mcp/server.py runs the same command line
+          // (a call refused for a missing skill_read ran nothing, so it stays as it is)
+          const SCRIPTS = { team_velocity: 'velocity.py', commitment_delivered: 'commitment.py', scope_stability: 'stability.py',
+            delivery_quality: 'quality.py', stale_issues: 'stale.py', blocked_issues: 'blocked.py', assign_issues: 'assign.py',
+            populate_project: 'populate.py' };
+          const asFlags = ([key, value]) => { const flag = '--' + key.replace(/_/g, '-');
+            return value === true ? [flag] : value === false || value == null ? [] : [].concat(value).flatMap(item => [flag, item]); };
+          const asScriptRun = c => { const tool = String(c.name || '').split('__').pop(), input = c.input || {};
+            if (/Nothing was run: load the/.test(JSON.stringify(c.output || ''))) return c;
+            if (!SCRIPTS[tool]) return c;
+            const flags = Object.entries(input).filter(([key]) => key !== 'command' && key !== 'skill_read').flatMap(asFlags);
+            return { ...c, name: 'Bash', input: { command: ['python3', SCRIPTS[tool], input.command || '', ...flags].join(' ') } }; };
+          context = { ...context, providerResponse: { ...context.providerResponse, metadata: { ...(context.providerResponse?.metadata || {}),
+            toolCalls: (context.providerResponse?.metadata?.toolCalls || []).map(asScriptRun) } } };
           const calls = context.providerResponse?.metadata?.toolCalls || [];
           // only executions of the script count, not reading it (cat/grep/sed)
           const runs = calls.filter(c => c.name === 'Bash' && /python[0-9.]*\s+[^|;&]*populate\.py/.test(JSON.stringify(c.input || {})));
@@ -165,6 +242,20 @@ tests:
             && !calls.some(c => c.name === 'Bash' && /curl|-X\s*(POST|PATCH|PUT|DELETE)|requests\.|urllib/i.test(JSON.stringify(c.input || {})));
       - type: javascript
         value: |
+          // A call of an MCP tool counts as a run of its skill's script: mcp/server.py runs the same command line
+          // (a call refused for a missing skill_read ran nothing, so it stays as it is)
+          const SCRIPTS = { team_velocity: 'velocity.py', commitment_delivered: 'commitment.py', scope_stability: 'stability.py',
+            delivery_quality: 'quality.py', stale_issues: 'stale.py', blocked_issues: 'blocked.py', assign_issues: 'assign.py',
+            populate_project: 'populate.py' };
+          const asFlags = ([key, value]) => { const flag = '--' + key.replace(/_/g, '-');
+            return value === true ? [flag] : value === false || value == null ? [] : [].concat(value).flatMap(item => [flag, item]); };
+          const asScriptRun = c => { const tool = String(c.name || '').split('__').pop(), input = c.input || {};
+            if (/Nothing was run: load the/.test(JSON.stringify(c.output || ''))) return c;
+            if (!SCRIPTS[tool]) return c;
+            const flags = Object.entries(input).filter(([key]) => key !== 'command' && key !== 'skill_read').flatMap(asFlags);
+            return { ...c, name: 'Bash', input: { command: ['python3', SCRIPTS[tool], input.command || '', ...flags].join(' ') } }; };
+          context = { ...context, providerResponse: { ...context.providerResponse, metadata: { ...(context.providerResponse?.metadata || {}),
+            toolCalls: (context.providerResponse?.metadata?.toolCalls || []).map(asScriptRun) } } };
           const calls = context.providerResponse?.metadata?.toolCalls || [];
           return calls.some(c => c.name === 'Bash' && /populate\.py/.test(JSON.stringify(c.input || {})) && /--dry-run/.test(JSON.stringify(c.input || {})));
       - type: javascript
@@ -185,6 +276,20 @@ tests:
         value: populate-project
       - type: javascript
         value: |
+          // A call of an MCP tool counts as a run of its skill's script: mcp/server.py runs the same command line
+          // (a call refused for a missing skill_read ran nothing, so it stays as it is)
+          const SCRIPTS = { team_velocity: 'velocity.py', commitment_delivered: 'commitment.py', scope_stability: 'stability.py',
+            delivery_quality: 'quality.py', stale_issues: 'stale.py', blocked_issues: 'blocked.py', assign_issues: 'assign.py',
+            populate_project: 'populate.py' };
+          const asFlags = ([key, value]) => { const flag = '--' + key.replace(/_/g, '-');
+            return value === true ? [flag] : value === false || value == null ? [] : [].concat(value).flatMap(item => [flag, item]); };
+          const asScriptRun = c => { const tool = String(c.name || '').split('__').pop(), input = c.input || {};
+            if (/Nothing was run: load the/.test(JSON.stringify(c.output || ''))) return c;
+            if (!SCRIPTS[tool]) return c;
+            const flags = Object.entries(input).filter(([key]) => key !== 'command' && key !== 'skill_read').flatMap(asFlags);
+            return { ...c, name: 'Bash', input: { command: ['python3', SCRIPTS[tool], input.command || '', ...flags].join(' ') } }; };
+          context = { ...context, providerResponse: { ...context.providerResponse, metadata: { ...(context.providerResponse?.metadata || {}),
+            toolCalls: (context.providerResponse?.metadata?.toolCalls || []).map(asScriptRun) } } };
           const calls = context.providerResponse?.metadata?.toolCalls || [];
           // only executions of the script count, not reading it (cat/grep/sed)
           const runs = calls.filter(c => c.name === 'Bash' && /python[0-9.]*\s+[^|;&]*populate\.py/.test(JSON.stringify(c.input || {})));
@@ -209,8 +314,13 @@ tests:
     providers: [unconfigured]
     vars: {request: "Popule o projeto INV no Plane. As labels padrão estão aprovadas, pode seguir para o dry run."}
     assert:
-      - type: skill-used
-        value: populate-project
+      # Without credentials the MCP tool's result carries the error rules, so calling the tool counts as
+      # using the skill here (decided by the user); every other case still needs the skill loaded.
+      - type: javascript
+        value: |
+          const calls = context.providerResponse?.metadata?.toolCalls || [];
+          return calls.some(c => c.name === 'Skill' && (c.input || {}).skill === 'populate-project')
+            || calls.some(c => /__populate_project$/.test(c.name));
       - type: icontains
         value: PLANE_URL
       - type: icontains
@@ -219,6 +329,20 @@ tests:
         value: PLANE_API_KEY
       - type: javascript
         value: |
+          // A call of an MCP tool counts as a run of its skill's script: mcp/server.py runs the same command line
+          // (a call refused for a missing skill_read ran nothing, so it stays as it is)
+          const SCRIPTS = { team_velocity: 'velocity.py', commitment_delivered: 'commitment.py', scope_stability: 'stability.py',
+            delivery_quality: 'quality.py', stale_issues: 'stale.py', blocked_issues: 'blocked.py', assign_issues: 'assign.py',
+            populate_project: 'populate.py' };
+          const asFlags = ([key, value]) => { const flag = '--' + key.replace(/_/g, '-');
+            return value === true ? [flag] : value === false || value == null ? [] : [].concat(value).flatMap(item => [flag, item]); };
+          const asScriptRun = c => { const tool = String(c.name || '').split('__').pop(), input = c.input || {};
+            if (/Nothing was run: load the/.test(JSON.stringify(c.output || ''))) return c;
+            if (!SCRIPTS[tool]) return c;
+            const flags = Object.entries(input).filter(([key]) => key !== 'command' && key !== 'skill_read').flatMap(asFlags);
+            return { ...c, name: 'Bash', input: { command: ['python3', SCRIPTS[tool], input.command || '', ...flags].join(' ') } }; };
+          context = { ...context, providerResponse: { ...context.providerResponse, metadata: { ...(context.providerResponse?.metadata || {}),
+            toolCalls: (context.providerResponse?.metadata?.toolCalls || []).map(asScriptRun) } } };
           const calls = context.providerResponse?.metadata?.toolCalls || [];
           const runs = calls.filter(c => c.name === 'Bash' && /populate\.py/.test(JSON.stringify(c.input || {})));
           return runs.length > 0 && runs.every(c => /--dry-run|--help/.test(JSON.stringify(c.input || {})));
@@ -233,8 +357,13 @@ tests:
     providers: [unconfigured]
     vars: {request: "Bootstrap the labels and a Kanban board in the GitLab project group/inv. The default labels are approved, go ahead with the dry run."}
     assert:
-      - type: skill-used
-        value: populate-project
+      # Without credentials the MCP tool's result carries the error rules, so calling the tool counts as
+      # using the skill here (decided by the user); every other case still needs the skill loaded.
+      - type: javascript
+        value: |
+          const calls = context.providerResponse?.metadata?.toolCalls || [];
+          return calls.some(c => c.name === 'Skill' && (c.input || {}).skill === 'populate-project')
+            || calls.some(c => /__populate_project$/.test(c.name));
       - type: icontains
         value: GITLAB_URL
       - type: icontains
@@ -253,6 +382,20 @@ tests:
         value: populate-project
       - type: javascript
         value: |
+          // A call of an MCP tool counts as a run of its skill's script: mcp/server.py runs the same command line
+          // (a call refused for a missing skill_read ran nothing, so it stays as it is)
+          const SCRIPTS = { team_velocity: 'velocity.py', commitment_delivered: 'commitment.py', scope_stability: 'stability.py',
+            delivery_quality: 'quality.py', stale_issues: 'stale.py', blocked_issues: 'blocked.py', assign_issues: 'assign.py',
+            populate_project: 'populate.py' };
+          const asFlags = ([key, value]) => { const flag = '--' + key.replace(/_/g, '-');
+            return value === true ? [flag] : value === false || value == null ? [] : [].concat(value).flatMap(item => [flag, item]); };
+          const asScriptRun = c => { const tool = String(c.name || '').split('__').pop(), input = c.input || {};
+            if (/Nothing was run: load the/.test(JSON.stringify(c.output || ''))) return c;
+            if (!SCRIPTS[tool]) return c;
+            const flags = Object.entries(input).filter(([key]) => key !== 'command' && key !== 'skill_read').flatMap(asFlags);
+            return { ...c, name: 'Bash', input: { command: ['python3', SCRIPTS[tool], input.command || '', ...flags].join(' ') } }; };
+          context = { ...context, providerResponse: { ...context.providerResponse, metadata: { ...(context.providerResponse?.metadata || {}),
+            toolCalls: (context.providerResponse?.metadata?.toolCalls || []).map(asScriptRun) } } };
           const calls = context.providerResponse?.metadata?.toolCalls || [];
           // only executions of the script count, not reading it (cat/grep/sed)
           const runs = calls.filter(c => c.name === 'Bash' && /python[0-9.]*\s+[^|;&]*populate\.py/.test(JSON.stringify(c.input || {})));
@@ -280,6 +423,20 @@ tests:
         value: tech-debt
       - type: javascript
         value: |
+          // A call of an MCP tool counts as a run of its skill's script: mcp/server.py runs the same command line
+          // (a call refused for a missing skill_read ran nothing, so it stays as it is)
+          const SCRIPTS = { team_velocity: 'velocity.py', commitment_delivered: 'commitment.py', scope_stability: 'stability.py',
+            delivery_quality: 'quality.py', stale_issues: 'stale.py', blocked_issues: 'blocked.py', assign_issues: 'assign.py',
+            populate_project: 'populate.py' };
+          const asFlags = ([key, value]) => { const flag = '--' + key.replace(/_/g, '-');
+            return value === true ? [flag] : value === false || value == null ? [] : [].concat(value).flatMap(item => [flag, item]); };
+          const asScriptRun = c => { const tool = String(c.name || '').split('__').pop(), input = c.input || {};
+            if (/Nothing was run: load the/.test(JSON.stringify(c.output || ''))) return c;
+            if (!SCRIPTS[tool]) return c;
+            const flags = Object.entries(input).filter(([key]) => key !== 'command' && key !== 'skill_read').flatMap(asFlags);
+            return { ...c, name: 'Bash', input: { command: ['python3', SCRIPTS[tool], input.command || '', ...flags].join(' ') } }; };
+          context = { ...context, providerResponse: { ...context.providerResponse, metadata: { ...(context.providerResponse?.metadata || {}),
+            toolCalls: (context.providerResponse?.metadata?.toolCalls || []).map(asScriptRun) } } };
           const calls = context.providerResponse?.metadata?.toolCalls || [];
           // only executions of the script count, not reading it (cat/grep/sed)
           const runs = calls.filter(c => c.name === 'Bash' && /python[0-9.]*\s+[^|;&]*populate\.py/.test(JSON.stringify(c.input || {})));
@@ -298,6 +455,20 @@ tests:
     assert:
       - type: javascript
         value: |
+          // A call of an MCP tool counts as a run of its skill's script: mcp/server.py runs the same command line
+          // (a call refused for a missing skill_read ran nothing, so it stays as it is)
+          const SCRIPTS = { team_velocity: 'velocity.py', commitment_delivered: 'commitment.py', scope_stability: 'stability.py',
+            delivery_quality: 'quality.py', stale_issues: 'stale.py', blocked_issues: 'blocked.py', assign_issues: 'assign.py',
+            populate_project: 'populate.py' };
+          const asFlags = ([key, value]) => { const flag = '--' + key.replace(/_/g, '-');
+            return value === true ? [flag] : value === false || value == null ? [] : [].concat(value).flatMap(item => [flag, item]); };
+          const asScriptRun = c => { const tool = String(c.name || '').split('__').pop(), input = c.input || {};
+            if (/Nothing was run: load the/.test(JSON.stringify(c.output || ''))) return c;
+            if (!SCRIPTS[tool]) return c;
+            const flags = Object.entries(input).filter(([key]) => key !== 'command' && key !== 'skill_read').flatMap(asFlags);
+            return { ...c, name: 'Bash', input: { command: ['python3', SCRIPTS[tool], input.command || '', ...flags].join(' ') } }; };
+          context = { ...context, providerResponse: { ...context.providerResponse, metadata: { ...(context.providerResponse?.metadata || {}),
+            toolCalls: (context.providerResponse?.metadata?.toolCalls || []).map(asScriptRun) } } };
           const calls = context.providerResponse?.metadata?.toolCalls || [];
           return !calls.some(c => c.name === 'Bash' && /populate\.py/.test(JSON.stringify(c.input || {})) && !/--dry-run|--help/.test(JSON.stringify(c.input || {})));
       - type: llm-rubric

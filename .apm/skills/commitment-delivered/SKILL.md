@@ -43,7 +43,7 @@ Use `python3` (or `python`). `<skill-dir>` is the directory of this `SKILL.md`.
 
 ## 3. Run
 
-**Use the `commitment_delivered` tool when you have it** (MCP server `hackathon-metrics`). Its fields are the script's options: `command` (`projects`, `periods` or `report`), `target`, `project`, `last`, `period` (a list), `unit`, `grace_days`, `timezone`, `today`, `format`. It returns what the script prints, so everything below applies to it. **Otherwise, run the script:**
+**Use the `commitment_delivered` tool when you have it** (MCP server `hackathon-metrics`). Pass `skill_read: "0139f6"` in every call. Its fields are the script's options: `command` (`projects`, `periods` or `report`), `target`, `project`, `last`, `period` (a list), `unit`, `grace_days`, `timezone`, `format`. It returns what the script prints, so everything below applies to it. **Otherwise, run the script:**
 
 ```bash
 python3 <skill-dir>/scripts/commitment.py report --target <t> --project "<p>" \
@@ -51,7 +51,7 @@ python3 <skill-dir>/scripts/commitment.py report --target <t> --project "<p>" \
 ```
 
 - `periods` lists the milestones/cycles with their status: finished, current or upcoming. Use it when the user names one you need to match.
-- **Which periods:** by default the last `--last` finished ones (default 6) plus the current one. `--period` (repeatable) analyzes only the named ones. Use the user's choice if they give one.
+- **Which periods:** by default the last `--last` finished ones (default 6) plus the current one. `--period` (repeatable) analyzes only the named ones. Use the user's choice if they give one. Pass `--last` only when the user gives a number: "the last milestones" keeps the default.
 - **Commitment cutoff:** the end of the start day. If the team plans during the first days, pass `--grace-days N` (the user's number; ask only if they mention planning late).
 - **Days:** start, end and today are days of the project: Plane uses the project's timezone, GitLab the offset the instance writes in its times (UTC on gitlab.com). Pass `--timezone` (`-03:00` or `America/Sao_Paulo`) only when the user gives one. Relay any note that days are in UTC.
 - **Unit:**

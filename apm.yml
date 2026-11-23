@@ -15,7 +15,7 @@ includes: auto
 
 dependencies:
   apm: []
-  # Prototype (branch mcp-prototype): the agent starts the server from the project folder. No env block:
+  # The agent starts the server from the project folder. No env block:
   # a value there is written into the agent's config file at install time.
   mcp:
     - name: hackathon-metrics

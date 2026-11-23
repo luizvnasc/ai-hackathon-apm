@@ -14,6 +14,10 @@ Create the common labels of a project and a Kanban board built from the workflow
 - **One turn never holds both the dry run and the write.** In the turn where the user first asks, `populate.py` runs only with `--dry-run`, whatever the request says. If you have not yet received a reply to a plan you showed, you have no approval.
 - **Repeatable:** a second run reuses what exists and creates only what is missing.
 
+## Tool or script
+
+**Use the `populate_project` tool when you have it** (MCP server `hackathon-metrics`) for every command below, with `skill_read: "9a261d"` in every call. Its fields are the script's options without the dashes: `--project` → `project`, `--labels` → `labels` (the file's path; leave it out for `labels.default.json`), `--dry-run` → `dry_run: true`, `--create-project` → `create_project: true`. It returns what the script prints, so everything below applies to it. **Otherwise, run the script as written.** Every call writes unless `dry_run` is `true`: the dry-run and approval rules below are the same. The tool has no `--report`: its result is the summary.
+
 ## 1. Identify the target and the project
 
 The target and the project come from the user's words. Never guess them.

@@ -11,6 +11,10 @@ Find the blocked issues of a project and explain, for each one, why it is blocke
 - **Data and diagnosis come from the bundled script** `scripts/blocked.py`, so every agent gets the same result. Never invent issues, causes or dates.
 - The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly.
 
+## Tool or script
+
+**Use the `blocked_issues` tool when you have it** (MCP server `hackathon-metrics`) for every command below, with `skill_read: "cd2ab2"` in every call. Its fields are the script's options without the dashes: `command` (`projects`, `periods` or `report`), `--all` → `all: true`, `--deep` → `deep: true`, `--stale-days` → `stale_days`. It returns what the script prints, so everything below applies to it. **Otherwise, run the script as written.**
+
 ## 1. Target and project
 
 Take both from the user's words. Never guess them.
@@ -47,7 +51,7 @@ Use `python3` (or `python` if `python3` is missing). `<skill-dir>` below is the 
 
 ## 3. Scope: milestone, cycle or whole project
 
-If the user named a milestone (GitLab) or cycle (Plane), use it. If the user said "the whole project", use `--all`.
+If the user named a milestone (GitLab) or cycle (Plane), use it. If the user said "the whole project", use `--all`. Naming only the project ("no projeto INV", "in project X") is not the whole project.
 
 Otherwise, list the open ones and let the user choose:
 

@@ -43,7 +43,7 @@ Use `python3` (or `python`). `<skill-dir>` is the directory of this `SKILL.md`.
 
 ## 3. Run
 
-**Use the `team_velocity` tool when you have it** (MCP server `hackathon-metrics`). Its fields are the script's options: `command` (`projects`, `periods` or `report`), `target`, `project`, `last`, `unit`, `by`, `weeks`, `timezone`, `today`, `format`. It returns what the script prints, so everything below applies to it. **Otherwise, run the script:**
+**Use the `team_velocity` tool when you have it** (MCP server `hackathon-metrics`). Pass `skill_read: "dacb2b"` in every call. Its fields are the script's options: `command` (`projects`, `periods` or `report`), `target`, `project`, `last`, `unit`, `by`, `weeks`, `timezone`, `format`. It returns what the script prints, so everything below applies to it. **Otherwise, run the script:**
 
 ```bash
 python3 <skill-dir>/scripts/velocity.py report --target <t> --project "<p>" \

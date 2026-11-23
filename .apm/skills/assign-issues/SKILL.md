@@ -12,6 +12,10 @@ Recommend who should take an issue, or what a developer should take next, from t
 - **Data and math come from the bundled script** `scripts/assign.py`, so every agent gets the same scores. Never invent scores or history.
 - The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly.
 
+## Tool or script
+
+**Use the `assign_issues` tool when you have it** (MCP server `hackathon-metrics`) for every command below, with `skill_read: "6eb483"` in every call. Its fields are the script's options without the dashes: `command` (`scores`, `suggest-member`, `assign`...), `--issue` → `issue`, `--dry-run` → `dry_run: true`, `--yes` → `yes: true`. It returns what the script prints, so everything below applies to it. **Otherwise, run the script as written.** The confirmation rules of step 5 are the same: `yes: true` only after the user said yes to that preview.
+
 ## 1. Target, project and question
 
 Take them from the user's words. Never guess them.
