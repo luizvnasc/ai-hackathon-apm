@@ -5,7 +5,8 @@ import sys
 
 
 def require_config(gitlab=False, plane=False, gitlab_url=None, plane_url=None, workspace=None, scope="read_api"):
-    """Stop with setup instructions (Linux/macOS and Windows) when a required variable is missing."""
+    """Stop with setup instructions (Linux/macOS and Windows) when a required variable is missing, or ask for the
+    Plane workspace when neither PLANE_WORKSPACE nor the call gives one."""
     missing = []
     if gitlab:
         if not gitlab_url:
@@ -15,11 +16,11 @@ def require_config(gitlab=False, plane=False, gitlab_url=None, plane_url=None, w
     if plane:
         if not plane_url:
             missing.append(("PLANE_URL", "https://plane.example.com"))
-        if not workspace:
-            missing.append(("PLANE_WORKSPACE", "<workspace slug, as in the Plane URL /<slug>/projects>"))
         if not os.environ.get("PLANE_API_KEY"):
             missing.append(("PLANE_API_KEY", "<API key: Plane > Workspace settings > API tokens>"))
     if not missing:
+        if plane and not workspace:
+            ask_for_workspace()
         return
     key, example = missing[0]
     lines = [f"NOT CONFIGURED: missing {', '.join(k for k, _ in missing)}.", "",
@@ -33,6 +34,14 @@ def require_config(gitlab=False, plane=False, gitlab_url=None, plane_url=None, w
               f"  Windows cmd:             set {key}={example}",
               "", "Restart the agent after changing environment variables (.env is read on every run), then try again."]
     print("\n".join(lines), file=sys.stderr)
+    sys.exit(2)
+
+
+def ask_for_workspace():
+    """PLANE_WORKSPACE is optional: without it, the workspace must come from the user."""
+    print("ASK THE USER: which Plane workspace holds the project? PLANE_WORKSPACE is not set, so the workspace "
+          "comes from the user: it is the slug in the Plane URL, /<slug>/projects. Then call again with workspace "
+          "set to that slug.", file=sys.stderr)
     sys.exit(2)
 
 

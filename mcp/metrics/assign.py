@@ -59,7 +59,7 @@ import urllib.request
 from .config import load_dotenv, require_config
 from .dates import age_reference, parse_dt
 from .days import timezone_arg
-from .gitlab import GitLabClient
+from .gitlab import GitLabClient, with_full_path
 from .labels import has_cancelled_label, scoped
 from .net import ApiError
 from .plane import PlaneClient
@@ -545,7 +545,7 @@ def main(argv=None):
         sys.exit(f"{a.command} needs --project (run `projects` to list yours)")
     emit = (lambda obj, md: print(json.dumps(obj, indent=2, default=str) if a.format == "json" else md(obj)))
     try:
-        src = (GitLab(a.gitlab_url, os.environ.get("GITLAB_TOKEN"), (a.project or "").strip("/") or None)
+        src = (with_full_path(GitLab(a.gitlab_url, os.environ.get("GITLAB_TOKEN"), (a.project or "").strip("/") or None))
                if a.target == "gitlab" else
                Plane(a.plane_url, a.workspace, os.environ.get("PLANE_API_KEY"), a.project, a.rate))
         if a.command == "projects":

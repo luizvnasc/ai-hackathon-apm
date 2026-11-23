@@ -34,15 +34,17 @@ delivery_quality projects --target <gitlab|plane>
 
 ## 2. Credentials
 
-The tool reads these variables from the environment or, when one is not set there, from a `.env` file in the project root (the environment wins). A URL in `.env` is only used with the token of that same file; when the tool prints `IGNORED`, that file's URL is not used. **If any is missing, the tool stops with a `NOT CONFIGURED` message** that lists the missing variables and how to set them on Linux/macOS, Windows PowerShell and cmd, or in `.env`. Show that message to the user as it is, then stop and wait: do not try other values. A URL or workspace the user gives in the chat cannot be passed to the tool: ask the user to put it in `.env`. Never ask for a token's value in the chat and never print one.
+The tool reads these variables from the environment or, when one is not set there, from a `.env` file in the project root (the environment wins). A URL in `.env` is only used with the token of that same file; when the tool prints `IGNORED`, that file's URL is not used. **If any is missing, the tool stops with a `NOT CONFIGURED` message** that lists the missing variables and how to set them on Linux/macOS, Windows PowerShell and cmd, or in `.env`. Show that message to the user as it is, then stop and wait: do not try other values. A URL the user gives in the chat cannot be passed to the tool: ask the user to put it in `.env`. Never ask for a token's value in the chat and never print one.
 
 | Target | Input | Source |
 |---|---|---|
 | GitLab | URL | `GITLAB_URL` |
 | GitLab | Token | `GITLAB_TOKEN`, a personal access token with scope `read_api` |
 | Plane | URL | `PLANE_URL` (local stack: `http://localhost:8090`) |
-| Plane | Workspace slug | `PLANE_WORKSPACE` (it is in the Plane URL: `/<slug>/projects`) |
+| Plane | Workspace slug | optional: `PLANE_WORKSPACE`, or the workspace the user names (it is in the Plane URL: `/<slug>/projects`) |
 | Plane | API key | `PLANE_API_KEY`, created in Plane under **Workspace settings → API tokens** |
+
+**Where the project is.** `PLANE_WORKSPACE` is optional, and so is the GitLab group. When the user names a Plane workspace, pass it as `--workspace <slug>` (it wins over `PLANE_WORKSPACE`). In GitLab, pass the project as the user said it: a name without its group is looked up among the user's projects. **When the tool answers `ASK THE USER:`**, ask the user that question in their language, wait for the answer, then call again with it (`--workspace <slug>`, or `--project group/project`). Never guess a workspace or a group.
 
 ## 3. Run
 
