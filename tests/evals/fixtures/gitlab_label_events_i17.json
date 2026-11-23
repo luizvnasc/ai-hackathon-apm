@@ -1,9 +1,0 @@
-[
- {
-  "action": "add",
-  "created_at": "2026-11-05T10:00:00Z",
-  "label": {
-   "name": "workflow::blocked"
-  }
- }
-]

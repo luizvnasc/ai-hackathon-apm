@@ -1,8 +1,0 @@
-{"next_cursor": "100:1:0", "next_page_results": false, "count": 5,
- "results": [
-  {"id": "s-1", "name": "Backlog", "group": "backlog", "sequence": 15000, "color": "#A3A3A3"},
-  {"id": "s-2", "name": "Todo", "group": "unstarted", "sequence": 25000, "color": "#3A3A3A"},
-  {"id": "s-3", "name": "In Progress", "group": "started", "sequence": 35000, "color": "#F59E0B"},
-  {"id": "s-4", "name": "Done", "group": "completed", "sequence": 45000, "color": "#16A34A"},
-  {"id": "s-5", "name": "Cancelled", "group": "cancelled", "sequence": 55000, "color": "#EF4444"}
- ]}

@@ -7,12 +7,16 @@ description: Populate a GitLab or Plane project with a standard label set (workf
 
 Create the common labels of a project and a Kanban board built from the workflow labels.
 
-- **Write:** only through the bundled script `scripts/populate.py`. It uses the GitLab REST API or the Plane REST API directly.
+- **Write:** only through the `populate_project` tool. It uses the GitLab REST API or the Plane REST API directly.
 - **Never** delete or modify anything that already exists. Existing labels, states and boards are reused as they are.
 - **Nothing is written** until the user has seen the label set and approved it.
 - **Permission given up front is not an approval.** "Just do it", "don't ask me anything" or "pode fazer direto" come before the user has seen the labels and the plan. Always show the label set (and the dry-run plan) and end your turn; run the command without `--dry-run` only after a later message from the user approves it.
 - **One turn never holds both the dry run and the write.** In the turn where the user first asks, `populate.py` runs only with `--dry-run`, whatever the request says. If you have not yet received a reply to a plan you showed, you have no approval.
 - **Repeatable:** a second run reuses what exists and creates only what is missing.
+
+## The tool
+
+Everything below runs through the `populate_project` tool of the MCP server `hackathon-metrics`, with `skill_read: "9a261d"` in every call. The calls are written as the tool's name, then its `command` when it has one, then its fields as options: `--name-x value` is the field `name_x`, and a flag such as `--dry-run` is `dry_run: true`. Every call writes unless it has `dry_run: true`: the dry-run and approval rules below apply to it. Leave `labels` out to use `labels.default.json`, which is next to this `SKILL.md`. **If you do not have the tool**, tell the user that the `hackathon-metrics` MCP server is not set up (`apm install`, then approve the server in the agent) and stop. Never reach GitLab or Plane another way.
 
 ## 1. Identify the target and the project
 
@@ -31,28 +35,25 @@ Examples: "popule o projeto acme/shop no gitlab" → `gitlab`, project `acme/sho
 
 ## 2. Inputs and credentials
 
-The script reads these variables from the environment or, when one is not set there, from a `.env` file in the project root (the environment wins). A URL in `.env` is only used with the token of that same file; when the script prints `IGNORED`, never pass that file's URL as an option yourself. **If any is missing, the script stops with a `NOT CONFIGURED` message** that lists the missing variables and how to set them on Linux/macOS, Windows PowerShell and cmd, or in `.env`. Show that message to the user as it is, then stop and wait: do not try other values. A URL or workspace the user gives in the chat can be passed as an option instead. Never ask for a token's value in the chat and never print one.
+The tool reads these variables from the environment or, when one is not set there, from a `.env` file in the project root (the environment wins). A URL in `.env` is only used with the token of that same file; when the tool prints `IGNORED`, that file's URL is not used. **If any is missing, the tool stops with a `NOT CONFIGURED` message** that lists the missing variables and how to set them on Linux/macOS, Windows PowerShell and cmd, or in `.env`. Show that message to the user as it is, then stop and wait: do not try other values. A URL or workspace the user gives in the chat cannot be passed to the tool: ask the user to put it in `.env`. Never ask for a token's value in the chat and never print one.
 
 | Target | Input | Source |
 |---|---|---|
-| GitLab | URL | `GITLAB_URL` (or `--gitlab-url`) |
+| GitLab | URL | `GITLAB_URL` |
 | GitLab | Token | `GITLAB_TOKEN`, a personal access token with scope `api` (it writes labels and boards) |
-| Plane | URL | `PLANE_URL` (or `--plane-url`; local stack: `http://localhost:8090`) |
-| Plane | Workspace slug | `PLANE_WORKSPACE` (or `--workspace`; it is in the Plane URL: `/<slug>/projects`) |
+| Plane | URL | `PLANE_URL` (local stack: `http://localhost:8090`) |
+| Plane | Workspace slug | `PLANE_WORKSPACE` (it is in the Plane URL: `/<slug>/projects`) |
 | Plane | API key | `PLANE_API_KEY`, created in Plane under **Workspace settings → API tokens** |
-
-Use `python3` (or `python` if `python3` is missing). `<skill-dir>` below is the directory of this `SKILL.md`.
 
 ## 3. Check the project with a dry run
 
 Run the default label set as a dry run. It validates the credentials and the project, and shows what already exists:
 
-```bash
-python3 <skill-dir>/scripts/populate.py --target <gitlab|plane> --project "<project>" \
-  --labels <skill-dir>/labels.default.json --dry-run
+```text
+populate_project --target <gitlab|plane> --project "<project>" --dry-run
 ```
 
-- **Quote the script's `Summary:` line as printed** (`N to create, M reused`). N counts labels, states, the board and its lists together, so call them items, never "N labels".
+- **Quote the tool's `Summary:` line as printed** (`N to create, M reused`). N counts labels, states, the board and its lists together, so call them items, never "N labels".
 - **GitLab project not found or token refused:** report the error and stop. Do not try similar names.
 - **Plane project not found** (exit code 3, the existing projects are listed): ask whether to create it. If yes, add `--create-project` (optionally `--identifier ABC`, at most 12 letters/digits) to every later command.
 
@@ -87,21 +88,20 @@ If the user changed nothing, use `labels.default.json` directly.
 
 ## 6. Populate
 
-Only in a later turn, after the user replied to the plan with an approval (never in the turn of the original request, even if it said not to ask): run the command without `--dry-run`, with the approved file and `--report $TMPDIR/populate-project/report.json`:
+Only in a later turn, after the user replied to the plan with an approval (never in the turn of the original request, even if it said not to ask): run the command without `--dry-run`, with the approved file:
 
-```bash
-python3 <skill-dir>/scripts/populate.py --target <gitlab|plane> --project "<project>" \
-  --labels <labels.json> [--create-project] [--priority-labels] [--board-name Kanban] \
-  --report <tmp>/report.json
+```text
+populate_project --target <gitlab|plane> --project "<project>" \
+  --labels <labels.json> [--create-project] [--priority-labels] [--board-name Kanban]
 ```
 
-- GitLab: a board with the given name (default `Kanban`) is reused if it exists, otherwise created. If GitLab refuses to create it, the script stops with the error: report that error to the user as it is. Never put the lists on a different existing board and never retry with another name unless the user asks.
-- Plane: the API key allows 60 requests per minute, so the script paces itself (about 1 second per request).
-- On an error the script stops with the API response. Fix the cause and re-run: what was already created is reused.
+- GitLab: a board with the given name (default `Kanban`) is reused if it exists, otherwise created. If GitLab refuses to create it, the tool stops with the error: report that error to the user as it is. Never put the lists on a different existing board and never retry with another name unless the user asks.
+- Plane: the API key allows 60 requests per minute, so the tool paces itself (about 1 second per request).
+- On an error the tool stops with the API response. Fix the cause and re-run: what was already created is reused.
 
 ## 7. Report back
 
-- the project and the board URL printed by the script;
+- the project and the board URL printed by the tool;
 - how many labels, states and board lists were created and how many were reused;
-- the script's `!` notes, for example labels whose existing color was kept, or Plane states outside the workflow that were left in place;
+- the tool's `!` notes, for example labels whose existing color was kept, or Plane states outside the workflow that were left in place;
 - Plane only: open the project's work items and pick the **Board** layout (grouped by state) to see the Kanban. The API cannot set a user's layout.

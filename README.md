@@ -4,23 +4,22 @@ The hackathon deliverable: portable **agent skills** that help teams run their *
 
 ## Skills
 
-| Skill | What it answers | Script |
+| Skill | What it answers | Tool |
 |---|---|---|
-| `populate-project` | "Populate project X in GitLab" / "popule o projeto Y no Plane". It creates the standard labels (workflow, priority, type, area) and a Kanban board whose columns are the workflow labels. In Plane, workflow labels become states and priority uses the built-in field. It shows the default labels and asks for changes before writing. Needs `GITLAB_TOKEN` (scope `api`) or `PLANE_API_KEY`. | `scripts/populate.py` |
-| `blocked-issues` | "Which issues are blocked in v0.3?" / "issues bloqueadas no ciclo X do Plane". For GitLab or Plane, it reports each blocked issue's parent, children, linked issues and comments, with how long it has been blocked, the cause and the next step. Stale issues are left out. When no project is given, it lists the projects you are a member of; when no milestone or cycle is given, it lists the open ones so you can pick one or the whole project. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `scripts/blocked.py` |
-| `assign-issues` | "Who should take #62?" / "qual a melhor task para a Carla na sprint atual?". For GitLab or Plane, it scores every developer per area (0–100) from the issues they were assignee, author or commenter on, then recommends the best developer for an issue or the best issues of the current milestone/cycle for a developer. Assigns only after you confirm. Needs `GITLAB_TOKEN` (scope `read_api`, `api` to assign) or `PLANE_API_KEY`. | `scripts/assign.py` |
-| `team-velocity` | "What is the team's velocity?" / "quantos pontos planejar no próximo ciclo?". For GitLab or Plane, it reports the points (or issues) delivered on time per finished milestone/cycle, velocity per week, completion, stability and trend, and velocity per person. It recommends how much to plan next and says how the current milestone/cycle is going at that pace. Weekly throughput when there are no milestones/cycles. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `scripts/velocity.py` |
-| `commitment-delivered` | "Did we deliver what we committed to?" / "comprometido x entregue no ciclo X". For GitLab or Plane, it rebuilds the commitment at the start of each milestone/cycle from its history and reports how much of it was delivered by the end (say/do ratio), what was removed, cancelled or carried over, the unplanned work added mid-period, total delivered against the commitment and the scope change. It adds the trend, a reliability rating, the split per person, the current period so far and whether the next one holds more than the team usually delivers. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `scripts/commitment.py` |
-| `scope-stability` | "How much did the sprint change?" / "estabilidade de escopo da sprint X". For GitLab or Plane, it rebuilds each milestone's/cycle's scope at the end of its start day and every change after it (added, removed, cancelled, re-estimated; every movement counts, end-of-sprint rollover does not) and reports stability = 1 − changed ÷ initial with a rating (≥ 90% stable, ≥ 75% moderate), the change log, when it changed and the trend. Delivery plays no part. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `scripts/stability.py` |
-| `delivery-quality` | "How good was the sprint?" / "quantos tickets voltaram para to fix?". For GitLab or Plane, it finds every pass through the to fix state or label (`workflow::to-fix`, a To Fix state) while the issue was in the milestone/cycle, and reports quality = 1 − delivered issues that went to fix ÷ delivered issues with a rating (≥ 90% good, ≥ 75% attention), the issues that went back, and the trend. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `scripts/quality.py` |
-| `stale-issues` | "Which tickets are stale in v1.0?" / "issues paradas no ciclo X". For a GitLab milestone, a Plane cycle or the whole project, it lists the open issues with a stale label/state or no activity for more than N days (default 14; for work not started the clock starts with the milestone/cycle). Each one gets a kind (stalled in progress, blocked, not started, marked stale), idle days, owner and a next step, plus the stale share of the open work, the split per person and the issues getting stale. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `scripts/stale.py` |
+| `populate-project` | "Populate project X in GitLab" / "popule o projeto Y no Plane". It creates the standard labels (workflow, priority, type, area) and a Kanban board whose columns are the workflow labels. In Plane, workflow labels become states and priority uses the built-in field. It shows the default labels and asks for changes before writing. Needs `GITLAB_TOKEN` (scope `api`) or `PLANE_API_KEY`. | `populate_project` |
+| `blocked-issues` | "Which issues are blocked in v0.3?" / "issues bloqueadas no ciclo X do Plane". For GitLab or Plane, it reports each blocked issue's parent, children, linked issues and comments, with how long it has been blocked, the cause and the next step. Stale issues are left out. When no project is given, it lists the projects you are a member of; when no milestone or cycle is given, it lists the open ones so you can pick one or the whole project. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `blocked_issues` |
+| `assign-issues` | "Who should take #62?" / "qual a melhor task para a Carla na sprint atual?". For GitLab or Plane, it scores every developer per area (0–100) from the issues they were assignee, author or commenter on, then recommends the best developer for an issue or the best issues of the current milestone/cycle for a developer. Assigns only after you confirm. Needs `GITLAB_TOKEN` (scope `read_api`, `api` to assign) or `PLANE_API_KEY`. | `assign_issues` |
+| `team-velocity` | "What is the team's velocity?" / "quantos pontos planejar no próximo ciclo?". For GitLab or Plane, it reports the points (or issues) delivered on time per finished milestone/cycle, velocity per week, completion, stability and trend, and velocity per person. It recommends how much to plan next and says how the current milestone/cycle is going at that pace. Weekly throughput when there are no milestones/cycles. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `team_velocity` |
+| `commitment-delivered` | "Did we deliver what we committed to?" / "comprometido x entregue no ciclo X". For GitLab or Plane, it rebuilds the commitment at the start of each milestone/cycle from its history and reports how much of it was delivered by the end (say/do ratio), what was removed, cancelled or carried over, the unplanned work added mid-period, total delivered against the commitment and the scope change. It adds the trend, a reliability rating, the split per person, the current period so far and whether the next one holds more than the team usually delivers. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `commitment_delivered` |
+| `scope-stability` | "How much did the sprint change?" / "estabilidade de escopo da sprint X". For GitLab or Plane, it rebuilds each milestone's/cycle's scope at the end of its start day and every change after it (added, removed, cancelled, re-estimated; every movement counts, end-of-sprint rollover does not) and reports stability = 1 − changed ÷ initial with a rating (≥ 90% stable, ≥ 75% moderate), the change log, when it changed and the trend. Delivery plays no part. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `scope_stability` |
+| `delivery-quality` | "How good was the sprint?" / "quantos tickets voltaram para to fix?". For GitLab or Plane, it finds every pass through the to fix state or label (`workflow::to-fix`, a To Fix state) while the issue was in the milestone/cycle, and reports quality = 1 − delivered issues that went to fix ÷ delivered issues with a rating (≥ 90% good, ≥ 75% attention), the issues that went back, and the trend. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `delivery_quality` |
+| `stale-issues` | "Which tickets are stale in v1.0?" / "issues paradas no ciclo X". For a GitLab milestone, a Plane cycle or the whole project, it lists the open issues with a stale label/state or no activity for more than N days (default 14; for work not started the clock starts with the milestone/cycle). Each one gets a kind (stalled in progress, blocked, not started, marked stale), idle days, owner and a next step, plus the stale share of the open work, the split per person and the issues getting stale. Read-only. Needs `GITLAB_TOKEN` (scope `read_api`) or `PLANE_API_KEY`. | `stale_issues` |
 
 Ask your agent in plain language, for example "which issues are blocked in v1.0?", "who should take #62?" or "what is stale in v1.0?". The agent loads the matching skill.
 
 How the skills stay portable:
 - **Standard format.** Each skill is a plain `SKILL.md` (`name` + `description` frontmatter, no agent-specific fields).
-- **APIs only.** The scripts call the GitLab and Plane APIs directly, so the skills do not depend on which tools an agent exposes or how it names them.
-- **Shared calculation.** All data access and numbers come from a bundled stdlib-only Python script (3.8+). The agent only runs it and writes the report, so every agent produces the same results.
+- **One MCP server.** All data access and numbers come from the package's own MCP server (stdlib-only Python 3.8+), which calls the GitLab and Plane APIs directly. The skills hold only instructions: the agent calls the tool and writes the report, so every agent produces the same results.
 
 ## Token cost
 
@@ -38,11 +37,11 @@ Average tokens one request adds to the agent's context, per skill. The **fixed**
 | `populate-project` | ~3,000, two runs included (dry run + write) | **0**, it reads no issues; ~15 per label | ~600–800 | 23 labels: ~3,400 in / ~700 out |
 
 Why most skills are flat:
-- Every skill reads the issues inside its script. Only the finished table reaches the agent.
+- Every tool reads the issues inside the MCP server. Only the finished table reaches the agent.
 - A 500-issue project costs about the same as the 67-issue seed. It only takes longer: Plane allows 60 requests per minute, so `assign-issues` takes about 1 s per issue there (`--no-comments` skips that).
 
 How the numbers were measured:
-- Sizes of the real `SKILL.md` files and script outputs on the demo project `acme/inventory-manager` in GitLab: 67 issues, 36 open, 8 blocked, 4 developers, 2 finished milestones.
+- Sizes of the real `SKILL.md` files and tool outputs on the demo project `acme/inventory-manager` in GitLab: 67 issues, 36 open, 8 blocked, 4 developers, 2 finished milestones.
 - Tokens are estimated at 3.5 characters per token.
 - Plane outputs are about 1.5× longer, because their links carry UUIDs.
 - Not included: the agent's own system prompt and tool definitions. Every turn re-reads them whatever the skill, and they are usually cached.
@@ -52,32 +51,25 @@ How the numbers were measured:
 
 ```
 .
-  apm.yml                        # package manifest
-  shared/                        # common code of the scripts: edit here, never in a generated copy
-  tools/sync_shared.py           # writes the copies: scripts/hackathon_shared/ of each skill
+  apm.yml                        # package manifest, declares the MCP server
+  mcp/
+    server.py                    # the stdio MCP server: one tool per skill
+    metrics/                     # all the code: one module per tool, plus the modules they share
   .apm/
-    skills/
-      populate-project/          # SKILL.md + labels.default.json + scripts/populate.py
-      blocked-issues/            # SKILL.md + scripts/blocked.py
-      assign-issues/             # SKILL.md + scripts/assign.py
-      team-velocity/             # SKILL.md + scripts/velocity.py
-      commitment-delivered/      # SKILL.md + scripts/commitment.py
-      scope-stability/           # SKILL.md + scripts/stability.py
-      delivery-quality/          # SKILL.md + scripts/quality.py
-      stale-issues/              # SKILL.md + scripts/stale.py
-  tests/
-    unit/                        # stdlib unittest for the bundled scripts (no network)
-    evals/                       # promptfoo evals: skill routing and behaviour (run in a sandbox, see tests/README.md)
+    skills/                      # instructions only: a SKILL.md each (populate-project also has labels.default.json)
+      populate-project/  blocked-issues/  assign-issues/  team-velocity/
+      commitment-delivered/  scope-stability/  delivery-quality/  stale-issues/
 ```
 
-See [tests/README.md](tests/README.md) for how to run them.
+The tests are not part of the package, so `apm install` never copies them: they live in the repository that holds
+this package as a submodule, [luizvnasc/ai-hackathon](https://github.com/luizvnasc/ai-hackathon) (`tests/unit` and the
+sandboxed promptfoo evals in `tests/evals`, see its `tests/README.md`).
 
-### Shared code
-
-APM installs each skill folder by itself, so code used by several skills is generated into each one.
+### The code
 
 | Module | What it has |
 |---|---|
+| `velocity`, `commitment`, `stability`, `quality`, `stale`, `blocked`, `assign`, `populate` | one per tool: its command line (`main(argv)`), what it reads and how it computes and prints the result |
 | `config` | credentials: environment, `.env`, the NOT CONFIGURED help |
 | `net` | `ApiError`, the redirect guard, the workspace as one path segment |
 | `gitlab` | `GitLabClient`: GraphQL, REST, pages, the user's projects |
@@ -88,11 +80,7 @@ APM installs each skill folder by itself, so code used by several skills is gene
 | `report` | Markdown tables |
 | `stats` | trend |
 
-Each skill's `GitLab` and `Plane` classes extend the shared clients and provide `send()`, which calls the skill's own `http()`. The few methods and functions a skill still defines differently are listed in `VARIANTS` in `tests/unit/shared_modules`: a new copy fails there.
-
-1. Edit `shared/<module>.py`, never `scripts/hackathon_shared/`.
-2. In a script, import it with `from hackathon_shared.<module> import <name>`, after the bootstrap lines the other scripts have.
-3. Run `python3 tools/sync_shared.py` and commit the copies (a module brings the ones it imports with `from .<module> import ...`). `tests/unit/shared_modules` fails when one differs.
+A tool module imports the shared ones with `from .<module> import <name>`. Its `GitLab` and `Plane` classes extend the shared clients and provide `send()`, which calls the module's own `http()`. The few functions a tool module still defines differently are listed in `VARIANTS` in `tests/unit/shared_modules` of luizvnasc/ai-hackathon: a new duplicate fails there.
 
 ## Install in your project
 
@@ -110,7 +98,7 @@ Without `--target`, APM deploys to the agents it detects in the project (`.claud
 | GitHub Copilot Chat in VS Code | `vscode` | `.agents/skills/` |
 | OpenCode | `opencode` | `.agents/skills/` |
 
-The skills run `python3` (or `python`) for their bundled scripts, so the agent needs a terminal tool and Python 3.8+. In VS Code, use Copilot Chat in **Agent** mode (skills are only available there).
+The skills need the package's MCP server (below) and Python 3.8+ to run it. In VS Code, use Copilot Chat in **Agent** mode (skills are only available there).
 
 or in your `apm.yml`:
 
@@ -120,9 +108,20 @@ dependencies:
     - luizvnasc/ai-hackathon-apm#main
 ```
 
+### The MCP server
+
+`apm install` also registers the package's MCP server, `hackathon-metrics`, in the agent's config (`.mcp.json` for Claude Code, `.github/mcp.json` for Copilot, `opencode.json` for OpenCode). The agent starts it from the project folder: `python3 apm_modules/luizvnasc/ai-hackathon-apm/mcp/server.py`.
+
+- **Claude Code asks once** to approve a server declared in the project. Without the server the skills only say it is not set up: they never reach GitLab or Plane another way.
+- **No credential goes into those files.** The server gets them from the environment the agent was started with, or from the project's `.env` (see below). Do not add `env:` entries with tokens to any of those files: `apm install` writes the value of a set variable into `.mcp.json`.
+
+Each skill has a tool: `team_velocity`, `commitment_delivered`, `scope_stability`, `delivery_quality`, `stale_issues`, `blocked_issues`, `assign_issues` and `populate_project`. The six reports only read. `assign_issues` writes only with `yes: true` and `populate_project` writes unless `dry_run: true`: their skills preview the change and wait for the user's approval first.
+
+Every tool call must carry `skill_read`, a value written only in its skill's `SKILL.md`. Without it the tool runs nothing and tells the agent to load the skill, so the skill's rules are always read before the tool is used.
+
 ## Configure access
 
-The skills call the GitLab and Plane APIs. Their scripts read these variables from the environment, or from a `.env` file in the project root when a variable is not set there (the environment always wins):
+The tools call the GitLab and Plane APIs. They read these variables from the environment, or from a `.env` file in the project root when a variable is not set there (the environment always wins):
 
 | Variable | For | Value |
 |---|---|---|
@@ -147,6 +146,6 @@ Set only what your team uses (GitLab, Plane or both). Pick one way:
   | Windows PowerShell | `$env:GITLAB_TOKEN = "glpat-..."` for the session; `setx GITLAB_TOKEN "glpat-..."` to keep it, then open a new terminal |
   | Windows cmd | `set GITLAB_TOKEN=glpat-...` for the session; `setx` as above to keep it |
 
-  Start the agent from a terminal that has the variables, or restart it after `setx`. A `.env` file needs no restart, because the scripts read it on every run.
+  Start the agent from a terminal that has the variables, or restart it after `setx`. A `.env` file needs no restart, because the tools read it on every call.
 
 When a skill runs and something is missing, it stops and lists the missing variables, with these commands.
