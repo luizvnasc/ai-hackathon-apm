@@ -14,7 +14,7 @@ from tests.unit._load import tool_command
 from tests.unit.scope_stability.helpers import issue, period, ss
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
-SCRIPT = ROOT / "mcp" / "hackathon_metrics" / "stability.py"
+SCRIPT = ROOT / "mcp" / "metrics" / "stability.py"
 EVALS = ROOT / "tests/evals"
 ENV = {"GITLAB_URL": "https://gl.example.com", "GITLAB_TOKEN": "glpat-secret-123"}
 

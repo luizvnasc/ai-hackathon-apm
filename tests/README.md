@@ -18,7 +18,7 @@ find . -name __pycache__ -type d -prune -exec rm -rf {} +   # clean up afterward
 Layout (one package per skill, `-` replaced by `_`, since packages cannot have hyphens):
 
 ```
-tests/unit/_load.py                       # load("<skill>", "<module>.py") imports mcp/hackathon_metrics/<module>
+tests/unit/_load.py                       # load("<skill>", "<module>.py") imports mcp/metrics/<module>
 tests/unit/<skill_name>/__init__.py
 tests/unit/<skill_name>/test_<topic>.py
 tests/unit/<skill_name>/fixtures/*.json   # trimmed API responses, no real names, emails or tokens
@@ -110,7 +110,7 @@ Add fixtures for a skill:
 1. Add the skill's routes to the shared `evals/fixtures/routes.json` (reuse routes the dataset already has; do not duplicate them), a list of `{"method", "path" | "path_regex", "query", "graphql": {"contains": [...], "variables": {...}}, "file", "expand", "status", "headers"}`; first match wins. See `fixtures/routes.json` and the docstring of the mock.
 2. Put new response bodies next to it as JSON (trimmed real responses are fine; fake hosts, ids and people, never real data or tokens). Use fake users such as `alice`, project `INV` / `group/inv`, workspace `eval`.
 3. Run the tool module by hand until no `[eval-mock] MISS` is printed:
-   `EVAL_FIXTURES=$PWD/tests/evals/fixtures EVAL_TODAY=2026-11-12 EVAL_DATASET_DATE=2026-11-12 PYTHONPATH=$PWD/tests/evals/mock GITLAB_URL=http://gitlab.mock GITLAB_TOKEN=glpat-eval-fake PLANE_URL=http://plane.mock PLANE_WORKSPACE=eval PLANE_API_KEY=plane-eval-fake python3 -c "import sys; sys.path.insert(0, 'mcp'); from hackathon_metrics import <module>; <module>.main(sys.argv[1:])" ...`
+   `EVAL_FIXTURES=$PWD/tests/evals/fixtures EVAL_TODAY=2026-11-12 EVAL_DATASET_DATE=2026-11-12 PYTHONPATH=$PWD/tests/evals/mock GITLAB_URL=http://gitlab.mock GITLAB_TOKEN=glpat-eval-fake PLANE_URL=http://plane.mock PLANE_WORKSPACE=eval PLANE_API_KEY=plane-eval-fake python3 -c "import sys; sys.path.insert(0, 'mcp'); from metrics import <module>; <module>.main(sys.argv[1:])" ...`
 4. Design the dataset so the numbers are easy to verify by hand, and add a unit test that runs the tool module against it in a subprocess (`tool_command` in `unit/_load.py`) (see `unit/eval_mock/test_mock.py`, `VelocityEndToEndTest`). The eval then asserts on those numbers.
 5. In the eval config copy the two providers of `team-velocity/promptfooconfig.yaml` and mark each test with its provider. Every test except the deliberate missing-credentials ones runs on `configured` and uses only projects of the dataset (Plane `INV` in workspace `eval`, GitLab `group/inv`). A near miss routed to a skill that has no routes yet asserts routing only and carries a `# TODO fixtures: <skill>` comment.
 

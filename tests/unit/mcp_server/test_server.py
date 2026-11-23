@@ -97,7 +97,7 @@ class ArgumentsTest(unittest.TestCase):
 
     def test_each_tool_runs_its_own_module(self):
         for name, tool in server.TOOLS.items():
-            path = server.HERE / "hackathon_metrics" / f"{tool['module']}.py"
+            path = server.HERE / "metrics" / f"{tool['module']}.py"
             self.assertTrue(path.is_file(), path)
             self.assertIs(server.load_module(name).main, server.load_module(name).main)
 

@@ -20,10 +20,10 @@ import unittest
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 SKILLS = ROOT / ".apm" / "skills"
 MCP = ROOT / "mcp"
-PACKAGE = MCP / "hackathon_metrics"
+PACKAGE = MCP / "metrics"
 SCRIPTS = sorted(path for path in PACKAGE.glob("*.py") if "\ndef main(" in path.read_text())  # one per tool
 REFERENCE = PACKAGE / "velocity.py"
-IMPORT = f"import importlib, sys\nsys.path.insert(0, {str(MCP)!r})\nm = importlib.import_module('hackathon_metrics.' + sys.argv[1])\n"
+IMPORT = f"import importlib, sys\nsys.path.insert(0, {str(MCP)!r})\nm = importlib.import_module('metrics.' + sys.argv[1])\n"
 RUN = IMPORT + "m.main(sys.argv[2:])\n"  # a tool module with its command line, as mcp/server.py runs it
 TOKENS = {"gitlab": ("GITLAB_URL", "GITLAB_TOKEN", "glpat-secret-123"),
           "plane": ("PLANE_URL", "PLANE_API_KEY", "plane-secret-456")}
@@ -231,7 +231,7 @@ class RedirectTest(Case):
     @for_each("any")
     def test_origins(self, script, target):
         code = (IMPORT +
-                "guard = sys.modules['hackathon_metrics.net']\n"
+                "guard = sys.modules['metrics.net']\n"
                 "print([guard.safe_redirect(a, b) for a, b in zip(sys.argv[2::2], sys.argv[3::2])])\n")
         pairs = [("http://h/a", "https://h/a", True),          # plain upgrade to TLS
                  ("https://h/a", "https://H:443/b", True),

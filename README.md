@@ -54,7 +54,7 @@ How the numbers were measured:
   apm.yml                        # package manifest, declares the MCP server
   mcp/
     server.py                    # the stdio MCP server: one tool per skill
-    hackathon_metrics/           # all the code: one module per tool, plus the modules they share
+    metrics/                     # all the code: one module per tool, plus the modules they share
   .apm/
     skills/                      # instructions only: a SKILL.md each (populate-project also has labels.default.json)
       populate-project/  blocked-issues/  assign-issues/  team-velocity/

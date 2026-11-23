@@ -4,9 +4,9 @@
 Started by the agent from the project folder, as declared in apm.yml:
     python3 apm_modules/luizvnasc/ai-hackathon-apm/mcp/server.py
 
-All the code is in hackathon_metrics/ next to this file, one module per tool plus the modules they share;
+All the code is in metrics/ next to this file, one module per tool plus the modules they share;
 the skills hold only their instructions. Credentials are not in any config file: the agent starts the server
-with its own environment (checked for Claude Code and OpenCode), and hackathon_metrics/config.py reads
+with its own environment (checked for Claude Code and OpenCode), and metrics/config.py reads
 GITLAB_*/PLANE_* from there or from the project's .env.
 
 URLs, the workspace and the request rate are never tool arguments: a tool call comes from the model, and a
@@ -144,8 +144,8 @@ def tool_schema(name):
 
 
 def load_module(name):
-    """The tool's module in hackathon_metrics/."""
-    return importlib.import_module(f"hackathon_metrics.{TOOLS[name]['module']}")
+    """The tool's module in metrics/."""
+    return importlib.import_module(f"metrics.{TOOLS[name]['module']}")
 
 
 def cli_argv(name, arguments):

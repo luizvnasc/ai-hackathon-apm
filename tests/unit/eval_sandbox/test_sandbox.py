@@ -123,7 +123,7 @@ class PayloadTest(unittest.TestCase):
             secret.write_text("secret")
             files = [".apm/skills/a/SKILL.md", ".apm/skills/a/.env", ".apm/skills/a/.env.local",
                      "tests/evals/a/promptfooconfig.yaml", "tests/evals/ignored.txt", "README.md", ".env",
-                     "shared/config.py", "mcp/server.py", "mcp/hackathon_metrics/net.py", "mcp/.env", "tests/unit/x.py"]
+                     "shared/config.py", "mcp/server.py", "mcp/metrics/net.py", "mcp/.env", "tests/unit/x.py"]
             for rel in files:
                 (root / rel).parent.mkdir(parents=True, exist_ok=True)
                 (root / rel).write_text("x")
@@ -132,7 +132,7 @@ class PayloadTest(unittest.TestCase):
             (root / "tests/evals/linkdir").symlink_to(outside)
             subprocess.run(["git", "init", "-q", tmp], check=True)
             names = sorted(tarfile.open(fileobj=io.BytesIO(run.payload(root))).getnames())
-        self.assertEqual(names, [".apm/skills/a/SKILL.md", "mcp/hackathon_metrics/net.py", "mcp/server.py",
+        self.assertEqual(names, [".apm/skills/a/SKILL.md", "mcp/metrics/net.py", "mcp/server.py",
                                  "tests/evals/a/promptfooconfig.yaml"])
 
 

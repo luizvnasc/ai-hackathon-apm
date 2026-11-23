@@ -1,4 +1,4 @@
-"""mcp/hackathon_metrics/ holds all the code: one module per tool, plus the modules they share."""
+"""mcp/metrics/ holds all the code: one module per tool, plus the modules they share."""
 import ast
 import importlib.util
 import json
@@ -11,7 +11,7 @@ import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
-PACKAGE = ROOT / "mcp" / "hackathon_metrics"
+PACKAGE = ROOT / "mcp" / "metrics"
 TOOLS = sorted(path for path in PACKAGE.glob("*.py") if "\ndef main(" in path.read_text())
 SHARED = sorted(path for path in PACKAGE.glob("*.py") if path not in TOOLS and path.name != "__init__.py")
 # Names of a shared module that a tool module still defines in its own way, because it behaves differently.
@@ -89,7 +89,7 @@ class InstalledServerTest(unittest.TestCase):
 
     def test_a_package_of_the_same_name_on_pythonpath_is_not_used(self):
         with tempfile.TemporaryDirectory() as other:
-            fake = pathlib.Path(other, "hackathon_metrics")
+            fake = pathlib.Path(other, "metrics")
             fake.mkdir()
             (fake / "__init__.py").write_text("raise SystemExit('hijacked')\n")
             out, replies, _ = self.start(env={"PYTHONPATH": other})

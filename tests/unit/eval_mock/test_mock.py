@@ -18,14 +18,14 @@ from tests.unit._load import tool_command
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 MOCK_DIR = ROOT / "tests" / "evals" / "mock"
 FIXTURES = ROOT / "tests" / "evals" / "fixtures"
-COMMITMENT = ROOT / "mcp" / "hackathon_metrics" / "commitment.py"
-ASSIGN = ROOT / "mcp" / "hackathon_metrics" / "assign.py"
-POPULATE = ROOT / "mcp" / "hackathon_metrics" / "populate.py"
+COMMITMENT = ROOT / "mcp" / "metrics" / "commitment.py"
+ASSIGN = ROOT / "mcp" / "metrics" / "assign.py"
+POPULATE = ROOT / "mcp" / "metrics" / "populate.py"
 POPULATE_LABELS = ROOT / ".apm" / "skills" / "populate-project" / "labels.default.json"
-BLOCKED = ROOT / "mcp" / "hackathon_metrics" / "blocked.py"
-STALE = ROOT / "mcp" / "hackathon_metrics" / "stale.py"
-VELOCITY = ROOT / "mcp" / "hackathon_metrics" / "velocity.py"
-QUALITY = ROOT / "mcp" / "hackathon_metrics" / "quality.py"
+BLOCKED = ROOT / "mcp" / "metrics" / "blocked.py"
+STALE = ROOT / "mcp" / "metrics" / "stale.py"
+VELOCITY = ROOT / "mcp" / "metrics" / "velocity.py"
+QUALITY = ROOT / "mcp" / "metrics" / "quality.py"
 
 NO_PACING = ("--rate", "6000")  # the mock has no rate limit: waiting for Plane's 60 requests/minute only slows the tests
 
