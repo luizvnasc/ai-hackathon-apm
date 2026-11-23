@@ -120,14 +120,14 @@ dependencies:
     - luizvnasc/ai-hackathon-apm#main
 ```
 
-### The MCP server (being migrated, team-velocity first)
+### The MCP server (being migrated skill by skill)
 
 `apm install` also registers the package's MCP server, `hackathon-metrics`, in the agent's config (`.mcp.json` for Claude Code, `.github/mcp.json` for Copilot, `opencode.json` for OpenCode). The agent starts it from the project folder: `python3 apm_modules/luizvnasc/ai-hackathon-apm/mcp/server.py`. It runs the skills' code with `shared/` from the package, so nothing has to be copied into each skill once every skill uses it.
 
 - **Claude Code asks once** to approve a server declared in the project. Until then, and in agents without MCP, the skills run their scripts as before.
 - **No credential goes into those files.** The server gets them from the environment the agent was started with, or from the project's `.env` (see below). Do not add `env:` entries with tokens to any of those files: `apm install` writes the value of a set variable into `.mcp.json`.
 
-So far the server has the `team_velocity` tool; the other skills still use their scripts.
+So far the server has the `team_velocity` and `commitment_delivered` tools; the other skills still use their scripts.
 
 ## Configure access
 

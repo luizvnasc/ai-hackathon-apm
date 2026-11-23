@@ -16,7 +16,7 @@ providers:
       working_dir: /sandbox/tests/evals/.workspace   # exists only in sandbox/run.py's container
       setting_sources: ['project']
       skills: 'all'
-      append_allowed_tools: ['Read', 'Bash', 'mcp__hackathon-metrics__team_velocity']
+      append_allowed_tools: ['Read', 'Bash', 'mcp__hackathon-metrics__team_velocity', 'mcp__hackathon-metrics__commitment_delivered']
       # The package's MCP server, from the same place as in a user's project (see sync-skills.sh)
       mcp:
         enabled: true

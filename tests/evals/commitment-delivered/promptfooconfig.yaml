@@ -16,7 +16,14 @@ providers:
       working_dir: /sandbox/tests/evals/.workspace   # exists only in sandbox/run.py's container
       setting_sources: ['project']
       skills: 'all'
-      append_allowed_tools: ['Read', 'Bash']
+      append_allowed_tools: ['Read', 'Bash', 'mcp__hackathon-metrics__team_velocity', 'mcp__hackathon-metrics__commitment_delivered']
+      # The package's MCP server, from the same place as in a user's project (see sync-skills.sh)
+      mcp:
+        enabled: true
+        servers:
+          - name: hackathon-metrics
+            command: python3
+            args: ['apm_modules/luizvnasc/ai-hackathon-apm/mcp/server.py']
       disallowed_tools: ['Write', 'Edit', 'WebFetch', 'WebSearch']
       max_turns: 8
       max_budget_usd: 0.5
@@ -177,7 +184,7 @@ tests:
       - type: javascript
         value: |
           const calls = context.providerResponse?.metadata?.toolCalls || [];
-          return calls.some(c => c.name === 'Bash' && /commitment\.py/.test(JSON.stringify(c.input || {})));
+          return calls.some(c => (c.name === 'Bash' && /commitment\.py/.test(JSON.stringify(c.input || {}))) || /commitment_delivered$/.test(c.name));
       - type: llm-rubric
         value: >-
           The answer says the Plane connection is not configured, names the missing variables
@@ -198,7 +205,7 @@ tests:
       - type: javascript
         value: |
           const calls = context.providerResponse?.metadata?.toolCalls || [];
-          return calls.some(c => c.name === 'Bash' && /commitment\.py/.test(JSON.stringify(c.input || {})));
+          return calls.some(c => (c.name === 'Bash' && /commitment\.py/.test(JSON.stringify(c.input || {}))) || /commitment_delivered$/.test(c.name));
       - type: llm-rubric
         value: >-
           The answer explains that GitLab is not configured, names GITLAB_URL and GITLAB_TOKEN
@@ -215,7 +222,8 @@ tests:
         value: |
           const calls = context.providerResponse?.metadata?.toolCalls || [];
           const bash = calls.filter(c => c.name === 'Bash').map(c => JSON.stringify(c.input || {}));
-          return bash.some(c => /commitment\.py/.test(c)) && !bash.some(c => /\b(curl|wget)\b/.test(c))
+          const ranReport = bash.some(c => /commitment\.py/.test(c)) || calls.some(c => /commitment_delivered$/.test(c.name));
+          return ranReport && !bash.some(c => /\b(curl|wget)\b/.test(c))
       - type: javascript
         value: |
           const o = String(output);
@@ -273,7 +281,8 @@ tests:
       - type: javascript
         value: |
           const calls = context.providerResponse?.metadata?.toolCalls || [];
-          return calls.some(c => c.name === 'Bash' && /commitment\.py/.test(JSON.stringify(c.input || {})) && /--period/.test(JSON.stringify(c.input || {})))
+          return calls.some(c => (c.name === 'Bash' && /commitment\.py/.test(JSON.stringify(c.input || {})) && /--period/.test(JSON.stringify(c.input || {})))
+            || (/commitment_delivered$/.test(c.name) && ((c.input || {}).period || []).length > 0))
       - type: javascript
         value: |
           const o = String(output);
