@@ -4,7 +4,7 @@ Two layers:
 
 | Layer | What it proves | Tooling | Network |
 |---|---|---|---|
-| `unit/` | The bundled scripts: math, loaders, API clients, config handling, CLI | Python 3.8+ stdlib `unittest` | none |
+| `unit/` | The MCP server and its modules: math, loaders, API clients, config handling, CLI | Python 3.8+ stdlib `unittest` | none |
 | `evals/` | The skills as an agent sees them: picked for the right requests, ignored for the wrong ones, following their instructions | [promptfoo](https://promptfoo.dev) + Claude Agent SDK | Anthropic Messages API only, through the sandbox proxy |
 
 ## Unit tests
@@ -18,7 +18,7 @@ find . -name __pycache__ -type d -prune -exec rm -rf {} +   # clean up afterward
 Layout (one package per skill, `-` replaced by `_`, since packages cannot have hyphens):
 
 ```
-tests/unit/_load.py                       # load("<skill>", "<script>.py") imports a script by path
+tests/unit/_load.py                       # load("<skill>", "<module>.py") imports mcp/hackathon_metrics/<module>
 tests/unit/<skill_name>/__init__.py
 tests/unit/<skill_name>/test_<topic>.py
 tests/unit/<skill_name>/fixtures/*.json   # trimmed API responses, no real names, emails or tokens
@@ -32,15 +32,15 @@ from tests.unit._load import load
 vel = load("team-velocity", "velocity.py")
 ```
 
-Every `load` call executes the script again, with that skill's own copy of `hackathon_shared`, and returns a fresh module, so patches in one test module never leak into another. Patch a shared function on the script's module when the script calls it. For the clients, patch the script's `http`, or a method of its `GitLab`/`Plane` class (`graphql`, `rest`, `rest_pages`, `request`, `list`); `time.sleep` is patched as `mock.patch("time.sleep")`.
+`load` imports the module once and returns the same module to every test, so patch with `mock.patch` (restored after the test), never by assigning to a module. Patch a shared function on the tool module when the tool module calls it. For the clients, patch the tool module's `http`, or a method of its `GitLab`/`Plane` class (`graphql`, `rest`, `rest_pages`, `request`, `list`); `time.sleep` is patched as `mock.patch("time.sleep")`.
 
 Where a test goes:
 
 | What it tests | Where | How many times |
 |---|---|---|
-| A rule of `shared/` | `unit/shared_modules/`, with `load_shared("<module>")` | once: the copies are proven identical |
-| A security rule | `unit/security/`, on the `REFERENCE` script | once |
-| That a skill uses the shared code | `WiringTest` in `unit/security/` | every script, automatically |
+| A rule of a shared module | `unit/shared_modules/`, with `load_shared("<module>")` | once |
+| A security rule | `unit/security/`, on the `REFERENCE` tool module | once |
+| That a tool uses the shared code | `WiringTest` in `unit/security/` | every tool module, automatically |
 | A rule of one skill | `unit/<skill_name>/` | there |
 
 Do not copy a test of shared code into a skill's folder. End-to-end runs against the Plane mock pass `--rate 6000`, or they wait for a rate limit the mock does not have.
@@ -91,7 +91,7 @@ Cost: every test is a real agent run of a few turns. Both providers use `model: 
 
 ### Offline GitLab and Plane for behaviour evals
 
-The scripts all call `urllib.request.urlopen`. `evals/mock/sitecustomize.py` replaces it, so a skill's script runs unchanged but is answered from JSON fixtures. `sync-skills.sh` copies `mock/` to `.workspace/mock` and `fixtures/` (one dataset shared by all skills) to `.workspace/fixtures/`. The `configured` provider sets:
+The tool modules all call `urllib.request.urlopen`. `evals/mock/sitecustomize.py` replaces it, so the MCP server runs unchanged but is answered from JSON fixtures. `sync-skills.sh` copies `mock/` to `.workspace/mock` and `fixtures/` (one dataset shared by all skills) to `.workspace/fixtures/`. The `configured` provider sets:
 
 | Variable | Value |
 |---|---|
@@ -99,7 +99,7 @@ The scripts all call `urllib.request.urlopen`. `evals/mock/sitecustomize.py` rep
 | `PLANE_URL`, `PLANE_WORKSPACE`, `PLANE_API_KEY` | `http://plane.mock`, `eval`, `plane-eval-fake` |
 | `PYTHONPATH` | `{{ env.PWD }}/.workspace/mock` (Python then imports the mock at startup) |
 | `EVAL_FIXTURES` | `{{ env.PWD }}/.workspace/fixtures` (the same for every skill) |
-| `EVAL_DATASET_DATE` | `2026-11-12`, the date the dataset was written for. The mock shifts every fixture date by (today − this date), so the dataset always ends on the real today: the agent and the script agree on "today" and the numbers never drift. Weekly buckets (Monday–Sunday) still move with the weekday, so eval asserts compare weekly numbers with the script's own output; unit tests pin them with `EVAL_TODAY` (freezes `date.today()`). |
+| `EVAL_DATASET_DATE` | `2026-11-12`, the date the dataset was written for. The mock shifts every fixture date by (today − this date), so the dataset always ends on the real today: the agent and the tool agree on "today" and the numbers never drift. Weekly buckets (Monday–Sunday) still move with the weekday, so eval asserts compare weekly numbers with the tool's own output; unit tests pin them with `EVAL_TODAY` (freezes `date.today()`). |
 
 `EVAL_PLANE_NO_ESTIMATES=1` makes the mock a Plane CE with the bug [makeplane/plane#9933](https://github.com/makeplane/plane/issues/9933): the documented `/estimates/` routes answer 404 `Page not found.`. The configs of the skills that read points set it.
 
@@ -109,9 +109,9 @@ Add fixtures for a skill:
 
 1. Add the skill's routes to the shared `evals/fixtures/routes.json` (reuse routes the dataset already has; do not duplicate them), a list of `{"method", "path" | "path_regex", "query", "graphql": {"contains": [...], "variables": {...}}, "file", "expand", "status", "headers"}`; first match wins. See `fixtures/routes.json` and the docstring of the mock.
 2. Put new response bodies next to it as JSON (trimmed real responses are fine; fake hosts, ids and people, never real data or tokens). Use fake users such as `alice`, project `INV` / `group/inv`, workspace `eval`.
-3. Run the script by hand until no `[eval-mock] MISS` is printed:
-   `EVAL_FIXTURES=$PWD/tests/evals/fixtures EVAL_TODAY=2026-11-12 EVAL_DATASET_DATE=2026-11-12 PYTHONPATH=$PWD/tests/evals/mock GITLAB_URL=http://gitlab.mock GITLAB_TOKEN=glpat-eval-fake PLANE_URL=http://plane.mock PLANE_WORKSPACE=eval PLANE_API_KEY=plane-eval-fake python3 .apm/skills/<skill>/scripts/<script>.py ...`
-4. Design the dataset so the numbers are easy to verify by hand, and add a unit test that runs the script against it in a subprocess (see `unit/eval_mock/test_mock.py`, `VelocityEndToEndTest`). The eval then asserts on those numbers.
+3. Run the tool module by hand until no `[eval-mock] MISS` is printed:
+   `EVAL_FIXTURES=$PWD/tests/evals/fixtures EVAL_TODAY=2026-11-12 EVAL_DATASET_DATE=2026-11-12 PYTHONPATH=$PWD/tests/evals/mock GITLAB_URL=http://gitlab.mock GITLAB_TOKEN=glpat-eval-fake PLANE_URL=http://plane.mock PLANE_WORKSPACE=eval PLANE_API_KEY=plane-eval-fake python3 -c "import sys; sys.path.insert(0, 'mcp'); from hackathon_metrics import <module>; <module>.main(sys.argv[1:])" ...`
+4. Design the dataset so the numbers are easy to verify by hand, and add a unit test that runs the tool module against it in a subprocess (`tool_command` in `unit/_load.py`) (see `unit/eval_mock/test_mock.py`, `VelocityEndToEndTest`). The eval then asserts on those numbers.
 5. In the eval config copy the two providers of `team-velocity/promptfooconfig.yaml` and mark each test with its provider. Every test except the deliberate missing-credentials ones runs on `configured` and uses only projects of the dataset (Plane `INV` in workspace `eval`, GitLab `group/inv`). A near miss routed to a skill that has no routes yet asserts routing only and carries a `# TODO fixtures: <skill>` comment.
 
 The mock itself is tested in `unit/eval_mock/`.

@@ -9,12 +9,12 @@ Recommend who should take an issue, or what a developer should take next, from t
 
 - **Read-only except for one command.** Only `assign --yes` writes, and only after the user confirmed that exact change in this conversation. Never assign on your own initiative.
 - **Permission given up front is not a confirmation.** "Assign it to the best dev", "do it directly", "no need to ask me" or "pode fazer direto" come before the user has seen who would get the issue. Always show the `--dry-run` preview first and end your turn; run `--yes` only after a later message from the user says yes to that preview.
-- **Data and math come from the bundled script** `scripts/assign.py`, so every agent gets the same scores. Never invent scores or history.
-- The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly.
+- **Data and math come from the `assign_issues` tool**, so every agent gets the same scores. Never invent scores or history.
+- The tool talks to GitLab (REST/GraphQL API) or Plane (REST API) directly.
 
-## Tool or script
+## The tool
 
-**Use the `assign_issues` tool when you have it** (MCP server `hackathon-metrics`) for every command below, with `skill_read: "6eb483"` in every call. Its fields are the script's options without the dashes: `command` (`scores`, `suggest-member`, `assign`...), `--issue` → `issue`, `--dry-run` → `dry_run: true`, `--yes` → `yes: true`. It returns what the script prints, so everything below applies to it. **Otherwise, run the script as written.** The confirmation rules of step 5 are the same: `yes: true` only after the user said yes to that preview.
+Everything below runs through the `assign_issues` tool of the MCP server `hackathon-metrics`, with `skill_read: "6eb483"` in every call. The calls are written as the tool's name, then its `command` when it has one, then its fields as options: `--name-x value` is the field `name_x`, and a flag such as `--dry-run` is `dry_run: true`. The confirmation rules of step 5 apply to it: `yes: true` only after the user said yes to that preview. **If you do not have the tool**, tell the user that the `hackathon-metrics` MCP server is not set up (`apm install`, then approve the server in the agent) and stop. Never reach GitLab or Plane another way.
 
 ## 1. Target, project and question
 
@@ -34,25 +34,23 @@ Take them from the user's words. Never guess them.
 | assign K to X | `assign --issue K --member X` (see step 5) |
 
 - **Project missing:** list the user's projects and ask which one. Wait for the answer and do not pick one, not even when only one exists.
-  ```bash
-  python3 <skill-dir>/scripts/assign.py projects --target <gitlab|plane>
+  ```text
+  assign_issues projects --target <gitlab|plane>
   ```
 - **Issue or developer missing:** ask for it. For a developer, `scores` lists the developers.
 - Issue keys: GitLab `#45`, `45` or the issue URL. Plane `INV-45` or `45`. Developers: GitLab username; Plane display name or email.
 
 ## 2. Credentials
 
-The script reads these variables from the environment or, when one is not set there, from a `.env` file in the project root (the environment wins). A URL in `.env` is only used with the token of that same file; when the script prints `IGNORED`, never pass that file's URL as an option yourself. **If any is missing, the script stops with a `NOT CONFIGURED` message** that lists the missing variables and how to set them on Linux/macOS, Windows PowerShell and cmd, or in `.env`. Show that message to the user as it is, then stop and wait: do not try other values. A URL or workspace the user gives in the chat can be passed as an option instead. Never ask for a token's value in the chat and never print one.
+The tool reads these variables from the environment or, when one is not set there, from a `.env` file in the project root (the environment wins). A URL in `.env` is only used with the token of that same file; when the tool prints `IGNORED`, that file's URL is not used. **If any is missing, the tool stops with a `NOT CONFIGURED` message** that lists the missing variables and how to set them on Linux/macOS, Windows PowerShell and cmd, or in `.env`. Show that message to the user as it is, then stop and wait: do not try other values. A URL or workspace the user gives in the chat cannot be passed to the tool: ask the user to put it in `.env`. Never ask for a token's value in the chat and never print one.
 
 | Target | Input | Source |
 |---|---|---|
-| GitLab | URL | `GITLAB_URL` (or `--gitlab-url`) |
+| GitLab | URL | `GITLAB_URL` |
 | GitLab | Token | `GITLAB_TOKEN`, a personal access token with scope `read_api`, or `api` to assign |
-| Plane | URL | `PLANE_URL` (or `--plane-url`; local stack: `http://localhost:8090`) |
-| Plane | Workspace slug | `PLANE_WORKSPACE` (or `--workspace`; it is in the Plane URL: `/<slug>/projects`) |
+| Plane | URL | `PLANE_URL` (local stack: `http://localhost:8090`) |
+| Plane | Workspace slug | `PLANE_WORKSPACE` (it is in the Plane URL: `/<slug>/projects`) |
 | Plane | API key | `PLANE_API_KEY`, created in Plane under **Workspace settings → API tokens** |
-
-Use `python3` (or `python`). `<skill-dir>` is the directory of this `SKILL.md`.
 
 ## 3. Milestone or cycle
 
@@ -60,8 +58,8 @@ Use `python3` (or `python`). `<skill-dir>` is the directory of this `SKILL.md`.
 
 - If the user named one, pass `--period "<name>"`. If they asked for the whole project, pass `--all`.
 - Otherwise run `periods`. It marks the current one:
-  ```bash
-  python3 <skill-dir>/scripts/assign.py periods --target <t> --project "<p>"
+  ```text
+  assign_issues periods --target <t> --project "<p>"
   ```
   - **Exactly one current:** use it and say which one.
   - **None or several:** show the table and ask which one to use, or whether to use the whole project. Wait for the answer.
@@ -70,8 +68,8 @@ Use `python3` (or `python`). `<skill-dir>` is the directory of this `SKILL.md`.
 
 ## 4. Run
 
-```bash
-python3 <skill-dir>/scripts/assign.py <scores|suggest-member|suggest-issue> --target <t> --project "<p>" \
+```text
+assign_issues <scores|suggest-member|suggest-issue> --target <t> --project "<p>" \
   [--issue K] [--member X] [--period "<name>" | --all] [--roles developer] [--half-life 180] [--timezone -03:00] [--format json]
 ```
 
@@ -83,7 +81,7 @@ python3 <skill-dir>/scripts/assign.py <scores|suggest-member|suggest-issue> --ta
 - **Options:**
   - `suggest-issue --include-assigned` also ranks issues already assigned to others.
   - `--limit N` changes the number of rows (default 10).
-- On an API error the script stops with the response. Report it and stop.
+- On an API error the tool stops with the response. Report it and stop.
 - **Days:** start, end and today are days of the project: Plane uses the project's timezone, GitLab the offset the instance writes in its times (UTC on gitlab.com). Pass `--timezone` (`-03:00` or `America/Sao_Paulo`) only when the user gives one. Relay any note that days are in UTC.
 
 ### How the scores work (explain briefly when you report)
@@ -104,23 +102,23 @@ python3 <skill-dir>/scripts/assign.py <scores|suggest-member|suggest-issue> --ta
 After a recommendation, ask whether to make the assignment. Write only when the user confirms the specific issue and developer.
 
 1. Preview it:
-   ```bash
-   python3 <skill-dir>/scripts/assign.py assign --target <t> --project "<p>" --issue K --member X --dry-run
+   ```text
+   assign_issues assign --target <t> --project "<p>" --issue K --member X --dry-run
    ```
    By default the developer is **added** to the current assignees. Use `--replace` only when the user asks to replace them.
-2. Stop after the preview and wait for the user's answer, even if the request said to assign without asking. Only after the user said yes to that preview, run the same command with `--yes` instead of `--dry-run`, then report the line it prints (`assigned: ... assignees before -> after`). Without `--yes` the script writes nothing and only prints the plan.
+2. Stop after the preview and wait for the user's answer, even if the request said to assign without asking. Only after the user said yes to that preview, run the same command with `--yes` instead of `--dry-run`, then report the line it prints (`assigned: ... assignees before -> after`). Without `--yes` the tool writes nothing and only prints the plan.
 
 GitLab needs a token with the `api` scope for this step. If GitLab answers 403, say so; do not retry with other settings.
 
 ## 6. Report back
 
-Write in the user's language. Translate the script's text, and keep keys, titles, names and links as they are.
+Write in the user's language. Translate the tool's text, and keep keys, titles, names and links as they are.
 
 - **suggest-member:**
   - the issue (areas, type, priority, status, current assignee);
   - the ranking table;
   - the **recommendation**, with its evidence (issues done or open in that area) and a close second when the scores are near;
-  - warnings from the script: the issue is blocked, already assigned, or has no area, or the area is new to the team.
+  - warnings from the tool: the issue is blocked, already assigned, or has no area, or the area is new to the team.
 - **suggest-issue:**
   - the developer's area scores and current load;
   - the ranking table;

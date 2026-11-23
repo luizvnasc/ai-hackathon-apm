@@ -13,17 +13,19 @@ import unittest
 import urllib.error
 import urllib.request
 
+from tests.unit._load import tool_command
+
 ROOT = pathlib.Path(__file__).resolve().parents[3]
 MOCK_DIR = ROOT / "tests" / "evals" / "mock"
 FIXTURES = ROOT / "tests" / "evals" / "fixtures"
-COMMITMENT = ROOT / ".apm" / "skills" / "commitment-delivered" / "scripts" / "commitment.py"
-ASSIGN = ROOT / ".apm" / "skills" / "assign-issues" / "scripts" / "assign.py"
-POPULATE = ROOT / ".apm" / "skills" / "populate-project" / "scripts" / "populate.py"
+COMMITMENT = ROOT / "mcp" / "hackathon_metrics" / "commitment.py"
+ASSIGN = ROOT / "mcp" / "hackathon_metrics" / "assign.py"
+POPULATE = ROOT / "mcp" / "hackathon_metrics" / "populate.py"
 POPULATE_LABELS = ROOT / ".apm" / "skills" / "populate-project" / "labels.default.json"
-BLOCKED = ROOT / ".apm" / "skills" / "blocked-issues" / "scripts" / "blocked.py"
-STALE = ROOT / ".apm" / "skills" / "stale-issues" / "scripts" / "stale.py"
-VELOCITY = ROOT / ".apm" / "skills" / "team-velocity" / "scripts" / "velocity.py"
-QUALITY = ROOT / ".apm" / "skills" / "delivery-quality" / "scripts" / "quality.py"
+BLOCKED = ROOT / "mcp" / "hackathon_metrics" / "blocked.py"
+STALE = ROOT / "mcp" / "hackathon_metrics" / "stale.py"
+VELOCITY = ROOT / "mcp" / "hackathon_metrics" / "velocity.py"
+QUALITY = ROOT / "mcp" / "hackathon_metrics" / "quality.py"
 
 NO_PACING = ("--rate", "6000")  # the mock has no rate limit: waiting for Plane's 60 requests/minute only slows the tests
 
@@ -134,7 +136,7 @@ class EstimatesBugTest(unittest.TestCase):
                     PLANE_URL="http://plane.mock", PLANE_WORKSPACE="eval", PLANE_API_KEY="plane-eval-fake")
         full.update(env or {})
         with tempfile.TemporaryDirectory() as cwd:
-            return subprocess.run([sys.executable, str(script), *args, *NO_PACING], env=full, cwd=cwd,
+            return subprocess.run([*tool_command(script), *args, *NO_PACING], env=full, cwd=cwd,
                                   capture_output=True, text=True, timeout=120)
 
     def test_stale_issues_still_has_the_points(self):
@@ -232,7 +234,7 @@ class VelocityEndToEndTest(unittest.TestCase):
                    GITLAB_URL="http://gitlab.mock", GITLAB_TOKEN="glpat-eval-fake",
                    PLANE_URL="http://plane.mock", PLANE_WORKSPACE="eval", PLANE_API_KEY="plane-eval-fake")
         with tempfile.TemporaryDirectory() as cwd:  # no .env
-            return subprocess.run([sys.executable, str(VELOCITY), *args, *NO_PACING], env=env, cwd=cwd,
+            return subprocess.run([*tool_command(VELOCITY), *args, *NO_PACING], env=env, cwd=cwd,
                                   capture_output=True, text=True, timeout=120)
 
     def check_report(self, res):
@@ -295,7 +297,7 @@ class CommitmentEndToEndTest(unittest.TestCase):
                    GITLAB_URL="http://gitlab.mock", GITLAB_TOKEN="glpat-eval-fake",
                    PLANE_URL="http://plane.mock", PLANE_WORKSPACE="eval", PLANE_API_KEY="plane-eval-fake")
         with tempfile.TemporaryDirectory() as cwd:  # no .env
-            return subprocess.run([sys.executable, str(COMMITMENT), *args, "--format", "json"], env=env, cwd=cwd,
+            return subprocess.run([*tool_command(COMMITMENT), *args, "--format", "json"], env=env, cwd=cwd,
                                   capture_output=True, text=True, timeout=120)
 
     def check_report(self, res):
@@ -362,7 +364,7 @@ class QualityEndToEndTest(unittest.TestCase):
                    GITLAB_URL="http://gitlab.mock", GITLAB_TOKEN="glpat-eval-fake",
                    PLANE_URL="http://plane.mock", PLANE_WORKSPACE="eval", PLANE_API_KEY="plane-eval-fake")
         with tempfile.TemporaryDirectory() as cwd:  # no .env
-            return subprocess.run([sys.executable, str(QUALITY), *args, *NO_PACING, "--format", "json"], env=env,
+            return subprocess.run([*tool_command(QUALITY), *args, *NO_PACING, "--format", "json"], env=env,
                                   cwd=cwd, capture_output=True, text=True, timeout=120)
 
     def check_report(self, res):
@@ -423,7 +425,7 @@ class StaleEndToEndTest(unittest.TestCase):
         project = "INV" if target == "plane" else "group/inv"
         extra = ["--rate", "6000"] if target == "plane" else []
         with tempfile.TemporaryDirectory() as cwd:  # no .env
-            out = subprocess.run([sys.executable, str(STALE), *args[:1], "--target", target, "--project", project,
+            out = subprocess.run([*tool_command(STALE), *args[:1], "--target", target, "--project", project,
                                   *args[1:], *extra, "--format", "json"], env=env, cwd=cwd,
                                  capture_output=True, text=True, timeout=120)
         self.assertEqual(out.returncode, 0, out.stderr)
@@ -511,7 +513,7 @@ class BlockedEndToEndTest(unittest.TestCase):
         project = "INV" if target == "plane" else "group/inv"
         extra = ["--rate", "6000"] if target == "plane" else []
         with tempfile.TemporaryDirectory() as cwd:
-            out = subprocess.run([sys.executable, str(BLOCKED), args[0], "--target", target, "--project", project,
+            out = subprocess.run([*tool_command(BLOCKED), args[0], "--target", target, "--project", project,
                                   *args[1:], *extra, "--format", "json"], env=env, cwd=cwd,
                                  capture_output=True, text=True, timeout=120)
         self.assertEqual(out.returncode, 0, out.stderr)
@@ -567,7 +569,7 @@ class AssignEndToEndTest(unittest.TestCase):
         project = "INV" if target == "plane" else "group/inv"
         extra = ["--rate", "6000"] if target == "plane" else []
         with tempfile.TemporaryDirectory() as cwd:
-            out = subprocess.run([sys.executable, str(ASSIGN), args[0], "--target", target, "--project", project,
+            out = subprocess.run([*tool_command(ASSIGN), args[0], "--target", target, "--project", project,
                                   *args[1:], *extra, "--format", fmt], env=env, cwd=cwd,
                                  capture_output=True, text=True, timeout=120)
         return out
@@ -629,7 +631,7 @@ class PopulateEndToEndTest(unittest.TestCase):
                    PLANE_URL="http://plane.mock", PLANE_WORKSPACE="eval", PLANE_API_KEY="plane-eval-fake")
         extra = ["--rate", "6000"] if target == "plane" else []
         with tempfile.TemporaryDirectory() as cwd:
-            return subprocess.run([sys.executable, str(POPULATE), "--target", target, "--project", project,
+            return subprocess.run([*tool_command(POPULATE), "--target", target, "--project", project,
                                    "--labels", str(POPULATE_LABELS), *args, *extra], env=env, cwd=cwd,
                                   capture_output=True, text=True, timeout=120)
 

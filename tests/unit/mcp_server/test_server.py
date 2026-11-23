@@ -95,10 +95,11 @@ class ArgumentsTest(unittest.TestCase):
         for name, tool in server.TOOLS.items():
             self.assertIn(f"Load the {tool['skill']} skill first", server.tool_schema(name)["description"])
 
-    def test_each_tool_runs_its_own_skills_script(self):
+    def test_each_tool_runs_its_own_module(self):
         for name, tool in server.TOOLS.items():
-            path = server.PACKAGE / ".apm" / "skills" / tool["skill"] / "scripts" / tool["script"]
+            path = server.HERE / "hackathon_metrics" / f"{tool['module']}.py"
             self.assertTrue(path.is_file(), path)
+            self.assertIs(server.load_module(name).main, server.load_module(name).main)
 
     def test_repeated_and_dashed_options(self):
         argv = server.cli_argv("commitment_delivered", {"command": "report", "target": "plane", "period": ["S1", "S 2"],

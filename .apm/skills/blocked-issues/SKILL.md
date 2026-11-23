@@ -8,12 +8,12 @@ description: Report on the blocked issues of a GitLab or Plane project, for one 
 Find the blocked issues of a project and explain, for each one, why it is blocked and what unblocks it.
 
 - **Read-only.** Never change anything in GitLab or Plane: no comments, no labels, no links, no state changes. Suggest changes in the report instead. This holds even when the user asks you to close, move, relabel or fix issues: do not write your own scripts or API calls (curl, Python, an MCP tool) to do it. Say this skill only reports, and list what the user can change by hand.
-- **Data and diagnosis come from the bundled script** `scripts/blocked.py`, so every agent gets the same result. Never invent issues, causes or dates.
-- The script talks to GitLab (REST/GraphQL API) or Plane (REST API) directly.
+- **Data and diagnosis come from the `blocked_issues` tool**, so every agent gets the same result. Never invent issues, causes or dates.
+- The tool talks to GitLab (REST/GraphQL API) or Plane (REST API) directly.
 
-## Tool or script
+## The tool
 
-**Use the `blocked_issues` tool when you have it** (MCP server `hackathon-metrics`) for every command below, with `skill_read: "cd2ab2"` in every call. Its fields are the script's options without the dashes: `command` (`projects`, `periods` or `report`), `--all` → `all: true`, `--deep` → `deep: true`, `--stale-days` → `stale_days`. It returns what the script prints, so everything below applies to it. **Otherwise, run the script as written.**
+Everything below runs through the `blocked_issues` tool of the MCP server `hackathon-metrics`, with `skill_read: "cd2ab2"` in every call. The calls are written as the tool's name, then its `command` when it has one, then its fields as options: `--name-x value` is the field `name_x`, and a flag such as `--dry-run` is `dry_run: true`. **If you do not have the tool**, tell the user that the `hackathon-metrics` MCP server is not set up (`apm install`, then approve the server in the agent) and stop. Never reach GitLab or Plane another way.
 
 ## 1. Target and project
 
@@ -27,8 +27,8 @@ Take both from the user's words. Never guess them.
 
 - Project: GitLab takes `group/project`. Plane takes the project identifier (for example `INV`) or its name.
 - **If the user names no project, list the projects they are a member of** (after the credentials of step 2 are in place) and ask which one to check:
-  ```bash
-  python3 <skill-dir>/scripts/blocked.py projects --target <gitlab|plane>
+  ```text
+  blocked_issues projects --target <gitlab|plane>
   ```
   - GitLab lists the non-archived projects the token's user belongs to, directly or through a group, most recently active first, with their open issue count.
   - Plane lists the projects of the workspace the API key's user is a member of.
@@ -37,17 +37,15 @@ Take both from the user's words. Never guess them.
 
 ## 2. Credentials
 
-The script reads these variables from the environment or, when one is not set there, from a `.env` file in the project root (the environment wins). A URL in `.env` is only used with the token of that same file; when the script prints `IGNORED`, never pass that file's URL as an option yourself. **If any is missing, the script stops with a `NOT CONFIGURED` message** that lists the missing variables and how to set them on Linux/macOS, Windows PowerShell and cmd, or in `.env`. Show that message to the user as it is, then stop and wait: do not try other values, and do not add how long the report would take or what `--deep` costs (nothing ran). A URL or workspace the user gives in the chat can be passed as an option instead. Never ask for a token's value in the chat and never print one.
+The tool reads these variables from the environment or, when one is not set there, from a `.env` file in the project root (the environment wins). A URL in `.env` is only used with the token of that same file; when the tool prints `IGNORED`, that file's URL is not used. **If any is missing, the tool stops with a `NOT CONFIGURED` message** that lists the missing variables and how to set them on Linux/macOS, Windows PowerShell and cmd, or in `.env`. Show that message to the user as it is, then stop and wait: do not try other values, and do not add how long the report would take or what `--deep` costs (nothing ran). A URL or workspace the user gives in the chat cannot be passed to the tool: ask the user to put it in `.env`. Never ask for a token's value in the chat and never print one.
 
 | Target | Input | Source |
 |---|---|---|
-| GitLab | URL | `GITLAB_URL` (or `--gitlab-url`) |
+| GitLab | URL | `GITLAB_URL` |
 | GitLab | Token | `GITLAB_TOKEN`, a personal access token with scope `read_api` |
-| Plane | URL | `PLANE_URL` (or `--plane-url`; local stack: `http://localhost:8090`) |
-| Plane | Workspace slug | `PLANE_WORKSPACE` (or `--workspace`; it is in the Plane URL: `/<slug>/projects`) |
+| Plane | URL | `PLANE_URL` (local stack: `http://localhost:8090`) |
+| Plane | Workspace slug | `PLANE_WORKSPACE` (it is in the Plane URL: `/<slug>/projects`) |
 | Plane | API key | `PLANE_API_KEY`, created in Plane under **Workspace settings → API tokens** |
-
-Use `python3` (or `python` if `python3` is missing). `<skill-dir>` below is the directory of this `SKILL.md`.
 
 ## 3. Scope: milestone, cycle or whole project
 
@@ -55,8 +53,8 @@ If the user named a milestone (GitLab) or cycle (Plane), use it. If the user sai
 
 Otherwise, list the open ones and let the user choose:
 
-```bash
-python3 <skill-dir>/scripts/blocked.py periods --target <gitlab|plane> --project "<project>"
+```text
+blocked_issues periods --target <gitlab|plane> --project "<project>"
 ```
 
 - GitLab lists the active milestones, including group milestones. Plane lists the cycles that are not completed or archived and whose end date has not passed, so current and upcoming cycles appear.
@@ -66,8 +64,8 @@ python3 <skill-dir>/scripts/blocked.py periods --target <gitlab|plane> --project
 
 ## 4. Run the report
 
-```bash
-python3 <skill-dir>/scripts/blocked.py report --target <gitlab|plane> --project "<project>" \
+```text
+blocked_issues report --target <gitlab|plane> --project "<project>" \
   (--period "<milestone title | cycle name>" | --all) [--stale-days 30] [--today YYYY-MM-DD] [--timezone -03:00] [--deep]
 ```
 
@@ -78,9 +76,9 @@ python3 <skill-dir>/scripts/blocked.py report --target <gitlab|plane> --project 
 - Add `--format json` when you need the raw fields.
 - **Days:** start, end and today are days of the project: Plane uses the project's timezone, GitLab the offset the instance writes in its times (UTC on gitlab.com). Pass `--timezone` (`-03:00` or `America/Sao_Paulo`) only when the user gives one. Relay any note that days are in UTC.
 - Plane paces itself to the rate limit: expect about 3–4 seconds per blocked issue.
-- On an API error the script stops with the response. Report it and stop. Do not try other project names.
+- On an API error the tool stops with the response. Report it and stop. Do not try other project names.
 
-## 5. What the script reads for each blocked issue
+## 5. What the tool reads for each blocked issue
 
 | Source | GitLab | Plane | Used for |
 |---|---|---|---|
@@ -94,12 +92,12 @@ Causes, in order of priority: `dependency` (open blocker), `dependency resolved`
 
 ## 6. Report back
 
-Write the report in the user's language. Translate the script's text, and keep issue keys, titles, links and quoted comments as they are.
+Write the report in the user's language. Translate the tool's text, and keep issue keys, titles, links and quoted comments as they are.
 
 1. **Header:** tool, project, scope (milestone, cycle or whole project), date, and the stale rule used.
 2. **Overview:** number of blocked issues, the split by cause, and how many stale issues were left out.
-3. **The summary table** from the script.
-4. **One section per blocked issue**, as the script prints it: status, assignee, priority, blocked since, parent, children, linked issues, comments about the block, mentions, diagnosis and next steps.
+3. **The summary table** from the tool.
+4. **One section per blocked issue**, as the tool prints it: status, assignee, priority, blocked since, parent, children, linked issues, comments about the block, mentions, diagnosis and next steps.
 5. **3–5 observations across the issues**, for example:
    - blockers that block several issues;
    - chains, where a blocker is blocked too;

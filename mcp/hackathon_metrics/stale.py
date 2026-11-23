@@ -1,12 +1,11 @@
-#!/usr/bin/env python3
 """Stale issues of a GitLab milestone or Plane cycle (or of the whole project).
 
 Stdlib only (Python 3.8+), so it runs the same under Claude Code, GitHub Copilot
 and OpenCode. Read-only: nothing is written to GitLab or Plane.
 
-    python3 stale.py projects --target gitlab|plane
-    python3 stale.py periods  --target ... --project P [--stale-days 14]
-    python3 stale.py report   --target ... --project P (--period NAME | --all)
+    stale projects --target gitlab|plane
+    stale periods  --target ... --project P [--stale-days 14]
+    stale report   --target ... --project P (--period NAME | --all)
                               [--stale-days 14] [--today YYYY-MM-DD] [--format md|json]
 
 Credentials: GitLab uses GITLAB_URL and GITLAB_TOKEN (read_api). Plane uses
@@ -31,17 +30,14 @@ import sys
 import urllib.error
 import urllib.request
 
-# APM installs each skill by itself: hackathon_shared/ is generated from the package's shared/.
-sys.dont_write_bytecode = True  # never write into an installed skill
-sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))  # python3 -I leaves it out
-from hackathon_shared.config import load_dotenv, require_config  # noqa: E402
-from hackathon_shared.dates import age_reference, parse_dt, start_of_day, to_date  # noqa: E402
-from hackathon_shared.days import timezone_arg  # noqa: E402
-from hackathon_shared.gitlab import GitLabClient  # noqa: E402
-from hackathon_shared.labels import BLOCKED_VALUES, STALE_VALUES, label_points, label_value, scoped  # noqa: E402
-from hackathon_shared.net import ApiError  # noqa: E402
-from hackathon_shared.plane import PlaneClient, full_label_names  # noqa: E402
-from hackathon_shared.report import md_table  # noqa: E402
+from .config import load_dotenv, require_config
+from .dates import age_reference, parse_dt, start_of_day, to_date
+from .days import timezone_arg
+from .gitlab import GitLabClient
+from .labels import BLOCKED_VALUES, STALE_VALUES, label_points, label_value, scoped
+from .net import ApiError
+from .plane import PlaneClient, full_label_names
+from .report import md_table
 
 UA = "stale-issues-skill/1.0"
 STARTED_VALUES = {"in-progress", "in progress", "doing", "wip", "review", "in review", "in-review", "code review",
@@ -365,7 +361,3 @@ def main(argv=None):
     res.update(project=src.name, kind=src.kind, period=period, today=today.isoformat(), timezone=str(src.tz),
                stale_days=a.stale_days)
     print(json.dumps(res, indent=2, default=str) if a.format == "json" else render(res))
-
-
-if __name__ == "__main__":
-    main()

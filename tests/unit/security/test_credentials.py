@@ -1,10 +1,10 @@
-"""No script may send a credential to a server the user did not configure.
+"""No tool may send a credential to a server the user did not configure.
 
-Black box: every script runs as a real process against real HTTP servers on 127.0.0.1, with no mock.
+Black box: every tool module runs as a real process against real HTTP servers on 127.0.0.1, with no mock.
 `trusted` is the server the user configured, `other` is one that must never see a token.
 
-Each rule runs on one script (REFERENCE), because the copies of shared/ are identical (checked in
-tests/unit/shared_modules). WiringTest then checks that every script really uses them.
+Each rule runs on one module (REFERENCE), because the guards are in the modules they all share.
+WiringTest then checks that every tool module really uses them.
 """
 import ast
 import http.server
@@ -17,16 +17,17 @@ import tempfile
 import threading
 import unittest
 
-SKILLS = pathlib.Path(__file__).resolve().parents[3] / ".apm" / "skills"
-SCRIPTS = sorted(SKILLS.glob("*/scripts/*.py"))
-REFERENCE = SKILLS / "team-velocity" / "scripts" / "velocity.py"
+ROOT = pathlib.Path(__file__).resolve().parents[3]
+SKILLS = ROOT / ".apm" / "skills"
+MCP = ROOT / "mcp"
+PACKAGE = MCP / "hackathon_metrics"
+SCRIPTS = sorted(path for path in PACKAGE.glob("*.py") if "\ndef main(" in path.read_text())  # one per tool
+REFERENCE = PACKAGE / "velocity.py"
+IMPORT = f"import importlib, sys\nsys.path.insert(0, {str(MCP)!r})\nm = importlib.import_module('hackathon_metrics.' + sys.argv[1])\n"
+RUN = IMPORT + "m.main(sys.argv[2:])\n"  # a tool module with its command line, as mcp/server.py runs it
 TOKENS = {"gitlab": ("GITLAB_URL", "GITLAB_TOKEN", "glpat-secret-123"),
           "plane": ("PLANE_URL", "PLANE_API_KEY", "plane-secret-456")}
-CALL_HTTP = """
-import importlib.util, json, sys
-spec = importlib.util.spec_from_file_location("skill", sys.argv[1])
-m = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(m)
+CALL_HTTP = IMPORT + """
 try:
     m.http(sys.argv[2], sys.argv[3], {"PRIVATE-TOKEN": "glpat-secret-123", "X-API-Key": "plane-secret-456"},
            {"q": 1} if sys.argv[2] != "GET" else None)
@@ -94,13 +95,13 @@ class Case(unittest.TestCase):
                                   capture_output=True, text=True, timeout=60)
 
     def cli(self, script, target, *extra, **kw):
-        """The first command of each skill that makes a request."""
+        """The first command of each tool that makes a request."""
         if script.stem == "populate":
             args = ["--target", target, "--project", "demo", "--dry-run",
-                    "--labels", str(script.parent.parent / "labels.default.json")]
+                    "--labels", str(SKILLS / "populate-project" / "labels.default.json")]
         else:
             args = ["projects", "--target", target]
-        return self.execute([str(script), *args, *extra], **kw)
+        return self.execute(["-c", RUN, script.stem, *args, *extra], **kw)
 
     def env(self, target, url=True):
         url_key, token_key, token = TOKENS[target]
@@ -120,7 +121,7 @@ def for_each(*targets, scripts=(REFERENCE,)):
             self.assertTrue(scripts)
             for script in scripts:
                 for target in targets:
-                    with self.subTest(skill=script.parent.parent.name, target=target):
+                    with self.subTest(tool=script.stem, target=target):
                         self.reset()
                         body(self, script, target)
         test.__name__ = body.__name__
@@ -206,7 +207,7 @@ class RedirectTest(Case):
         for method, status in (("GET", 301), ("GET", 303), ("GET", 307), ("POST", 301), ("POST", 302)):
             self.reset()
             self.trusted.redirects = {"/start": (status, self.other.url + "/steal")}
-            out = self.execute(["-c", CALL_HTTP, str(script), method, self.trusted.url + "/start"])
+            out = self.execute(["-c", CALL_HTTP, script.stem, method, self.trusted.url + "/start"])
             self.assertEqual(self.other.seen, [], (method, status))
             self.assertIn("redirect", out.stdout)
 
@@ -217,22 +218,20 @@ class RedirectTest(Case):
                           {"/start": (302, "/hop"), "/hop": (302, self.other.url + "/steal")}):
             self.reset()
             self.trusted.redirects = redirects
-            self.execute(["-c", CALL_HTTP, str(script), "GET", self.trusted.url + "/start"])
+            self.execute(["-c", CALL_HTTP, script.stem, "GET", self.trusted.url + "/start"])
             self.assertEqual(self.other.seen, [])
 
     @for_each("any")
     def test_same_origin_redirect_is_followed_with_the_token(self, script, target):
         self.trusted.redirects = {"/start": (302, "/moved")}
-        self.execute(["-c", CALL_HTTP, str(script), "GET", self.trusted.url + "/start"])
+        self.execute(["-c", CALL_HTTP, script.stem, "GET", self.trusted.url + "/start"])
         self.assertEqual([path for _, path, _ in self.trusted.seen], ["/start", "/moved"])
         self.assertIn("glpat-secret-123", self.trusted.seen[1][2])
 
     @for_each("any")
     def test_origins(self, script, target):
-        code = ("import importlib.util, sys\n"
-                "s = importlib.util.spec_from_file_location('skill', sys.argv[1])\n"
-                "m = importlib.util.module_from_spec(s); s.loader.exec_module(m)\n"
-                "guard = sys.modules['hackathon_shared.net']\n"
+        code = (IMPORT +
+                "guard = sys.modules['hackathon_metrics.net']\n"
                 "print([guard.safe_redirect(a, b) for a, b in zip(sys.argv[2::2], sys.argv[3::2])])\n")
         pairs = [("http://h/a", "https://h/a", True),          # plain upgrade to TLS
                  ("https://h/a", "https://H:443/b", True),
@@ -244,7 +243,7 @@ class RedirectTest(Case):
                  ("https://h/a", "https://h:bad/a", False),
                  ("https://h/a", "ftp://h/a", False)]
         urls = [u for a, b, _ in pairs for u in (a, b)]
-        out = self.execute(["-c", code, str(script), *urls])
+        out = self.execute(["-c", code, script.stem, *urls])
         self.assertEqual(out.stdout.strip(), str([ok for _, _, ok in pairs]), out.stderr)
 
 
@@ -266,7 +265,7 @@ class WorkspaceTest(Case):
 
 
 class WiringTest(Case):
-    """Every script, not only REFERENCE: a skill that stops using a shared guard fails here."""
+    """Every tool module, not only REFERENCE: a tool that stops using a shared guard fails here."""
 
     @for_each("gitlab", "plane", scripts=SCRIPTS)
     def test_reads_the_dotenv_and_escapes_the_workspace(self, script, target):
@@ -297,16 +296,17 @@ class WiringTest(Case):
 
 
 class GuardsTest(unittest.TestCase):
-    """The guards live in shared/ (tests/unit/shared_modules checks the copies): every script must use them."""
+    """The guards live in the shared modules: every tool module must use them."""
 
-    def test_every_script_imports_the_guards(self):
+    def test_every_tool_imports_the_guards(self):
+        self.assertEqual(len(SCRIPTS), 8)
         for script in SCRIPTS:
-            imports = [n for n in ast.parse(script.read_text()).body if isinstance(n, ast.ImportFrom)]
+            imports = [n for n in ast.parse(script.read_text()).body if isinstance(n, ast.ImportFrom) and n.level == 1]
             names = {(n.module, a.name) for n in imports for a in n.names}
-            self.assertIn(("hackathon_shared.config", "load_dotenv"), names, script.name)
+            self.assertIn(("config", "load_dotenv"), names, script.name)
             # importing net installs the redirect guard, and PlaneClient escapes the workspace
-            self.assertIn("hackathon_shared.net", {n.module for n in imports}, script.name)
-            self.assertIn(("hackathon_shared.plane", "PlaneClient"), names, script.name)
+            self.assertIn("net", {n.module for n in imports}, script.name)
+            self.assertIn(("plane", "PlaneClient"), names, script.name)
 
 
 if __name__ == "__main__":

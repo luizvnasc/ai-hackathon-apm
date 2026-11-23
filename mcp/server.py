@@ -1,26 +1,28 @@
 #!/usr/bin/env python3
-"""The skills' scripts as tools of a stdio MCP server (stdlib only, Python 3.8+).
+"""The skills' tools: a stdio MCP server (stdlib only, Python 3.8+).
 
 Started by the agent from the project folder, as declared in apm.yml:
     python3 apm_modules/luizvnasc/ai-hackathon-apm/mcp/server.py
 
-It imports shared/ from the package itself, so nothing has to be copied into the skills. Credentials are not
-in any config file: the agent starts the server with its own environment (checked for Claude Code and
-OpenCode), and shared/config.py reads GITLAB_*/PLANE_* from there or from the project's .env.
+All the code is in hackathon_metrics/ next to this file, one module per tool plus the modules they share;
+the skills hold only their instructions. Credentials are not in any config file: the agent starts the server
+with its own environment (checked for Claude Code and OpenCode), and hackathon_metrics/config.py reads
+GITLAB_*/PLANE_* from there or from the project's .env.
 
 URLs, the workspace and the request rate are never tool arguments: a tool call comes from the model, and a
 prompt injection could otherwise send a token to another server.
 """
 import contextlib
-import importlib.util
+import importlib
 import io
 import json
 import pathlib
 import sys
-import types
 
-sys.dont_write_bytecode = True
-PACKAGE = pathlib.Path(__file__).resolve().parents[1]
+sys.dont_write_bytecode = True  # never write into the installed package
+HERE = pathlib.Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))  # python3 -I leaves it out
+PACKAGE = HERE.parent
 PROTOCOL_VERSION = "2025-06-18"
 SERVER = {"name": "hackathon-metrics", "version": "0.1.0"}
 
@@ -60,45 +62,45 @@ ONE_PERIOD = {"type": "string", "description": "milestone title (GitLab) or cycl
 WHOLE_PROJECT = {"type": "boolean", "description": "the whole project instead of one milestone/cycle"}
 STALE_DAYS = {"type": "number", "minimum": 0}
 
-# "commands" are the script's first argument; None for a script without one. "key" is written only in the
+# "commands" are the first argument of the module's command line; None for a module without one. "key" is written only in the
 # skill's SKILL.md: a call must pass it as skill_read, so the agent reads the skill before using the tool.
 TOOLS = {
     "team_velocity": {
-        "skill": "team-velocity", "key": "dacb2b", "script": "velocity.py", "commands": REPORT_COMMANDS,
+        "skill": "team-velocity", "key": "dacb2b", "module": "velocity", "commands": REPORT_COMMANDS,
         "summary": "Team velocity of a GitLab or Plane project, from its finished milestones or cycles.",
         "options": {"last": LAST, "unit": UNIT, "by": {"type": "string", "enum": ["period", "week"]},
                     "weeks": {"type": "integer", "minimum": 1}},
     },
     "commitment_delivered": {
-        "skill": "commitment-delivered", "key": "0139f6", "script": "commitment.py", "commands": REPORT_COMMANDS,
+        "skill": "commitment-delivered", "key": "0139f6", "module": "commitment", "commands": REPORT_COMMANDS,
         "summary": "Commitment x delivered (say/do) per milestone or cycle of a GitLab or Plane project.",
         "options": {"last": LAST, "unit": UNIT, "period": PERIODS, "grace_days": GRACE_DAYS},
     },
     "scope_stability": {
-        "skill": "scope-stability", "key": "be7a6d", "script": "stability.py", "commands": REPORT_COMMANDS,
+        "skill": "scope-stability", "key": "be7a6d", "module": "stability", "commands": REPORT_COMMANDS,
         "summary": "Scope stability: how much a GitLab milestone or Plane cycle changed while it ran.",
         "options": {"last": LAST, "unit": UNIT, "period": PERIODS, "grace_days": GRACE_DAYS},
     },
     "delivery_quality": {
-        "skill": "delivery-quality", "key": "e38097", "script": "quality.py", "commands": REPORT_COMMANDS,
+        "skill": "delivery-quality", "key": "e38097", "module": "quality", "commands": REPORT_COMMANDS,
         "summary": "Delivery quality: how many delivered issues of a milestone or cycle went back to to fix.",
         "options": {"last": LAST, "period": PERIODS,
                     "fix_names": {"type": "string", "description": "the team's names for the to fix step, comma "
                                   "separated; replaces the default, only when the user names it"}},
     },
     "stale_issues": {
-        "skill": "stale-issues", "key": "618fef", "script": "stale.py", "commands": REPORT_COMMANDS,
+        "skill": "stale-issues", "key": "618fef", "module": "stale", "commands": REPORT_COMMANDS,
         "summary": "Stale issues of a GitLab milestone, Plane cycle or whole project.",
         "options": {"period": ONE_PERIOD, "all": WHOLE_PROJECT, "stale_days": STALE_DAYS},
     },
     "blocked_issues": {
-        "skill": "blocked-issues", "key": "cd2ab2", "script": "blocked.py", "commands": REPORT_COMMANDS,
+        "skill": "blocked-issues", "key": "cd2ab2", "module": "blocked", "commands": REPORT_COMMANDS,
         "summary": "Blocked issues of a GitLab milestone, Plane cycle or whole project, with cause and next step.",
         "options": {"period": ONE_PERIOD, "all": WHOLE_PROJECT, "stale_days": STALE_DAYS,
                     "deep": {"type": "boolean", "description": "also read every open issue's relations (slow in Plane)"}},
     },
     "assign_issues": {
-        "skill": "assign-issues", "key": "6eb483", "script": "assign.py",
+        "skill": "assign-issues", "key": "6eb483", "module": "assign",
         "commands": ["projects", "periods", "scores", "suggest-member", "suggest-issue", "assign"],
         "summary": ("Area scores of a team and who should take an issue, or which issue fits a developer; assign "
                     "writes only with yes after the user's confirmation."),
@@ -110,7 +112,7 @@ TOOLS = {
                     "yes": {"type": "boolean", "description": "write the change; only after the user confirmed it"}},
     },
     "populate_project": {
-        "skill": "populate-project", "key": "9a261d", "script": "populate.py", "commands": None,
+        "skill": "populate-project", "key": "9a261d", "module": "populate", "commands": None,
         "summary": ("Populate a GitLab or Plane project with a label set and a Kanban board. It writes unless "
                     "dry_run is true."),
         "options": {"labels": {"type": "string", "description": "path of the approved label set (JSON); default: "
@@ -141,22 +143,9 @@ def tool_schema(name):
                             "additionalProperties": False}}
 
 
-LOADED = {}  # tool name -> its script, imported on the first call
-
-
-def load_script(name):
-    """The tool's script, with hackathon_shared pointing at the package's shared/ instead of the generated copy."""
-    if name not in LOADED:
-        shared = types.ModuleType("hackathon_shared")
-        shared.__path__ = [str(PACKAGE / "shared")]
-        sys.modules["hackathon_shared"] = shared
-        tool = TOOLS[name]
-        path = PACKAGE / ".apm" / "skills" / tool["skill"] / "scripts" / tool["script"]
-        spec = importlib.util.spec_from_file_location(f"skill_{name}", path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        LOADED[name] = module
-    return LOADED[name]
+def load_module(name):
+    """The tool's module in hackathon_metrics/."""
+    return importlib.import_module(f"hackathon_metrics.{TOOLS[name]['module']}")
 
 
 def cli_argv(name, arguments):
@@ -192,7 +181,7 @@ def default_labels():
 
 
 def run_script(script, argv):
-    """(text, failed) of one run, with what the script printed."""
+    """(text, failed) of one run of a module's main(), with what it printed."""
     stdout, stderr = io.StringIO(), io.StringIO()
     failed = False
     with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
@@ -206,7 +195,7 @@ def run_script(script, argv):
     return "\n".join(parts), failed
 
 
-def answer(message, load=load_script):
+def answer(message, load=load_module):
     """The reply to one JSON-RPC request, or None for a notification."""
     if "id" not in message:
         return None

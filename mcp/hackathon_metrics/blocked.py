@@ -1,20 +1,19 @@
-#!/usr/bin/env python3
 """Report on the blocked issues of a GitLab or Plane project.
 
 Stdlib only (Python 3.8+), so it runs the same under Claude Code, GitHub Copilot
 and OpenCode. Read-only: nothing is written to GitLab or Plane.
 
     # the projects you are a member of (when the user names no project)
-    python3 blocked.py projects --target gitlab
-    python3 blocked.py projects --target plane
+    blocked projects --target gitlab
+    blocked projects --target plane
 
     # open milestones (GitLab) or open cycles (Plane), with blocked counts
-    python3 blocked.py periods --target gitlab --project acme/inventory-manager
-    python3 blocked.py periods --target plane  --project INV
+    blocked periods --target gitlab --project acme/inventory-manager
+    blocked periods --target plane  --project INV
 
     # the report, for one milestone/cycle or for the whole project
-    python3 blocked.py report --target gitlab --project acme/inventory-manager --period "v0.3 - Purchase Orders"
-    python3 blocked.py report --target plane  --project INV --all [--deep]
+    blocked report --target gitlab --project acme/inventory-manager --period "v0.3 - Purchase Orders"
+    blocked report --target plane  --project INV --all [--deep]
         [--today YYYY-MM-DD] [--stale-days 30] [--format md|json]
 
 Credentials: GitLab uses GITLAB_URL and GITLAB_TOKEN (read_api scope). Plane
@@ -42,16 +41,13 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-# APM installs each skill by itself: hackathon_shared/ is generated from the package's shared/.
-sys.dont_write_bytecode = True  # never write into an installed skill
-sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))  # python3 -I leaves it out
-from hackathon_shared.config import load_dotenv, require_config  # noqa: E402
-from hackathon_shared.dates import age_reference, day_of, parse_dt, to_date  # noqa: E402
-from hackathon_shared.days import timezone_arg  # noqa: E402
-from hackathon_shared.gitlab import GitLabClient  # noqa: E402
-from hackathon_shared.labels import BLOCKED_VALUES, STALE_VALUES, label_value  # noqa: E402
-from hackathon_shared.net import ApiError  # noqa: E402
-from hackathon_shared.plane import PlaneClient  # noqa: E402
+from .config import load_dotenv, require_config
+from .dates import age_reference, day_of, parse_dt, to_date
+from .days import timezone_arg
+from .gitlab import GitLabClient
+from .labels import BLOCKED_VALUES, STALE_VALUES, label_value
+from .net import ApiError
+from .plane import PlaneClient
 
 UA = "blocked-issues-skill/1.0"
 BLOCK_WORDS = re.compile(
@@ -822,7 +818,3 @@ def main(argv=None):
            "scope": a.period or "whole project", "today": today.isoformat(), "timezone": str(src.tz), "stale_days": a.stale_days,
            "issues": issues, "stale_excluded": stale}
     print(json.dumps(res, indent=2, default=str) if a.format == "json" else render_md(res))
-
-
-if __name__ == "__main__":
-    main()

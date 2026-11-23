@@ -59,8 +59,8 @@ def credential(environ):
              "--selftest needs no credential.")
 
 
-# What the agent needs: the skills, the MCP server with the shared code it imports, and the evals
-PAYLOAD_FOLDERS = (".apm/skills", "shared", "mcp", "tests/evals")
+# What the agent needs: the skills, the MCP server with all the code, and the evals
+PAYLOAD_FOLDERS = (".apm/skills", "mcp", "tests/evals")
 
 
 def allowed_file(rel):

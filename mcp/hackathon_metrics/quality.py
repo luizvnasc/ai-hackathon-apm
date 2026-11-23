@@ -1,12 +1,11 @@
-#!/usr/bin/env python3
 """Delivery quality: how much of what a GitLab milestone or Plane cycle delivered had to go back to "to fix".
 
 Stdlib only (Python 3.8+), so it runs the same under Claude Code, GitHub Copilot
 and OpenCode. Read-only: nothing is written to GitLab or Plane.
 
-    python3 quality.py projects --target gitlab|plane
-    python3 quality.py periods  --target ... --project P
-    python3 quality.py report   --target ... --project P [--last 6] [--period NAME ...]
+    quality projects --target gitlab|plane
+    quality periods  --target ... --project P
+    quality report   --target ... --project P [--last 6] [--period NAME ...]
                                 [--fix-names "to fix"] [--timezone TZ] [--today YYYY-MM-DD] [--format md|json]
 
 Credentials: GitLab uses GITLAB_URL and GITLAB_TOKEN (read_api). Plane uses
@@ -39,18 +38,15 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-# APM installs each skill by itself: hackathon_shared/ is generated from the package's shared/.
-sys.dont_write_bytecode = True  # never write into an installed skill
-sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))  # python3 -I leaves it out
-from hackathon_shared.config import load_dotenv, require_config  # noqa: E402
-from hackathon_shared.dates import day_of, parse_dt, start_of_day  # noqa: E402
-from hackathon_shared.days import timezone_arg  # noqa: E402
-from hackathon_shared.gitlab import GitLabClient  # noqa: E402
-from hackathon_shared.labels import has_cancelled_label  # noqa: E402
-from hackathon_shared.net import ApiError  # noqa: E402
-from hackathon_shared.plane import MAX_ATTEMPTS, PlaneClient, retry_delay  # noqa: E402
-from hackathon_shared.report import md_table  # noqa: E402
-from hackathon_shared.stats import slope  # noqa: E402
+from .config import load_dotenv, require_config
+from .dates import day_of, parse_dt, start_of_day
+from .days import timezone_arg
+from .gitlab import GitLabClient
+from .labels import has_cancelled_label
+from .net import ApiError
+from .plane import MAX_ATTEMPTS, PlaneClient, retry_delay
+from .report import md_table
+from .stats import slope
 
 UA = "delivery-quality-skill/1.0"
 GOOD, ATTENTION = 0.9, 0.75
@@ -545,7 +541,3 @@ def main(argv=None):
     except ApiError as error:
         sys.exit(f"API error: {error}")
     show(a, result, render)
-
-
-if __name__ == "__main__":
-    main()

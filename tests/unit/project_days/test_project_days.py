@@ -24,9 +24,9 @@ LOADED = {}  # loading a script costs far more than running it
 
 
 def load_once(skill):
-    """The script's module and its own copy of hackathon_shared.days."""
+    """The tool's module and the shared days module it uses."""
     if skill not in LOADED:
-        LOADED[skill] = load(skill, SKILLS[skill]), sys.modules["hackathon_shared.days"]
+        LOADED[skill] = load(skill, SKILLS[skill]), sys.modules["hackathon_metrics.days"]
     return LOADED[skill]
 
 

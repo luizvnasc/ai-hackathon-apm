@@ -1,13 +1,12 @@
-#!/usr/bin/env python3
 """Populate a GitLab or Plane project with a standard label set and a Kanban board.
 
 Stdlib only (Python 3.8+), so it runs the same under Claude Code, GitHub Copilot
 and OpenCode.
 
-    GITLAB_TOKEN=... python3 populate.py --target gitlab --project acme/shop \
+    populate --target gitlab --project acme/shop \
         --labels labels.json [--gitlab-url http://localhost:8929] [--board-name Kanban] [--dry-run]
 
-    PLANE_API_KEY=... python3 populate.py --target plane --project "Shop" \
+    populate --target plane --project "Shop" \
         --labels labels.json [--plane-url http://localhost:8090] [--workspace my-team] \
         [--create-project] [--identifier SHOP] [--priority-labels] [--dry-run]
 
@@ -46,13 +45,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-# APM installs each skill by itself: hackathon_shared/ is generated from the package's shared/.
-sys.dont_write_bytecode = True  # never write into an installed skill
-sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))  # python3 -I leaves it out
-from hackathon_shared.config import load_dotenv, require_config  # noqa: E402
-from hackathon_shared.gitlab import GitLabClient  # noqa: E402
-from hackathon_shared.net import ApiError  # noqa: E402
-from hackathon_shared.plane import PlaneClient  # noqa: E402
+from .config import load_dotenv, require_config
+from .gitlab import GitLabClient
+from .net import ApiError
+from .plane import PlaneClient
 
 UA = "populate-project-skill"
 ERROR_CHARS = 500  # of an API answer shown to the user
@@ -433,7 +429,3 @@ def main(argv=None):
     if args.report:
         with open(args.report, "w", encoding="utf-8") as f:
             json.dump(summary, f, indent=2)
-
-
-if __name__ == "__main__":
-    main()

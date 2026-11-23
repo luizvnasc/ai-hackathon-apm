@@ -10,10 +10,11 @@ import tempfile
 import unittest
 from unittest import mock
 
+from tests.unit._load import tool_command
 from tests.unit.scope_stability.helpers import issue, period, ss
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
-SCRIPT = ROOT / ".apm/skills/scope-stability/scripts/stability.py"
+SCRIPT = ROOT / "mcp" / "hackathon_metrics" / "stability.py"
 EVALS = ROOT / "tests/evals"
 ENV = {"GITLAB_URL": "https://gl.example.com", "GITLAB_TOKEN": "glpat-secret-123"}
 
@@ -105,7 +106,7 @@ class EndToEndTest(unittest.TestCase):
                    GITLAB_URL="http://gitlab.mock", GITLAB_TOKEN="glpat-eval-fake",
                    PLANE_URL="http://plane.mock", PLANE_WORKSPACE="eval", PLANE_API_KEY="plane-eval-fake")
         with tempfile.TemporaryDirectory() as cwd:
-            out = subprocess.run([sys.executable, str(SCRIPT), "report", *args, "--format", "json"], env=env, cwd=cwd,
+            out = subprocess.run([*tool_command(SCRIPT), "report", *args, "--format", "json"], env=env, cwd=cwd,
                                  capture_output=True, text=True, timeout=120)
         self.assertEqual(out.returncode, 0, out.stderr)
         self.assertNotIn("[eval-mock]", out.stderr)

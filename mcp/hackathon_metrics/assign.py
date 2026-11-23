@@ -1,15 +1,14 @@
-#!/usr/bin/env python3
 """Area-based assignment helper for GitLab and Plane.
 
 Stdlib only (Python 3.8+), so it runs the same under Claude Code, GitHub Copilot
 and OpenCode. Every command is read-only except `assign`.
 
-    python3 assign.py projects        --target gitlab|plane
-    python3 assign.py periods         --target ... --project P          # open milestones/cycles, current one marked
-    python3 assign.py scores          --target ... --project P          # area score of every developer
-    python3 assign.py suggest-member  --target ... --project P --issue KEY
-    python3 assign.py suggest-issue   --target ... --project P --member NAME [--period NAME]
-    python3 assign.py assign          --target ... --project P --issue KEY --member NAME [--replace] [--yes]
+    assign projects        --target gitlab|plane
+    assign periods         --target ... --project P          # open milestones/cycles, current one marked
+    assign scores          --target ... --project P          # area score of every developer
+    assign suggest-member  --target ... --project P --issue KEY
+    assign suggest-issue   --target ... --project P --member NAME [--period NAME]
+    assign assign          --target ... --project P --issue KEY --member NAME [--replace] [--yes]
         (assign writes only with --yes, after the user confirmed; without it, or with --dry-run, it prints the plan)
         common options: [--roles developer] [--half-life 180] [--today YYYY-MM-DD] [--format md|json]
                         [--no-comments] (Plane: skip reading comments, much faster)
@@ -57,17 +56,14 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-# APM installs each skill by itself: hackathon_shared/ is generated from the package's shared/.
-sys.dont_write_bytecode = True  # never write into an installed skill
-sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))  # python3 -I leaves it out
-from hackathon_shared.config import load_dotenv, require_config  # noqa: E402
-from hackathon_shared.dates import age_reference, parse_dt  # noqa: E402
-from hackathon_shared.days import timezone_arg  # noqa: E402
-from hackathon_shared.gitlab import GitLabClient  # noqa: E402
-from hackathon_shared.labels import has_cancelled_label, scoped  # noqa: E402
-from hackathon_shared.net import ApiError  # noqa: E402
-from hackathon_shared.plane import PlaneClient  # noqa: E402
-from hackathon_shared.report import md_table  # noqa: E402
+from .config import load_dotenv, require_config
+from .dates import age_reference, parse_dt
+from .days import timezone_arg
+from .gitlab import GitLabClient
+from .labels import has_cancelled_label, scoped
+from .net import ApiError
+from .plane import PlaneClient
+from .report import md_table
 
 UA = "assign-issues-skill/1.0"
 ROLE_LEVELS = {
@@ -678,7 +674,3 @@ def main(argv=None):
                          "notes": notes}, render_suggest_issue)
     except ApiError as e:
         sys.exit(f"API error: {e}")
-
-
-if __name__ == "__main__":
-    main()

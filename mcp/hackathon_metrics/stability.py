@@ -1,12 +1,11 @@
-#!/usr/bin/env python3
 """Scope stability: how much a GitLab milestone or Plane cycle changed while it was running.
 
 Stdlib only (Python 3.8+), so it runs the same under Claude Code, GitHub Copilot
 and OpenCode. Read-only: nothing is written to GitLab or Plane.
 
-    python3 stability.py projects --target gitlab|plane
-    python3 stability.py periods  --target ... --project P
-    python3 stability.py report   --target ... --project P [--last 6] [--period NAME ...]
+    stability projects --target gitlab|plane
+    stability periods  --target ... --project P
+    stability report   --target ... --project P [--last 6] [--period NAME ...]
                                   [--unit auto|points|count] [--grace-days 0] [--timezone TZ]
                                   [--today YYYY-MM-DD] [--format md|json]
 
@@ -41,18 +40,15 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-# APM installs each skill by itself: hackathon_shared/ is generated from the package's shared/.
-sys.dont_write_bytecode = True  # never write into an installed skill
-sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))  # python3 -I leaves it out
-from hackathon_shared.config import load_dotenv, require_config  # noqa: E402
-from hackathon_shared.dates import UTC, day_of, parse_dt  # noqa: E402
-from hackathon_shared.days import timezone_arg  # noqa: E402
-from hackathon_shared.gitlab import GitLabClient  # noqa: E402
-from hackathon_shared.labels import has_cancelled_label, label_points, number  # noqa: E402
-from hackathon_shared.net import ApiError  # noqa: E402
-from hackathon_shared.plane import PlaneClient, estimate  # noqa: E402
-from hackathon_shared.report import md_table  # noqa: E402
-from hackathon_shared.stats import slope  # noqa: E402
+from .config import load_dotenv, require_config
+from .dates import UTC, day_of, parse_dt
+from .days import timezone_arg
+from .gitlab import GitLabClient
+from .labels import has_cancelled_label, label_points, number
+from .net import ApiError
+from .plane import PlaneClient, estimate
+from .report import md_table
+from .stats import slope
 
 UA = "scope-stability-skill/1.0"
 STABLE, MODERATE = 0.9, 0.75
@@ -641,7 +637,3 @@ def main(argv=None):
     if src.tz_note:
         res["notes"].append(src.tz_note)
     print(json.dumps(res, indent=2, default=str) if a.format == "json" else render(res))
-
-
-if __name__ == "__main__":
-    main()

@@ -1,6 +1,7 @@
-"""shared/ is the only source of the common code: the generated copies match it and each skill runs by itself."""
+"""mcp/hackathon_metrics/ holds all the code: one module per tool, plus the modules they share."""
 import ast
 import importlib.util
+import json
 import os
 import pathlib
 import shutil
@@ -10,10 +11,22 @@ import tempfile
 import unittest
 
 ROOT = pathlib.Path(__file__).resolve().parents[3]
-SCRIPTS = sorted((ROOT / ".apm" / "skills").glob("*/scripts/*.py"))
-# Names of shared/ that a script still defines in its own way, because it behaves differently.
+PACKAGE = ROOT / "mcp" / "hackathon_metrics"
+TOOLS = sorted(path for path in PACKAGE.glob("*.py") if "\ndef main(" in path.read_text())
+SHARED = sorted(path for path in PACKAGE.glob("*.py") if path not in TOOLS and path.name != "__init__.py")
+# Names of a shared module that a tool module still defines in its own way, because it behaves differently.
 # Remove the entry together with the variant.
 VARIANTS = {"assign": {"estimate"}, "stale": {"estimate"}}
+spec = importlib.util.spec_from_file_location("mcp_server", ROOT / "mcp" / "server.py")
+server = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(server)
+
+
+def call(number, name):
+    arguments = {"skill_read": server.TOOLS[name]["key"], "target": "gitlab", "project": "g/app"}
+    if server.TOOLS[name]["commands"]:
+        arguments["command"] = "projects"
+    return {"jsonrpc": "2.0", "id": number, "method": "tools/call", "params": {"name": name, "arguments": arguments}}
 
 
 def defined_names(path):
@@ -27,127 +40,61 @@ def defined_names(path):
     return names
 
 
-def load_tool():
-    spec = importlib.util.spec_from_file_location("sync_shared", ROOT / "tools" / "sync_shared.py")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
 class RepositoryTest(unittest.TestCase):
-    def test_generated_copies_match_the_source(self):
-        self.assertEqual(load_tool().sync(ROOT, write=False), [],
-                         "edit shared/*.py, then run: python3 tools/sync_shared.py")
+    def test_eight_tools_and_their_shared_modules(self):
+        self.assertEqual([path.stem for path in TOOLS], ["assign", "blocked", "commitment", "populate", "quality",
+                                                         "stability", "stale", "velocity"])
+        self.assertTrue(SHARED)
 
-    def test_scripts_do_not_redefine_shared_code(self):
+    def test_tools_do_not_redefine_shared_code(self):
         shared = set()
-        for module in (ROOT / "shared").glob("*.py"):
+        for module in SHARED:
             shared |= defined_names(module)
-        self.assertTrue(shared)
-        for script in SCRIPTS:
-            self.assertEqual(defined_names(script) & shared, VARIANTS.get(script.stem, set()), script.name)
+        for tool in TOOLS:
+            self.assertEqual(defined_names(tool) & shared, VARIANTS.get(tool.stem, set()), tool.name)
+
+    def test_no_code_left_in_the_skills(self):
+        code = [str(path) for path in (ROOT / ".apm" / "skills").rglob("*.py")]
+        self.assertEqual(code, [])
+        self.assertFalse((ROOT / "shared").exists())
 
 
-class SyncTest(unittest.TestCase):
-    def setUp(self):
-        tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(tmp.cleanup)
-        self.root = pathlib.Path(tmp.name)
-        (self.root / "shared").mkdir()
-        for name in ("one", "two"):
-            (self.root / "shared" / f"{name}.py").write_text(f"{name.upper()} = 1\n")
-        self.script = self.root / ".apm/skills/demo/scripts/demo.py"
-        self.script.parent.mkdir(parents=True)
-        self.script.write_text("from hackathon_shared.one import ONE\n")
-        self.copy = self.script.parent / "hackathon_shared"
-        self.tool = load_tool()
-        self.tool.sync(self.root, write=True)
+class InstalledServerTest(unittest.TestCase):
+    """What a consumer has: the package as apm installs it, started by the agent."""
 
-    def check(self):
-        return self.tool.sync(self.root, write=False)
-
-    def test_each_skill_gets_only_what_it_imports(self):
-        self.assertEqual(sorted(p.name for p in self.copy.iterdir()), ["__init__.py", "one.py"])
-        self.assertEqual(self.check(), [])
-
-    def test_the_modules_a_module_imports_come_along(self):
-        (self.root / "shared/one.py").write_text("from .two import TWO\n")
-        self.tool.sync(self.root, write=True)
-        self.assertEqual(sorted(p.name for p in self.copy.iterdir()), ["__init__.py", "one.py", "two.py"])
-
-    def test_a_missing_dependency_fails(self):
-        (self.root / "shared/one.py").write_text("from .nope import X\n")
-        with self.assertRaises(SystemExit):
-            self.check()
-
-    def test_an_edited_copy_is_detected_and_regenerated(self):
-        path = self.copy / "one.py"
-        path.write_text(path.read_text() + "EDITED = 1\n")
-        self.assertEqual(len(self.check()), 1)
-        self.tool.sync(self.root, write=True)
-        self.assertNotIn("EDITED", path.read_text())
-
-    def test_a_changed_source_is_detected(self):
-        (self.root / "shared/one.py").write_text("ONE = 2\n")
-        self.assertEqual(len(self.check()), 1)
-
-    def test_a_missing_copy_is_detected(self):
-        (self.copy / "one.py").unlink()
-        self.assertEqual(len(self.check()), 1)
-
-    def test_a_module_no_longer_imported_is_removed(self):
-        self.script.write_text("from hackathon_shared.two import TWO\n")
-        self.tool.sync(self.root, write=True)
-        self.assertEqual(sorted(p.name for p in self.copy.iterdir()), ["__init__.py", "two.py"])
-
-    def test_a_hand_written_file_is_reported_and_never_deleted(self):
-        (self.copy / "mine.py").write_text("MINE = 1\n")
-        self.assertEqual(len(self.tool.sync(self.root, write=True)), 1)
-        self.assertTrue((self.copy / "mine.py").exists())
-
-    def test_crlf_checkouts_are_not_drift(self):
-        path = self.copy / "one.py"
-        path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
-        self.assertEqual(self.check(), [])
-
-    def test_an_unknown_module_fails(self):
-        self.script.write_text("from hackathon_shared.nope import X\n")
-        with self.assertRaises(SystemExit):
-            self.check()
-
-
-class StandaloneTest(unittest.TestCase):
-    """What a consumer has: one skill folder and nothing else (apm install --skill)."""
-
-    def run_alone(self, script, *flags, env=None):
+    def start(self, *flags, env=None):
+        """Every tool called once, without credentials: each module is loaded and stops at NOT CONFIGURED."""
         with tempfile.TemporaryDirectory() as tmp:
-            skill = pathlib.Path(tmp, "skill")
-            shutil.copytree(str(script.parent.parent), str(skill), ignore=shutil.ignore_patterns("__pycache__"))
+            mcp = pathlib.Path(tmp, "mcp")
+            shutil.copytree(str(ROOT / "mcp"), str(mcp), ignore=shutil.ignore_patterns("__pycache__"))
             base = {"PATH": os.environ.get("PATH", "")}
             if os.environ.get("SYSTEMROOT"):
                 base["SYSTEMROOT"] = os.environ["SYSTEMROOT"]
-            out = subprocess.run([sys.executable, *flags, str(skill / "scripts" / script.name), "--help"], cwd=tmp,
+            lines = "".join(json.dumps(call(number, name)) + "\n" for number, name in enumerate(server.TOOLS, 1))
+            out = subprocess.run([sys.executable, *flags, str(mcp / "server.py")], input=lines, cwd=tmp,
                                  env={**base, **(env or {})}, capture_output=True, text=True, timeout=60)
-            return out, sorted(str(p) for p in skill.rglob("*.pyc"))
+            replies = [json.loads(line) for line in out.stdout.splitlines()]
+            return out, replies, sorted(str(p) for p in mcp.rglob("*.pyc"))
 
-    def test_runs_alone_and_in_isolated_mode_without_writing_bytecode(self):
-        for script in SCRIPTS:
-            for flags in ((), ("-I",)):
-                with self.subTest(skill=script.stem, flags=flags):
-                    out, bytecode = self.run_alone(script, *flags)
-                    self.assertEqual(out.returncode, 0, out.stderr)
-                    self.assertIn("usage:", out.stdout)
-                    self.assertEqual(bytecode, [])
+    def test_loads_every_tool_in_isolated_mode_without_writing_bytecode(self):
+        for flags in ((), ("-I",)):
+            with self.subTest(flags=flags):
+                out, replies, bytecode = self.start(*flags)
+                self.assertEqual(out.returncode, 0, out.stderr)
+                texts = [reply["result"]["content"][0]["text"] for reply in replies]
+                self.assertEqual(len(texts), len(server.TOOLS))
+                for text in texts:
+                    self.assertIn("NOT CONFIGURED", text)
+                self.assertEqual(bytecode, [])
 
     def test_a_package_of_the_same_name_on_pythonpath_is_not_used(self):
         with tempfile.TemporaryDirectory() as other:
-            fake = pathlib.Path(other, "hackathon_shared")
+            fake = pathlib.Path(other, "hackathon_metrics")
             fake.mkdir()
             (fake / "__init__.py").write_text("raise SystemExit('hijacked')\n")
-            for script in SCRIPTS:
-                with self.subTest(skill=script.stem):
-                    out, _ = self.run_alone(script, env={"PYTHONPATH": other})
-                    self.assertEqual(out.returncode, 0, out.stderr)
+            out, replies, _ = self.start(env={"PYTHONPATH": other})
+            self.assertEqual(out.returncode, 0, out.stderr)
+            self.assertIn("NOT CONFIGURED", replies[0]["result"]["content"][0]["text"])
 
 
 if __name__ == "__main__":

@@ -1,33 +1,27 @@
 import importlib
-import importlib.util
 import pathlib
 import sys
-import types
 
 ROOT = pathlib.Path(__file__).resolve().parents[2]
 SKILLS = ROOT / ".apm" / "skills"
-SHARED_SOURCE = "shared_source"
+MCP = ROOT / "mcp"
+PACKAGE = MCP / "hackathon_metrics"
+if str(MCP) not in sys.path:
+    sys.path.insert(0, str(MCP))
 
 
 def load(skill, script):
-    """Import apm/.apm/skills/<skill>/scripts/<script> as a module, with its own copy of hackathon_shared."""
-    for name in [m for m in sys.modules if m.split(".")[0] == "hackathon_shared"]:
-        del sys.modules[name]  # else every skill would get the package of the first one loaded
-    path = SKILLS / skill / "scripts" / script
-    return _import(f"{skill.replace('-', '_')}__{path.stem}", path)
+    """The module of a skill's tool, mcp/hackathon_metrics/<script> (the skill name only says which one)."""
+    return importlib.import_module(f"hackathon_metrics.{pathlib.Path(script).stem}")
 
 
 def load_shared(module):
-    """Import apm/shared/<module>.py, the source of the copies in the skills."""
-    if SHARED_SOURCE not in sys.modules:
-        package = types.ModuleType(SHARED_SOURCE)  # a package, so `from .net import ...` works between the modules
-        package.__path__ = [str(ROOT / "shared")]
-        sys.modules[SHARED_SOURCE] = package
-    return importlib.import_module(f"{SHARED_SOURCE}.{module}")
+    """A module shared by the tools, mcp/hackathon_metrics/<module>.py."""
+    return importlib.import_module(f"hackathon_metrics.{module}")
 
 
-def _import(name, path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
+def tool_command(module_path):
+    """The command line that runs a tool module in its own process, as mcp/server.py runs it: its main(argv)."""
+    code = (f"import importlib, sys\nsys.path.insert(0, {str(MCP)!r})\n"
+            "importlib.import_module('hackathon_metrics.' + sys.argv[1]).main(sys.argv[2:])\n")
+    return [sys.executable, "-c", code, pathlib.Path(module_path).stem]
