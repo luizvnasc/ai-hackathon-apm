@@ -1,5 +1,0 @@
-{"results": [
-  {"id": "p-1", "identifier": "DEMO", "name": "Demo", "is_member": true, "archived_at": null},
-  {"id": "p-2", "identifier": "OLD", "name": "Old", "is_member": true, "archived_at": "2025-01-01T00:00:00Z"},
-  {"id": "p-3", "identifier": "OTH", "name": "Other", "is_member": false, "archived_at": null}
-], "next_page_results": false, "next_cursor": null}

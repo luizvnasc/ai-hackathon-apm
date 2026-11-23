@@ -1,6 +1,0 @@
-{"results": [
-  {"id": "c-1", "name": "Cycle 1", "start_date": "2026-01-05T00:00:00Z", "end_date": "2026-01-18T23:59:59Z", "status": "COMPLETED", "archived_at": null},
-  {"id": "c-2", "name": "Cycle 2", "start_date": "2026-01-19", "end_date": "2026-02-01", "status": "current", "archived_at": null},
-  {"id": "c-3", "name": "Draft", "start_date": null, "end_date": null, "status": "draft", "archived_at": null},
-  {"id": "c-4", "name": "Archived", "start_date": "2025-12-01", "end_date": "2025-12-14", "status": "completed", "archived_at": "2026-01-01T00:00:00Z"}
-], "next_page_results": false, "next_cursor": null}

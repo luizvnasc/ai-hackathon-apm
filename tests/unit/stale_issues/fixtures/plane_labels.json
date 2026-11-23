@@ -1,7 +1,0 @@
-{"results": [
-  {"id": "l-area", "name": "area", "parent": null},
-  {"id": "l-fe", "name": "frontend", "parent": "l-area"},
-  {"id": "l-status", "name": "status", "parent": null},
-  {"id": "l-onhold", "name": "on hold", "parent": "l-status"},
-  {"id": "l-stale", "name": "Stale", "parent": null}
-], "next_page_results": false, "next_cursor": null}

@@ -59,12 +59,11 @@ How the numbers were measured:
     skills/                      # instructions only: a SKILL.md each (populate-project also has labels.default.json)
       populate-project/  blocked-issues/  assign-issues/  team-velocity/
       commitment-delivered/  scope-stability/  delivery-quality/  stale-issues/
-  tests/
-    unit/                        # stdlib unittest for the server and its modules (no network)
-    evals/                       # promptfoo evals: skill routing and behaviour (run in a sandbox, see tests/README.md)
 ```
 
-See [tests/README.md](tests/README.md) for how to run them.
+The tests are not part of the package, so `apm install` never copies them: they live in the repository that holds
+this package as a submodule, [luizvnasc/ai-hackathon](https://github.com/luizvnasc/ai-hackathon) (`tests/unit` and the
+sandboxed promptfoo evals in `tests/evals`, see its `tests/README.md`).
 
 ### The code
 
@@ -81,7 +80,7 @@ See [tests/README.md](tests/README.md) for how to run them.
 | `report` | Markdown tables |
 | `stats` | trend |
 
-A tool module imports the shared ones with `from .<module> import <name>`. Its `GitLab` and `Plane` classes extend the shared clients and provide `send()`, which calls the module's own `http()`. The few functions a tool module still defines differently are listed in `VARIANTS` in `tests/unit/shared_modules`: a new duplicate fails there.
+A tool module imports the shared ones with `from .<module> import <name>`. Its `GitLab` and `Plane` classes extend the shared clients and provide `send()`, which calls the module's own `http()`. The few functions a tool module still defines differently are listed in `VARIANTS` in `tests/unit/shared_modules` of luizvnasc/ai-hackathon: a new duplicate fails there.
 
 ## Install in your project
 
