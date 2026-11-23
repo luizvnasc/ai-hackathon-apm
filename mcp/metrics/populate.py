@@ -177,9 +177,10 @@ def populate_gitlab(args, labels, plan):
         sys.exit("GITLAB_TOKEN is not set (GitLab: User settings -> Access tokens, scope 'api')")
     if not args.gitlab_url:
         sys.exit("--gitlab-url (or GITLAB_URL) is required")
-    gl = GitLab(args.gitlab_url, token)
-    ref = args.project if args.project.isdigit() else urllib.parse.quote(args.project, safe="")
+    gl = GitLab(args.gitlab_url, token, args.project.strip("/"))
     try:
+        gl.use_full_path()
+        ref = gl.project if gl.project.isdigit() else urllib.parse.quote(gl.project, safe="")
         proj = gl.rest(f"/projects/{ref}")
     except ApiError as e:
         if e.status in (401, 403):

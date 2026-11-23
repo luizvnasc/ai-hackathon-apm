@@ -41,7 +41,7 @@ import urllib.request
 from .config import load_dotenv, require_config
 from .dates import day_of, parse_dt, start_of_day
 from .days import timezone_arg
-from .gitlab import GitLabClient
+from .gitlab import GitLabClient, with_full_path
 from .labels import has_cancelled_label
 from .net import ApiError
 from .plane import MAX_ATTEMPTS, PlaneClient, retry_delay
@@ -495,7 +495,7 @@ def parse_args(argv):
 
 def connect(a):
     if a.target == "gitlab":
-        return GitLab(a.gitlab_url, os.environ["GITLAB_TOKEN"], (a.project or "").strip("/") or None)
+        return with_full_path(GitLab(a.gitlab_url, os.environ["GITLAB_TOKEN"], (a.project or "").strip("/") or None))
     return Plane(a.plane_url, a.workspace, os.environ["PLANE_API_KEY"], a.project, a.rate)
 
 

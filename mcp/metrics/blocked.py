@@ -44,7 +44,7 @@ import urllib.request
 from .config import load_dotenv, require_config
 from .dates import age_reference, day_of, parse_dt, to_date
 from .days import timezone_arg
-from .gitlab import GitLabClient
+from .gitlab import GitLabClient, with_full_path
 from .labels import BLOCKED_VALUES, STALE_VALUES, label_value
 from .net import ApiError
 from .plane import PlaneClient
@@ -784,7 +784,7 @@ def main(argv=None):
         if a.command != "projects" and not a.project:
             sys.exit(f"{a.command} needs --project (run `projects` to list yours)")
         if a.target == "gitlab":
-            src = GitLab(a.gitlab_url, os.environ.get("GITLAB_TOKEN"), (a.project or "").strip("/") or None)
+            src = with_full_path(GitLab(a.gitlab_url, os.environ.get("GITLAB_TOKEN"), (a.project or "").strip("/") or None))
         else:
             src = Plane(a.plane_url, a.workspace, os.environ.get("PLANE_API_KEY"), a.project, a.rate)
 

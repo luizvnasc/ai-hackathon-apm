@@ -43,7 +43,7 @@ import urllib.request
 from .config import load_dotenv, require_config
 from .dates import UTC, day_of, parse_dt
 from .days import timezone_arg
-from .gitlab import GitLabClient
+from .gitlab import GitLabClient, with_full_path
 from .labels import has_cancelled_label, label_points, number
 from .net import ApiError
 from .plane import PlaneClient, estimate
@@ -607,7 +607,7 @@ def main(argv=None):
         sys.exit(f"{a.command} needs --project (run `projects` to list yours)")
 
     try:
-        src = (GitLab(a.gitlab_url, os.environ["GITLAB_TOKEN"], (a.project or "").strip("/") or None)
+        src = (with_full_path(GitLab(a.gitlab_url, os.environ["GITLAB_TOKEN"], (a.project or "").strip("/") or None))
                if a.target == "gitlab" else
                Plane(a.plane_url, a.workspace, os.environ["PLANE_API_KEY"], a.project, a.rate))
         src.set_days(a.timezone, a.today)

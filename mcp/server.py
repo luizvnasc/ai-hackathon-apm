@@ -9,8 +9,9 @@ the skills hold only their instructions. Credentials are not in any config file:
 with its own environment (checked for Claude Code and OpenCode), and metrics/config.py reads
 GITLAB_*/PLANE_* from there or from the project's .env.
 
-URLs, the workspace and the request rate are never tool arguments: a tool call comes from the model, and a
-prompt injection could otherwise send a token to another server.
+URLs and the request rate are never tool arguments: a tool call comes from the model, and a prompt injection could
+otherwise send a token to another server. The Plane workspace can be one, because the user may name it in the chat:
+it only picks one path segment on the configured server (net.workspace_segment), and the key decides what it reads.
 """
 import contextlib
 import importlib
@@ -31,6 +32,8 @@ REPORT_RULES = ("How to report this: answer in the user's language. Quote the nu
                 "ones. Relay every note. Per-person figures show how work was spread: never rank or blame people. "
                 "This tool only reads: never change issues yourself and do not offer another way to change them. "
                 "The {skill} skill has the details.")
+ASK_RULES = ("How to report this: ask the user the question above, in their language, and wait for the answer. Then "
+             "call the tool again with it. Never guess the value. The {skill} skill has the details.")
 ERROR_RULES = ("How to report this: show the message as it is and stop. Do not try other values or look for credentials "
                "elsewhere, and never ask for a token's value in the chat. The {skill} skill has the details.")
 
@@ -45,10 +48,13 @@ WRITE_RULES = {
                          "approved it. The populate-project skill has the details."),
 }
 
+ASK_USER = "ASK THE USER:"  # a tool that needs an answer only the user has (the Plane workspace, a GitLab group)
 REPORT_COMMANDS = ["projects", "periods", "report"]
 COMMON = {
     "target": {"type": "string", "enum": ["gitlab", "plane"]},
-    "project": {"type": "string", "description": "GitLab group/project or Plane identifier"},
+    "project": {"type": "string", "description": "GitLab group/project (or just the project) or Plane identifier"},
+    "workspace": {"type": "string", "description": "Plane workspace slug, only one the user named in this "
+                  "conversation; without it PLANE_WORKSPACE is used"},
     "timezone": {"type": "string", "description": "IANA name or +HH:MM, only when the user gives one"},
     "format": {"type": "string", "enum": ["md", "json"]},
 }
@@ -223,7 +229,7 @@ def call_tool(message, params, load):
         text, failed = run_script(load(name), cli_argv(name, arguments))
     except (ValueError, KeyError) as problem:
         text, failed = f"invalid arguments: {problem}", True
-    rules = rules_for(name, failed)
+    rules = rules_for(name, failed, text)
     return result(message, {"content": [{"type": "text", "text": text}, {"type": "text", "text": rules}], "isError": failed})
 
 
@@ -233,7 +239,9 @@ def skill_first(name):
             "this tool again.")
 
 
-def rules_for(name, failed):
+def rules_for(name, failed, text=""):
+    if failed and ASK_USER in text:
+        return ASK_RULES.format(skill=TOOLS[name]["skill"])
     if failed:
         return ERROR_RULES.format(skill=TOOLS[name]["skill"])
     return WRITE_RULES.get(name) or REPORT_RULES.format(skill=TOOLS[name]["skill"])

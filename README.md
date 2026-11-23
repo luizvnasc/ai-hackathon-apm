@@ -128,10 +128,10 @@ The tools call the GitLab and Plane APIs. They read these variables from the env
 | `GITLAB_URL` | GitLab skills | base URL, e.g. `https://gitlab.acme.io` |
 | `GITLAB_TOKEN` | GitLab skills | personal access token (**User settings → Access tokens**). Scope `read_api`; `api` for `populate-project` and for assigning in `assign-issues` |
 | `PLANE_URL` | Plane skills | base URL, e.g. `https://plane.acme.io` |
-| `PLANE_WORKSPACE` | Plane skills | workspace slug, as in the Plane URL `/<slug>/projects` |
+| `PLANE_WORKSPACE` | Plane skills, optional | default workspace slug, as in the Plane URL `/<slug>/projects`. Without it the skill asks for the workspace; one the user names in the chat wins |
 | `PLANE_API_KEY` | Plane skills | API key (**Workspace settings → API tokens**) |
 
-Set only what your team uses (GitLab, Plane or both). Pick one way:
+Set only what your team uses (GitLab, Plane or both). The GitLab group is optional too: a project named without its group is looked up among your projects, and the skill asks which group when the name is in more than one. Pick one way:
 
 - **`.env` file** in the project root. It works the same on Linux, macOS and Windows. Add `.env` to your `.gitignore`. Its `GITLAB_URL` / `PLANE_URL` is only used with the token in that same file: a `.env` that came with a cloned repository cannot choose the server that receives a token from your environment. Keep URL and token together, both in `.env` or both in the environment.
   ```
